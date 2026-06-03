@@ -26,7 +26,7 @@ export default function Home() {
         <div className="header-top">
           <div className="avatar-wrap">
             <div className="avatar">
-              <img src="https://placekitten.com/80/80" alt="avatar" />
+              <img src="/assets/果仁头像-手机.png" alt="avatar" />
             </div>
             <span className="online-dot" />
           </div>
