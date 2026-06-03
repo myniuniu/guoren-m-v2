@@ -70,7 +70,6 @@ export default function Home() {
             <Tabs.Tab key="recent" title={<span className={activeTab === 'recent' ? 'tab-active' : 'tab-normal'}>最近</span>} />
             <Tabs.Tab key="quick" title={<span className={activeTab === 'quick' ? 'tab-active' : 'tab-normal'}>快速访问</span>} />
             <Tabs.Tab key="fav" title={<span className={activeTab === 'fav' ? 'tab-active' : 'tab-normal'}>收藏</span>} />
-            <Tabs.Tab key="local" title={<span className={activeTab === 'local' ? 'tab-active' : 'tab-normal'}>本机</span>} />
           </Tabs>
         </div>
         <div className="filter-btn">
