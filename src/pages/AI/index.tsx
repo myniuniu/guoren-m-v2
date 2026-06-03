@@ -56,6 +56,8 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
   const [showDiscoverPage, setShowDiscoverPage] = useState(false)
   const [showMySkillsPage, setShowMySkillsPage] = useState(false)
   const [mySkillsTab, setMySkillsTab] = useState<'added' | 'created'>('added')
+  const [showCreateSkillSheet, setShowCreateSkillSheet] = useState(false)
+  const [showCreateSkillChat, setShowCreateSkillChat] = useState(false)
   const [libraryTab, setLibraryTab] = useState<'personal' | 'org'>('personal')
   const [selectedLibraryIds, setSelectedLibraryIds] = useState<number[]>([])
   const [selectedOrgSpace, setSelectedOrgSpace] = useState('课堂评价')
@@ -853,7 +855,7 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
             </div>
             <div className="ai-skill-community-title">技能社区</div>
             <div className="ai-skill-community-actions">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round" onClick={() => setShowCreateSkillSheet(true)} style={{ cursor: 'pointer' }}>
                 <line x1="12" y1="5" x2="12" y2="19" />
                 <line x1="5" y1="12" x2="19" y2="12" />
               </svg>
@@ -1111,6 +1113,26 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
               </div>
             </div>
           </div>
+
+          {/* 创建技能底部弹层 */}
+          {showCreateSkillSheet && (
+            <div className="ai-skill-create-sheet-overlay" onClick={() => setShowCreateSkillSheet(false)}>
+              <div className="ai-skill-create-sheet" onClick={(e) => e.stopPropagation()}>
+                <div className="ai-skill-create-sheet-handle" />
+                <div className="ai-skill-create-sheet-icon">
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M14.5 4.5a3 3 0 0 1 4.24 4.24l-1.42 1.42-4.24-4.24z" />
+                    <path d="M13.09 5.91 5.3 13.7a2 2 0 0 0 0 2.83l2.17 2.17a2 2 0 0 0 2.83 0l7.79-7.79" />
+                    <path d="m8.5 11.5 4 4" />
+                  </svg>
+                </div>
+                <div className="ai-skill-create-sheet-title">使用对话创建</div>
+                <div className="ai-skill-create-sheet-desc">通过对话构建个人使用的技能</div>
+                <button className="ai-skill-create-sheet-btn" type="button" onClick={() => { setShowCreateSkillSheet(false); setShowCreateSkillChat(true) }}>去创建</button>
+                <div className="ai-skill-create-sheet-tip">如需上传本地文件，请前往电脑端操作</div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -1470,6 +1492,89 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
                 <button className="ai-my-skill-card-btn" type="button">立即使用</button>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+      {/* 创建技能对话页 */}
+      {showCreateSkillChat && (
+        <div className="ai-create-skill-chat-page">
+          <div className="ai-create-skill-chat-header">
+            <div className="ai-create-skill-chat-menu" onClick={() => setShowDrawer(true)}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round">
+                <line x1="3" y1="6" x2="21" y2="6" />
+                <line x1="3" y1="12" x2="21" y2="12" />
+                <line x1="3" y1="18" x2="21" y2="18" />
+              </svg>
+            </div>
+            <div className="ai-create-skill-chat-actions">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round">
+                <circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /><circle cx="5" cy="12" r="1" />
+              </svg>
+              <div className="ai-create-skill-chat-close" onClick={() => setShowCreateSkillChat(false)}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          <div className="ai-create-skill-chat-content">
+            <div className="ai-create-skill-chat-welcome">
+              <h1>Hi 张洪磊，有什么可以帮你的？</h1>
+              <div className="ai-create-skill-chat-practice">
+                <span>全部最佳实践</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="9 18 15 12 9 6" />
+                </svg>
+              </div>
+            </div>
+
+            <div className="ai-create-skill-chat-cards">
+              <div className="ai-create-skill-chat-card">
+                <div className="ai-create-skill-chat-card-icon" style={{ background: '#FF8C00' }}>🎁</div>
+                <div className="ai-create-skill-chat-card-text">
+                  <span>领取新人免费体验礼包</span>
+                </div>
+              </div>
+              <div className="ai-create-skill-chat-card">
+                <div className="ai-create-skill-chat-card-icon" style={{ background: '#8E8E93' }}>📄</div>
+                <div className="ai-create-skill-chat-text">
+                  <span>解读Harness</span>
+                  <span>Engineering</span>
+                </div>
+              </div>
+              <div className="ai-create-skill-chat-card">
+                <div className="ai-create-skill-chat-card-icon" style={{ background: '#5AC8FA' }}>⭐</div>
+                <div className="ai-create-skill-chat-text">
+                  <span>影视飓风同款</span>
+                  <span>落地行动建…</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="ai-create-skill-chat-bottom">
+            <div className="ai-create-skill-chat-actions">
+              <div className="ai-create-skill-chat-action">创建图片 PPT</div>
+              <div className="ai-create-skill-chat-action">创建网页 PPT</div>
+              <div className="ai-create-skill-chat-action">写云文档</div>
+              <div className="ai-create-skill-chat-action">…</div>
+            </div>
+            <div className="ai-create-skill-chat-input-bar">
+              <div className="ai-create-skill-chat-plus">+</div>
+              <div className="ai-create-skill-chat-input-field">
+                帮我使用 <span className="ai-create-skill-chat-highlight">AI 生成技能</span> 创建一个技能。请先问我这个技能可以做什么。
+              </div>
+              <div className="ai-create-skill-chat-send">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="12" y1="19" x2="12" y2="5" />
+                  <line x1="5" y1="12" x2="12" y2="5" />
+                  <line x1="12" y1="5" x2="19" y2="12" />
+                </svg>
+              </div>
+            </div>
+            <p className="ai-create-skill-chat-disclaimer">使用国内合规模型并严格遵循权限隔离，保障企业数据安全</p>
           </div>
         </div>
       )}
