@@ -646,6 +646,10 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
                       setShowSidebarLibrary(true)
                       setShowDrawer(false)
                     }
+                    if (item.key === 'new') {
+                      setShowSidebarLibrary(false)
+                      setShowDrawer(false)
+                    }
                   }}>
                     <span className="ai-drawer-menu-icon">{renderDrawerIcon(item.key)}</span>
                     <span className="ai-drawer-menu-label">{item.label}</span>

@@ -870,7 +870,7 @@
 .ai-drawer-overlay {
   position: absolute;
   inset: 0;
-  z-index: 20;
+  z-index: 30;
   display: flex;
   background: rgba(0, 0, 0, 0.32);
 }
