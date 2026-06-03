@@ -1054,3 +1054,145 @@
 .ai-drawer-quota-action {
   font-weight: 600;
 }
+
+/* 侧边栏库全屏页 */
+.ai-sidebar-library-page {
+  position: absolute;
+  inset: 0;
+  z-index: 28;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  padding-top: calc(12px + env(safe-area-inset-top));
+}
+
+.ai-sidebar-library-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  min-height: 44px;
+  flex-shrink: 0;
+}
+
+.ai-sidebar-library-menu {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.ai-sidebar-library-tabs {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex: 1;
+  justify-content: center;
+}
+
+.ai-sidebar-library-tab {
+  border: none;
+  background: transparent;
+  padding: 0;
+  font-size: 16px;
+  font-weight: 500;
+  color: #999;
+  cursor: pointer;
+  position: relative;
+}
+
+.ai-sidebar-library-tab.is-active {
+  color: #000;
+  font-weight: 700;
+}
+
+.ai-sidebar-library-tab.is-active::after {
+  content: '';
+  position: absolute;
+  bottom: -4px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 20px;
+  height: 3px;
+  background: #333;
+  border-radius: 2px;
+}
+
+.ai-sidebar-library-search {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.ai-sidebar-library-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 16px calc(16px + env(safe-area-inset-bottom));
+}
+
+.ai-sidebar-library-list::-webkit-scrollbar {
+  display: none;
+}
+
+.ai-sidebar-library-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid #f0f1f3;
+}
+
+.ai-sidebar-library-item-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: #fff;
+}
+
+.ai-sidebar-library-item-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.ai-sidebar-library-item-body {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.ai-sidebar-library-item-name {
+  font-size: 15px;
+  font-weight: 500;
+  color: #222;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ai-sidebar-library-item-source {
+  font-size: 13px;
+  color: #999;
+}
+
+.ai-sidebar-library-item-more {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}

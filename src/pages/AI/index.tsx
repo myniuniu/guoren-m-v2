@@ -51,6 +51,8 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
   const [showSkillsPage, setShowSkillsPage] = useState(false)
   const [showFileMenu, setShowFileMenu] = useState(false)
   const [showLibraryPage, setShowLibraryPage] = useState(false)
+  const [showSidebarLibrary, setShowSidebarLibrary] = useState(false)
+  const [sidebarLibraryTab, setSidebarLibraryTab] = useState<'all' | 'starred'>('all')
   const [libraryTab, setLibraryTab] = useState<'personal' | 'org'>('personal')
   const [selectedLibraryIds, setSelectedLibraryIds] = useState<number[]>([])
   const [selectedOrgSpace, setSelectedOrgSpace] = useState('课堂评价')
@@ -456,6 +458,93 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
     }
   }
 
+  const sidebarLibraryItems = [
+    { id: 1, name: 'rainbow-infographic-demo', source: '飞书 aily', type: 'unknown', starred: false },
+    { id: 2, name: '功能清单', source: '建国', type: 'doc', starred: false },
+    { id: 3, name: '功能清单', source: '建国', type: 'diamond', starred: false },
+    { id: 4, name: 'personal_analysis', source: '飞书 aily', type: 'unknown', starred: false },
+    { id: 5, name: '人生赛道规划.md', source: '飞书 aily', type: 'doc', starred: true },
+    { id: 6, name: '个人分析报告.md', source: '飞书 aily', type: 'doc', starred: true },
+    { id: 7, name: '个人信息图.html', source: '飞书 aily', type: 'html', starred: false },
+    { id: 8, name: '2026年3月29日-4月4日AI行业重点资...', source: '飞书 aily', type: 'doc', starred: false },
+    { id: 9, name: 'images', source: '飞书 aily', type: 'image', starred: false },
+    { id: 10, name: 'feishu_aily_presentation', source: '飞书 aily', type: 'lock', starred: false },
+    { id: 11, name: '水彩绘效率：飞书Aily助力技术研发工作...', source: '飞书 aily', type: 'ppt', starred: false },
+    { id: 12, name: 'AI赋能职教事业部建设方案', source: '建国', type: 'doc', starred: false },
+    { id: 13, name: 'AI赋能职教技术架构.png', source: '飞书 aily', type: 'image', starred: false },
+  ]
+
+  function renderSidebarLibraryFileIcon(type: string) {
+    switch (type) {
+      case 'doc':
+        return (
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M7 3.5h6l4 4v13A1.5 1.5 0 0 1 15.5 22h-8A1.5 1.5 0 0 1 6 20.5V5A1.5 1.5 0 0 1 7.5 3.5z" />
+            <polyline points="13 3.5 13 8 17 8" />
+            <line x1="9" y1="12" x2="15" y2="12" />
+            <line x1="9" y1="15.5" x2="15" y2="15.5" />
+          </svg>
+        )
+      case 'html':
+        return (
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="m9.5 13-2-2 2-2" />
+            <path d="m14.5 9 2 2-2 2" />
+            <line x1="12" y1="15" x2="12" y2="9" />
+          </svg>
+        )
+      case 'ppt':
+        return (
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="4.5" y="6" width="15" height="12" />
+            <path d="M8 18v2" />
+            <path d="M16 18v2" />
+            <path d="M8.5 9.5h4v5H8.5z" />
+          </svg>
+        )
+      case 'image':
+        return (
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="5" width="18" height="14" rx="2" />
+            <circle cx="9" cy="10" r="1.5" />
+            <path d="m21 15-4.5-4.5L9 18" />
+          </svg>
+        )
+      case 'diamond':
+        return (
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 2.5l8.5 8.5-8.5 8.5L3.5 11z" />
+          </svg>
+        )
+      case 'lock':
+        return (
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="5" y="11" width="14" height="10" rx="1.5" />
+            <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+          </svg>
+        )
+      case 'unknown':
+      default:
+        return (
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" />
+          </svg>
+        )
+    }
+  }
+
+  function getSidebarFileIconBg(type: string) {
+    switch (type) {
+      case 'doc': return '#4A7CFF'
+      case 'html': return '#8c8f96'
+      case 'ppt': return '#FF8A34'
+      case 'image': return '#FF8A34'
+      case 'diamond': return '#7B49F1'
+      case 'lock': return '#8c8f96'
+      default: return '#c4c7cc'
+    }
+  }
+
   return (
     <div className="ai-page">
       {/* 背景 */}
@@ -552,7 +641,12 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
 
               <div className="ai-drawer-menu">
                 {menuItems.map((item, index) => (
-                  <div className={`ai-drawer-menu-item ${index === 0 ? 'is-highlighted' : ''}`} key={item.key}>
+                  <div className={`ai-drawer-menu-item ${index === 0 ? 'is-highlighted' : ''}`} key={item.key} onClick={() => {
+                    if (item.key === 'library') {
+                      setShowSidebarLibrary(true)
+                      setShowDrawer(false)
+                    }
+                  }}>
                     <span className="ai-drawer-menu-icon">{renderDrawerIcon(item.key)}</span>
                     <span className="ai-drawer-menu-label">{item.label}</span>
                   </div>
@@ -853,6 +947,68 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
               </div>
             </div>
           )}
+        </div>
+      )}
+      {/* 侧边栏库全屏页 */}
+      {showSidebarLibrary && (
+        <div className="ai-sidebar-library-page">
+          <div className="ai-sidebar-library-header">
+            <div className="ai-sidebar-library-menu" onClick={() => setShowSidebarLibrary(false)}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round">
+                <line x1="3" y1="6" x2="21" y2="6" />
+                <line x1="3" y1="12" x2="21" y2="12" />
+                <line x1="3" y1="18" x2="21" y2="18" />
+              </svg>
+            </div>
+            <div className="ai-sidebar-library-tabs">
+              <button
+                className={`ai-sidebar-library-tab ${sidebarLibraryTab === 'all' ? 'is-active' : ''}`}
+                type="button"
+                onClick={() => setSidebarLibraryTab('all')}
+              >
+                全部产物
+              </button>
+              <button
+                className={`ai-sidebar-library-tab ${sidebarLibraryTab === 'starred' ? 'is-active' : ''}`}
+                type="button"
+                onClick={() => setSidebarLibraryTab('starred')}
+              >
+                收藏夹
+              </button>
+            </div>
+            <div className="ai-sidebar-library-search">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round">
+                <circle cx="11" cy="11" r="7" />
+                <line x1="20" y1="20" x2="16.65" y2="16.65" />
+              </svg>
+            </div>
+          </div>
+
+          <div className="ai-sidebar-library-list">
+            {sidebarLibraryItems
+              .filter((item) => (sidebarLibraryTab === 'starred' ? item.starred : true))
+              .map((item) => (
+                <div className="ai-sidebar-library-item" key={item.id}>
+                  <div
+                    className="ai-sidebar-library-item-icon"
+                    style={{ background: getSidebarFileIconBg(item.type) }}
+                  >
+                    {renderSidebarLibraryFileIcon(item.type)}
+                  </div>
+                  <div className="ai-sidebar-library-item-body">
+                    <div className="ai-sidebar-library-item-name">{item.name}</div>
+                    <div className="ai-sidebar-library-item-source">{item.source}</div>
+                  </div>
+                  <div className="ai-sidebar-library-item-more">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="#999">
+                      <circle cx="12" cy="5" r="1.8" />
+                      <circle cx="12" cy="12" r="1.8" />
+                      <circle cx="12" cy="19" r="1.8" />
+                    </svg>
+                  </div>
+                </div>
+              ))}
+          </div>
         </div>
       )}
     </div>
