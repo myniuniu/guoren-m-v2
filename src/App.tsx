@@ -3,6 +3,7 @@ import Home from './pages/Home'
 import SpacePage from './pages/Space'
 import AIPage from './pages/AI'
 import LibraryPage from './pages/Library'
+import IMPage from './pages/IM'
 import './App.css'
 
 // 底部导航图标
@@ -49,6 +50,16 @@ function MoreIcon({ active }: { active: boolean }) {
       <path d="M7 17h1" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" />
       <path d="M17 16v2" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" />
       <path d="M16 17h2" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+function IMIcon({ active }: { active: boolean }) {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? '#333' : '#999'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+      <line x1="9" y1="10" x2="15" y2="10" />
+      <line x1="12" y1="7" x2="12" y2="13" />
     </svg>
   )
 }
@@ -160,6 +171,7 @@ type TabItem = {
 const defaultMainTabs: TabItem[] = [
   { key: 'home', label: '首页', icon: HomeIcon, source: 'system' },
   { key: 'space', label: '空间', icon: NotesIcon, source: 'system' },
+  { key: 'im', label: 'IM', icon: IMIcon, source: 'system' },
   { key: 'library', label: '资料库', icon: LibraryIcon, source: 'system' },
   { key: 'more', label: '更多', icon: MoreIcon, source: 'system' },
 ]
@@ -209,6 +221,7 @@ function App() {
       <div className="app-content">
         {activeKey === 'home' && <Home />}
         {activeKey === 'space' && <SpacePage />}
+        {activeKey === 'im' && <IMPage />}
         {activeKey === 'library' && <LibraryPage />}
         {activeKey === 'ai' && <PlaceholderPage title="AI" />}
         {activeCustomTab && <PlaceholderPage title={activeCustomTab.label} />}
@@ -220,6 +233,7 @@ function App() {
             <div
               className="tab-slider"
               style={{
+                width: `calc((100% - 8px) / ${mainTabs.length})`,
                 transform: `translateX(${mainTabs.findIndex(t => t.key === activeKey) >= 0 ? mainTabs.findIndex(t => t.key === activeKey) * 100 : 0}%)`,
                 opacity: mainTabs.findIndex(t => t.key === activeKey) >= 0 ? 1 : 0,
               }}
