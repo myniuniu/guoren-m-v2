@@ -1,13 +1,6 @@
 import { useState } from 'react'
 import './index.css'
 
-const quickActions = [
-  { icon: '📷', label: '创建图片 PPT' },
-  { icon: '🌐', label: '创建网页 PPT' },
-  { icon: '📝', label: '写云文档' },
-  { icon: '🎨', label: '图片创作' },
-]
-
 const featureCards = [
   { icon: '🎁', label1: '领取新人免费体验', label2: '礼包', color: '#FF8C00' },
   { icon: '📄', label1: '解读Harness', label2: 'Engineering', color: '#8E8E93' },
@@ -510,16 +503,6 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
               <span className="ai-card-label1">{card.label1}</span>
               <span className="ai-card-label2">{card.label2}</span>
             </div>
-          </div>
-        ))}
-      </div>
-
-      {/* 快捷操作 */}
-      <div className="ai-page-actions">
-        {quickActions.map((action, i) => (
-          <div className="ai-action-btn" key={i}>
-            <span className="ai-action-icon">{action.icon}</span>
-            <span className="ai-action-label">{action.label}</span>
           </div>
         ))}
       </div>
