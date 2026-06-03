@@ -640,8 +640,8 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
               </div>
 
               <div className="ai-drawer-menu">
-                {menuItems.map((item, index) => (
-                  <div className={`ai-drawer-menu-item ${index === 0 ? 'is-highlighted' : ''}`} key={item.key} onClick={() => {
+                {menuItems.map((item) => (
+                  <div className={`ai-drawer-menu-item ${(item.key === 'library' && showSidebarLibrary) || (item.key === 'new' && !showSidebarLibrary && !showSkillsPage) ? 'is-highlighted' : ''}`} key={item.key} onClick={() => {
                     if (item.key === 'library') {
                       setShowSidebarLibrary(true)
                       setShowDrawer(false)

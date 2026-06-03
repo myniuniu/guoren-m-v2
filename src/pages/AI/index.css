@@ -891,7 +891,7 @@
 .ai-drawer-panel {
   width: min(82vw, 382px);
   height: 100%;
-  background: #f4f4f6;
+  background: #fff;
   border-radius: 0;
   padding: calc(26px + env(safe-area-inset-top)) 14px calc(18px + env(safe-area-inset-bottom));
   box-shadow: 10px 0 28px rgba(0, 0, 0, 0.12);
@@ -952,7 +952,7 @@
 }
 
 .ai-drawer-menu-item.is-highlighted {
-  background: rgba(255, 255, 255, 0.88);
+  background: #f0f1f3;
 }
 
 .ai-drawer-menu-icon {
