@@ -1,0 +1,454 @@
+.space-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%; /* 占满 app-content 的可用高度 */
+  background: #f5f6f8;
+  position: relative;
+  overflow: hidden; /* 防止页面整体被撑开 */
+}
+
+/* Header */
+.space-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: #f5f6f8;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.space-header-left,
+.space-header-right {
+  display: flex;
+  align-items: center;
+  gap: 16px; /* 增加搜索和过滤图标的间距 */
+}
+
+.space-header-left {
+  width: 60px; /* 固定宽度，方便中间标题居中 */
+  cursor: pointer;
+}
+
+.space-header-right {
+  width: 60px;
+  justify-content: flex-end;
+}
+
+.space-header-title {
+  flex: 1;
+  text-align: center;
+  font-size: 18px;
+  font-weight: 600;
+  color: #111;
+}
+
+/* 图标按钮样式 */
+.icon-btn {
+  background: transparent;
+  border: none;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #333;
+}
+
+.space-more-btn {
+  background: transparent;
+  border: none;
+  padding: 8px 0 8px 16px; /* 增加左侧点击区域，去除右侧 padding 贴边 */
+  margin-left: auto; /* 靠右对齐 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #B0B0B0;
+}
+
+/* List */
+.space-list-container {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 12px 16px 80px; /* 增加底部 padding 避免被 FAB 或 TabBar 挡住内容 */
+}
+
+/* 默认隐藏滚动条，滚动时再淡入显示 */
+.space-list::-webkit-scrollbar {
+  width: 2px;
+}
+.space-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+.space-list::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 2px;
+  transition: background-color 0.2s ease;
+}
+
+.space-list.is-scrolling::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.space-list {
+  flex: 1;
+  overflow-y: auto; /* 恢复内部列表滚动 */
+  min-height: 0;
+  padding: 8px 16px 124px;
+}
+
+.space-item {
+  display: flex;
+  align-items: center;
+  padding: 16px 4px;
+  background: transparent;
+  border-radius: 0;
+  margin-bottom: 0;
+  cursor: pointer;
+  transition: background 0.15s;
+  box-shadow: none;
+  gap: 12px;
+  border-bottom: 1px solid #e8ebef;
+}
+
+.space-item:active {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.space-cover {
+  width: 52px;
+  height: 52px;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+.space-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.space-name {
+  font-size: 16px;
+  color: #222;
+  font-weight: 500;
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.space-meta {
+  display: flex;
+  align-items: center;
+  font-size: 13px;
+  color: #999;
+  margin-top: 3px;
+  gap: 2px;
+}
+
+.space-dot {
+  margin: 0 3px;
+}
+
+.space-lock {
+  font-size: 11px;
+  margin-right: 2px;
+}
+
+.space-members {
+  font-size: 12px;
+}
+
+.space-more {
+  flex-shrink: 0;
+  padding: 8px 0 8px 8px;
+  cursor: pointer;
+}
+
+/* FAB */
+.space-fab {
+  position: absolute;
+  right: 20px;
+  bottom: 96px;
+  width: 52px;
+  height: 52px;
+  border-radius: 26px;
+  background: #3B82F6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+  border: none;
+  cursor: pointer;
+  z-index: 100;
+}
+
+/* 列表项操作菜单面板 */
+.space-action-menu-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 2000;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.space-action-menu-panel {
+  background: #fff;
+  border-top-left-radius: 16px;
+  border-top-right-radius: 16px;
+  padding-bottom: env(safe-area-inset-bottom);
+  animation: slideUpActionMenu 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+  display: flex;
+  flex-direction: column;
+}
+
+@keyframes slideUpActionMenu {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+.space-action-menu-item {
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid #f0f0f0;
+  padding: 16px 0;
+  font-size: 16px;
+  color: #333;
+  text-align: center;
+  cursor: pointer;
+  width: 100%;
+}
+
+.space-action-menu-item.danger {
+  color: #FF4D4F;
+  border-bottom: none;
+}
+
+.space-action-menu-divider {
+  height: 8px;
+  background: #f5f6f8;
+}
+
+.space-action-menu-item.cancel {
+  border-bottom: none;
+  font-weight: 500;
+}
+
+/* 筛选面板 */
+.space-filter-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 2000;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.space-filter-panel {
+  background: #fff;
+  border-top-left-radius: 16px;
+  border-top-right-radius: 16px;
+  padding: 20px 20px 24px;
+  animation: slideUpFilter 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+  display: flex;
+  flex-direction: column;
+}
+
+@keyframes slideUpFilter {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+.space-filter-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.space-filter-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #111;
+}
+
+.space-filter-close {
+  background: #f5f6f8;
+  border: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.space-filter-content {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  margin-bottom: 32px;
+}
+
+.space-filter-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.space-filter-label {
+  font-size: 15px;
+  font-weight: 600;
+  color: #111;
+}
+
+.space-filter-options {
+  display: flex;
+  gap: 12px;
+}
+
+.space-filter-option {
+  flex: 1;
+  background: #f5f6f8;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 10px 0;
+  font-size: 13px;
+  color: #333;
+  cursor: pointer;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.space-filter-option.active {
+  background: #f0f5ff;
+  border-color: #4A7CFF;
+  color: #4A7CFF;
+  font-weight: 500;
+}
+
+.space-filter-footer {
+  display: flex;
+  gap: 12px;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.space-filter-btn-reset {
+  flex: 1;
+  background: #f5f6f8;
+  color: #333;
+  border: none;
+  border-radius: 8px;
+  padding: 14px 0;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.space-filter-btn-confirm {
+  flex: 2;
+  background: #3B82F6;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 14px 0;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+/* 新建空间页面 */
+.new-space-page {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: #fff;
+  z-index: 2500;
+  display: flex;
+  flex-direction: column;
+  animation: slideInRight 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+@keyframes slideInRight {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+.new-space-content {
+  flex: 1;
+  padding: 24px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.new-space-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.new-space-label {
+  font-size: 15px;
+  font-weight: 600;
+  color: #111;
+}
+
+.new-space-input,
+.new-space-textarea {
+  background: #f5f6f8;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 14px 16px;
+  font-size: 15px;
+  color: #333;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.new-space-input:focus,
+.new-space-textarea:focus {
+  border-color: #3B82F6;
+  background: #fff;
+}
+
+.new-space-input::placeholder,
+.new-space-textarea::placeholder {
+  color: #999;
+}
+
+.new-space-textarea {
+  resize: none;
+  font-family: inherit;
+}
+
+.new-space-submit-btn {
+  margin-top: 12px;
+  background: #3B82F6;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 16px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.space-fab:active {
+  transform: scale(0.92);
+}
