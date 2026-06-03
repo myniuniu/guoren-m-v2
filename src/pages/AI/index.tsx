@@ -953,7 +953,7 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
       {showSidebarLibrary && (
         <div className="ai-sidebar-library-page">
           <div className="ai-sidebar-library-header">
-            <div className="ai-sidebar-library-menu" onClick={() => setShowSidebarLibrary(false)}>
+            <div className="ai-sidebar-library-menu" onClick={() => setShowDrawer(true)}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round">
                 <line x1="3" y1="6" x2="21" y2="6" />
                 <line x1="3" y1="12" x2="21" y2="12" />
