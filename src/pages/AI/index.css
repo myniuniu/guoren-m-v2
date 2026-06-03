@@ -1022,6 +1022,32 @@
   cursor: pointer;
 }
 
+/* 会话历史记录 */
+.ai-drawer-chat-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 0 14px;
+  color: #4a4a4a;
+  cursor: pointer;
+}
+
+.ai-drawer-chat-icon {
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.ai-drawer-chat-title {
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.3;
+}
+
 .ai-drawer-footer {
   padding: 8px 4px 0;
 }
@@ -1195,4 +1221,697 @@
   justify-content: center;
   cursor: pointer;
   flex-shrink: 0;
+}
+
+/* 发现全屏页 */
+.ai-discover-page {
+  position: absolute;
+  inset: 0;
+  z-index: 28;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  padding-top: calc(12px + env(safe-area-inset-top));
+}
+
+.ai-discover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  min-height: 44px;
+  flex-shrink: 0;
+}
+
+.ai-discover-header-menu {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.ai-discover-header-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #222;
+  flex: 1;
+  text-align: center;
+}
+
+.ai-discover-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.ai-discover-header-close {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.ai-discover-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 16px calc(16px + env(safe-area-inset-bottom));
+}
+
+.ai-discover-content::-webkit-scrollbar {
+  display: none;
+}
+
+.ai-discover-section-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #222;
+  margin: 16px 0 12px;
+}
+
+.ai-discover-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ai-discover-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 12px;
+  background: #fff;
+  border: 1px solid #f0f1f3;
+}
+
+.ai-discover-card-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.ai-discover-card-body {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ai-discover-card-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #222;
+  line-height: 1.4;
+}
+
+.ai-discover-card-desc {
+  font-size: 13px;
+  color: #999;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.ai-discover-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  color: #999;
+}
+
+.ai-discover-card-author {
+  color: #999;
+}
+
+.ai-discover-card-chats {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* 技能社区页 */
+.ai-skill-community-page {
+  position: absolute;
+  inset: 0;
+  z-index: 28;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  padding-top: calc(12px + env(safe-area-inset-top));
+}
+
+.ai-skill-community-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  min-height: 44px;
+  flex-shrink: 0;
+}
+
+.ai-skill-community-menu {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.ai-skill-community-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #222;
+  flex: 1;
+  text-align: center;
+}
+
+.ai-skill-community-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-shrink: 0;
+}
+
+.ai-skill-community-actions svg {
+  cursor: pointer;
+}
+
+.ai-skill-community-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 16px calc(16px + env(safe-area-inset-bottom));
+}
+
+.ai-skill-community-content::-webkit-scrollbar {
+  display: none;
+}
+
+.ai-skill-community-search {
+  margin-top: 8px;
+  min-height: 40px;
+  background: #f3f4f6;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  color: #999;
+  font-size: 14px;
+}
+
+.ai-skill-community-banner {
+  margin-top: 16px;
+  background: linear-gradient(135deg, #e8f0fe 0%, #f0e8ff 100%);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ai-skill-community-banner-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.ai-skill-community-banner-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #222;
+  line-height: 1.4;
+}
+
+.ai-skill-community-banner-highlight {
+  color: #4A7CFF;
+}
+
+.ai-skill-community-banner-desc {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #666;
+  line-height: 1.5;
+}
+
+.ai-skill-community-banner-link {
+  margin-top: 8px;
+  font-size: 13px;
+  color: #4A7CFF;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.ai-skill-community-banner-img {
+  width: 80px;
+  height: 80px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.5);
+  border-radius: 12px;
+}
+
+.ai-skill-community-banner-card {
+  font-size: 14px;
+  font-weight: 700;
+  color: #4A7CFF;
+  background: #fff;
+  padding: 8px 12px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.ai-skill-community-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 24px;
+  margin-bottom: 12px;
+}
+
+.ai-skill-community-section-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 16px;
+  font-weight: 700;
+  color: #222;
+}
+
+.ai-skill-community-refresh {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: #999;
+  cursor: pointer;
+}
+
+.ai-skill-community-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ai-skill-community-card {
+  background: #fff;
+  border: 1px solid #f0f1f3;
+  border-radius: 12px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ai-skill-community-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ai-skill-community-card-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.ai-skill-community-card-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #222;
+  line-height: 1.4;
+}
+
+.ai-skill-community-card-desc {
+  font-size: 13px;
+  color: #666;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.ai-skill-community-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ai-skill-community-card-tags {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.ai-skill-community-card-tag {
+  padding: 2px 8px;
+  background: #f3f4f6;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #666;
+}
+
+.ai-skill-community-card-count {
+  font-size: 12px;
+  color: #999;
+  flex-shrink: 0;
+}
+
+/* 全部技能 */
+.ai-skill-community-all-skills {
+  margin-top: 24px;
+}
+
+.ai-skill-community-all-skills-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.ai-skill-community-all-skills-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 16px;
+  font-weight: 700;
+  color: #222;
+}
+
+.ai-skill-community-filter {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: #999;
+  cursor: pointer;
+}
+
+.ai-skill-community-all-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ai-skill-community-all-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 12px;
+  background: #fff;
+  border: 1px solid #f0f1f3;
+}
+
+.ai-skill-community-all-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.ai-skill-community-all-body {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ai-skill-community-all-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ai-skill-community-all-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #222;
+}
+
+.ai-skill-community-all-tags {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.ai-skill-community-all-tag {
+  padding: 2px 8px;
+  background: #f3f4f6;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #666;
+}
+
+.ai-skill-community-all-desc {
+  font-size: 13px;
+  color: #999;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* 我的技能页 */
+.ai-my-skills-page {
+  position: absolute;
+  inset: 0;
+  z-index: 28;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  padding-top: calc(12px + env(safe-area-inset-top));
+}
+
+.ai-my-skills-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  min-height: 44px;
+  flex-shrink: 0;
+}
+
+.ai-my-skills-back {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.ai-my-skills-tabs {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex: 1;
+  justify-content: center;
+}
+
+.ai-my-skills-tab {
+  border: none;
+  background: transparent;
+  padding: 0;
+  font-size: 16px;
+  font-weight: 500;
+  color: #999;
+  cursor: pointer;
+  position: relative;
+}
+
+.ai-my-skills-tab.is-active {
+  color: #000;
+  font-weight: 700;
+}
+
+.ai-my-skills-tab.is-active::after {
+  content: '';
+  position: absolute;
+  bottom: -4px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 20px;
+  height: 3px;
+  background: #333;
+  border-radius: 2px;
+}
+
+.ai-my-skills-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.ai-my-skills-actions svg {
+  cursor: pointer;
+}
+
+.ai-my-skills-search {
+  margin: 8px 16px 0;
+  min-height: 40px;
+  background: #f3f4f6;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  color: #999;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.ai-my-skills-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ai-my-skills-list::-webkit-scrollbar {
+  display: none;
+}
+
+.ai-my-skill-card {
+  background: #fff;
+  border: 1px solid #f0f1f3;
+  border-radius: 12px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ai-my-skill-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ai-my-skill-card-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.ai-my-skill-card-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #222;
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ai-my-skill-card-badge {
+  padding: 2px 6px;
+  background: #f3f4f6;
+  border-radius: 4px;
+  font-size: 11px;
+  color: #999;
+  flex-shrink: 0;
+}
+
+.ai-my-skill-card-more {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.ai-my-skill-card-desc {
+  font-size: 13px;
+  color: #666;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.ai-my-skill-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #999;
+}
+
+.ai-my-skill-card-avatars {
+  display: flex;
+  align-items: center;
+}
+
+.ai-my-skill-card-avatar {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  color: #fff;
+  border: 2px solid #fff;
+}
+
+.ai-my-skill-card-btn {
+  width: 100%;
+  min-height: 36px;
+  border: 1px solid #e6e8ec;
+  background: #fff;
+  color: #333;
+  font-size: 14px;
+  font-weight: 500;
+  border-radius: 8px;
+  cursor: pointer;
+  margin-top: 4px;
 }
