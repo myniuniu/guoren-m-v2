@@ -4,6 +4,8 @@ import SpacePage from './pages/Space'
 import AIPage from './pages/AI'
 import LibraryPage from './pages/Library'
 import IMPage from './pages/IM'
+import LoginPage from './pages/Login'
+import { useAuth, type UserInfo } from './contexts/AuthContext'
 import './App.css'
 
 // 底部导航图标
@@ -187,10 +189,13 @@ const editableAppTabs: TabItem[] = apps.map((app) => ({
 const allEditableTabs: TabItem[] = [...defaultMainTabs, ...editableAppTabs]
 
 function App() {
+  const { isAuthenticated, userInfo, logout } = useAuth()
+
   const [activeKey, setActiveKey] = useState('home')
   const [showAI, setShowAI] = useState(false)
   const [showMoreDrawer, setShowMoreDrawer] = useState(false)
   const [showMoreEdit, setShowMoreEdit] = useState(false)
+  const [showProfileMenu, setShowProfileMenu] = useState(false)
   const [mainTabs, setMainTabs] = useState(defaultMainTabs)
 
   const handleTabChange = (key: string) => {
@@ -216,8 +221,25 @@ function App() {
     [activeKey, mainTabs]
   )
 
+  // 鉴权守卫：未登录时全屏渲染登录页，不渲染任何 app 内容
+  // 使用条件渲染而非早期返回，确保所有 hooks 始终按相同顺序调用
+  if (!isAuthenticated) {
+    return <LoginPage />
+  }
+
   return (
     <div className="app-container">
+      {/* 左上角浮动头像按钮，点击弹出个人菜单 */}
+      <div className="profile-float-btn" onClick={() => setShowProfileMenu(true)}>
+        {userInfo?.avatar ? (
+          <img src={userInfo.avatar} alt="头像" className="profile-float-avatar-img" />
+        ) : (
+          <div className="profile-float-avatar-default">
+            {(userInfo?.name || userInfo?.username || '?')[0]}
+          </div>
+        )}
+      </div>
+
       <div className="app-content">
         {activeKey === 'home' && <Home />}
         {activeKey === 'space' && <SpacePage />}
@@ -284,10 +306,19 @@ function App() {
 
       {/* 更多编辑页面 */}
       {showMoreEdit && (
-        <MoreEditPage 
-          onClose={() => setShowMoreEdit(false)} 
+        <MoreEditPage
+          onClose={() => setShowMoreEdit(false)}
           mainTabs={mainTabs}
           setMainTabs={setMainTabs}
+        />
+      )}
+
+      {/* 个人菜单弹出层 */}
+      {showProfileMenu && (
+        <ProfileMenu
+          userInfo={userInfo}
+          onClose={() => setShowProfileMenu(false)}
+          onLogout={() => { logout(); setShowProfileMenu(false); }}
         />
       )}
     </div>
@@ -299,6 +330,42 @@ function PlaceholderPage({ title }: { title: string }) {
     <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', color: '#999', fontSize: 18 }}>
       {title}
     </div>
+  )
+}
+
+/**
+ * 个人菜单弹出组件
+ * 点击左上角头像后弹出，显示操作选项
+ */
+function ProfileMenu({ onClose, onLogout }: {
+  userInfo: UserInfo | null
+  onClose: () => void
+  onLogout: () => void
+}) {
+  return (
+    <>
+      {/* 全屏遮罩，点击关闭 */}
+      <div className="profile-menu-overlay" onClick={onClose} />
+      {/* 弹出卡片，absolute 定位相对于 app-container */}
+      <div className="profile-menu-card" onClick={e => e.stopPropagation()}>
+        <button className="profile-menu-item" type="button" onClick={onLogout}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#555" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M16 17l5-5-5-5" />
+            <path d="M21 12H9" />
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+          </svg>
+          <span>切换登录</span>
+        </button>
+        <button className="profile-menu-item profile-menu-item-danger" type="button" onClick={onLogout}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+            <polyline points="16 17 21 12 16 7" />
+            <line x1="21" y1="12" x2="9" y2="12" />
+          </svg>
+          <span>退出登录</span>
+        </button>
+      </div>
+    </>
   )
 }
 

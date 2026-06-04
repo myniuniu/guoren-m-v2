@@ -1,0 +1,244 @@
+/* 登录页面样式 */
+.login-page {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: #f5f6f8;
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.login-page-card {
+  width: 100%;
+  max-width: 360px;
+  padding: 0 20px;
+  box-sizing: border-box;
+}
+
+/* 品牌区域 */
+.login-brand {
+  text-align: center;
+  margin-bottom: 28px;
+}
+
+.login-brand-logo {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #3B82F6, #6366F1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 14px auto;
+  box-shadow: 0 4px 16px rgba(59, 130, 246, 0.3);
+}
+
+.login-brand-logo svg {
+  width: 30px;
+  height: 30px;
+}
+
+.login-brand-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: #1a1a2e;
+  margin: 0 0 6px 0;
+  letter-spacing: 1px;
+}
+
+.login-brand-subtitle {
+  font-size: 14px;
+  color: #999;
+  margin: 0;
+}
+
+/* 表单区域 */
+.login-form {
+  background: #fff;
+  border-radius: 16px;
+  padding: 24px 20px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+}
+
+/* 输入框组 */
+.login-input-group {
+  margin-bottom: 14px;
+  position: relative;
+}
+
+.login-input-group:last-of-type {
+  margin-bottom: 0;
+}
+
+.login-input {
+  width: 100%;
+  height: 48px;
+  padding: 0 14px;
+  border: 1.5px solid #e8ecf1;
+  border-radius: 10px;
+  font-size: 16px;
+  color: #333;
+  background: #f8f9fb;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.2s ease, background 0.2s ease;
+  -webkit-appearance: none;
+}
+
+.login-input:focus {
+  border-color: #3B82F6;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.08);
+}
+
+.login-input::placeholder {
+  color: #bbb;
+}
+
+/* 密码输入框容器 */
+.login-password-wrap {
+  position: relative;
+}
+
+.login-password-toggle {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #999;
+  z-index: 1;
+}
+
+.login-password-toggle:active {
+  opacity: 0.6;
+}
+
+/* 验证码行 */
+.login-captcha-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.login-captcha-row .login-input {
+  flex: 1;
+}
+
+.login-captcha-img {
+  width: 120px;
+  height: 48px;
+  border-radius: 10px;
+  cursor: pointer;
+  border: 1.5px solid #e8ecf1;
+  object-fit: contain;
+  background: #fff;
+  flex-shrink: 0;
+  transition: border-color 0.2s ease;
+}
+
+.login-captcha-img:active {
+  border-color: #3B82F6;
+}
+
+/* 登录按钮 */
+.login-btn {
+  width: 100%;
+  height: 48px;
+  border: none;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #3B82F6, #4F7DF3);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 16px;
+  transition: opacity 0.2s ease, transform 0.1s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.login-btn:active {
+  opacity: 0.9;
+  transform: scale(0.98);
+}
+
+.login-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* 按钮 loading 动画 */
+.login-btn-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: login-spin 0.6s linear infinite;
+}
+
+@keyframes login-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 错误提示 */
+.login-error {
+  background: #FEF2F2;
+  border: 1px solid #FECACA;
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  font-size: 13px;
+  color: #DC2626;
+  line-height: 1.5;
+}
+
+/* 底部协议 */
+.login-agreement {
+  margin-top: 18px;
+  text-align: center;
+  font-size: 12px;
+  color: #999;
+  line-height: 1.6;
+}
+
+.login-agreement a {
+  color: #3B82F6;
+  text-decoration: none;
+}
+
+.login-agreement a:active {
+  opacity: 0.7;
+}
+
+/* 适配小屏设备 */
+@media (max-height: 600px) {
+  .login-page {
+    justify-content: flex-start;
+    padding-top: 20px;
+  }
+}
+
+/* safe-area 适配 */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .login-page {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}

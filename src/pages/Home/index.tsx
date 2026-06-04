@@ -24,12 +24,6 @@ export default function Home() {
       {/* Header */}
       <div className="home-header">
         <div className="header-top">
-          <div className="avatar-wrap">
-            <div className="avatar">
-              <img src="/assets/果仁头像-手机.png" alt="avatar" />
-            </div>
-            <span className="online-dot" />
-          </div>
           <div className="search-wrap">
             <SearchBar
               placeholder="搜索"
