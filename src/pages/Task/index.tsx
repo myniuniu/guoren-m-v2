@@ -98,6 +98,9 @@ function AddTaskSheet({ onClose, onAdd }: { onClose: () => void; onAdd: (task: T
   const [showChecklistPicker, setShowChecklistPicker] = useState(false)
   const [selectedChecklists, setSelectedChecklists] = useState<Set<string>>(new Set())
   const [checklistSearch, setChecklistSearch] = useState('')
+  const [showSubtaskPicker, setShowSubtaskPicker] = useState(false)
+  const [subtaskInput, setSubtaskInput] = useState('')
+  const [subtasks, setSubtasks] = useState<Array<{ id: string; title: string; done: boolean }>>([])
 
   const dueDateOptions = ['今天', '明天', '后天', '6月6日', '6月7日', '6月8日', '下周一', '无截止日期']
   const assigneeOptions = [
@@ -264,7 +267,7 @@ function AddTaskSheet({ onClose, onAdd }: { onClose: () => void; onAdd: (task: T
         </div>
 
         {/* 添加子任务 */}
-        <div className="add-task-field-row">
+        <div className="add-task-field-row" onClick={() => setShowSubtaskPicker(true)}>
           <div className="add-task-field-icon">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4A7CFF" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
               <line x1="8" y1="6" x2="21" y2="6" />
@@ -360,6 +363,88 @@ function AddTaskSheet({ onClose, onAdd }: { onClose: () => void; onAdd: (task: T
                   <span className="checklist-picker-item-name">{opt.name}</span>
                 </div>
               ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Subtask picker overlay */}
+      {showSubtaskPicker && (
+        <div className="add-task-picker-overlay" onClick={() => setShowSubtaskPicker(false)}>
+          <div className="subtask-picker-panel" onClick={e => e.stopPropagation()}>
+            <div className="add-task-picker-handle" />
+            <div className="subtask-picker-header">
+              <span className="subtask-picker-title">添加子任务</span>
+              <button className="checklist-picker-confirm" onClick={() => setShowSubtaskPicker(false)}>确定</button>
+            </div>
+
+            <div className="subtask-picker-body">
+              {/* Input */}
+              <div className="subtask-picker-input-row">
+                <input
+                  className="subtask-picker-input"
+                  type="text"
+                  value={subtaskInput}
+                  onChange={e => setSubtaskInput(e.target.value)}
+                  placeholder="子任务标题"
+                  autoFocus
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && subtaskInput.trim()) {
+                      setSubtasks(prev => [...prev, { id: `st-${Date.now()}`, title: subtaskInput.trim(), done: false }])
+                      setSubtaskInput('')
+                    }
+                  }}
+                />
+                <button
+                  className={`subtask-picker-add-btn ${subtaskInput.trim() ? 'is-active' : ''}`}
+                  onClick={() => {
+                    if (!subtaskInput.trim()) return
+                    setSubtasks(prev => [...prev, { id: `st-${Date.now()}`, title: subtaskInput.trim(), done: false }])
+                    setSubtaskInput('')
+                  }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={subtaskInput.trim() ? '#4A7CFF' : '#bbb'} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19" />
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Subtask list */}
+              {subtasks.length > 0 && (
+                <div className="subtask-picker-list">
+                  {subtasks.map(st => (
+                    <div className="subtask-picker-item" key={st.id}>
+                      <button
+                        className={`subtask-picker-check ${st.done ? 'is-checked' : ''}`}
+                        onClick={() => setSubtasks(prev => prev.map(s => s.id === st.id ? { ...s, done: !s.done } : s))}
+                      >
+                        {st.done && (
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                        )}
+                      </button>
+                      <span className={`subtask-picker-item-name ${st.done ? 'is-done' : ''}`}>{st.title}</span>
+                      <button className="subtask-picker-item-delete" onClick={() => setSubtasks(prev => prev.filter(s => s.id !== st.id))}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#bbb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <line x1="18" y1="6" x2="6" y2="18" />
+                          <line x1="6" y1="6" x2="18" y2="18" />
+                        </svg>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Add more subtask hint */}
+              <div className="subtask-picker-add-more">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4A7CFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+                <span>添加子任务</span>
+              </div>
             </div>
           </div>
         </div>
