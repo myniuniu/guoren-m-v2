@@ -1223,6 +1223,52 @@
   flex-shrink: 0;
 }
 
+/* 库页面操作菜单 */
+.ai-sidebar-library-action-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 32;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0;
+  background: rgba(0, 0, 0, 0.34);
+}
+
+.ai-sidebar-library-action-sheet {
+  width: 100%;
+  background: #f5f5f5;
+  padding: 10px 0 calc(10px + env(safe-area-inset-bottom));
+}
+
+.ai-sidebar-library-action-item {
+  width: 100%;
+  min-height: 50px;
+  border: none;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #333;
+  font-size: 17px;
+  font-weight: 400;
+  cursor: pointer;
+}
+
+.ai-sidebar-library-action-item.danger {
+  color: #ff5a5f;
+}
+
+.ai-sidebar-library-action-item.cancel {
+  color: #333;
+  font-weight: 600;
+}
+
+.ai-sidebar-library-action-gap {
+  height: 8px;
+  background: #f5f5f5;
+}
+
 /* 发现全屏页 */
 .ai-discover-page {
   position: absolute;

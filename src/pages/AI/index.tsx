@@ -53,6 +53,7 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
   const [showLibraryPage, setShowLibraryPage] = useState(false)
   const [showSidebarLibrary, setShowSidebarLibrary] = useState(false)
   const [sidebarLibraryTab, setSidebarLibraryTab] = useState<'all' | 'starred'>('all')
+  const [sidebarLibraryActionTarget, setSidebarLibraryActionTarget] = useState<number | null>(null)
   const [showDiscoverPage, setShowDiscoverPage] = useState(false)
   const [showMySkillsPage, setShowMySkillsPage] = useState(false)
   const [mySkillsTab, setMySkillsTab] = useState<'added' | 'created'>('added')
@@ -1299,7 +1300,7 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
                     <div className="ai-sidebar-library-item-name">{item.name}</div>
                     <div className="ai-sidebar-library-item-source">{item.source}</div>
                   </div>
-                  <div className="ai-sidebar-library-item-more">
+                  <div className="ai-sidebar-library-item-more" onClick={(e) => { e.stopPropagation(); setSidebarLibraryActionTarget(item.id) }}>
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="#999">
                       <circle cx="12" cy="5" r="1.8" />
                       <circle cx="12" cy="12" r="1.8" />
@@ -1309,6 +1310,22 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
                 </div>
               ))}
           </div>
+
+          {/* 操作菜单 */}
+          {sidebarLibraryActionTarget && (
+            <div className="ai-sidebar-library-action-overlay" onClick={() => setSidebarLibraryActionTarget(null)}>
+              <div className="ai-sidebar-library-action-sheet" onClick={(e) => e.stopPropagation()}>
+                <button className="ai-sidebar-library-action-item" type="button" onClick={() => setSidebarLibraryActionTarget(null)}>分享</button>
+                <button className="ai-sidebar-library-action-item" type="button" onClick={() => setSidebarLibraryActionTarget(null)}>重命名</button>
+                <button className="ai-sidebar-library-action-item" type="button" onClick={() => setSidebarLibraryActionTarget(null)}>下载</button>
+                <button className="ai-sidebar-library-action-item" type="button" onClick={() => setSidebarLibraryActionTarget(null)}>收藏</button>
+                <button className="ai-sidebar-library-action-item" type="button" onClick={() => setSidebarLibraryActionTarget(null)}>更多操作</button>
+                <button className="ai-sidebar-library-action-item danger" type="button" onClick={() => setSidebarLibraryActionTarget(null)}>删除</button>
+                <div className="ai-sidebar-library-action-gap" />
+                <button className="ai-sidebar-library-action-item cancel" type="button" onClick={() => setSidebarLibraryActionTarget(null)}>取消</button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
