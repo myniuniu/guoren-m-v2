@@ -36,7 +36,7 @@ function CoverImage({ item }: { item: SpaceItem }) {
     '#66CDAA': 'linear-gradient(135deg, #66CDAA 0%, #98FB98 50%, #F0FFF0 100%)',
     '#3CB371': 'linear-gradient(135deg, #3CB371 0%, #66CDAA 50%, #98FB98 100%)',
     '#CD5C5C': 'linear-gradient(135deg, #CD5C5C 0%, #F08080 50%, #FFE4E1 100%)',
-    '#B0C4DE': 'linear-gradient(135deg, #B0C4DE 0%, #E6E6FA 100%)',
+    '#B0C4DE': 'linear-gradient(135deg, #B0C4DE 0%, #E0F0FF 100%)',
     '#8FBC8F': 'linear-gradient(135deg, #8FBC8F 0%, #98FB98 50%, #F5F5DC 100%)',
     '#4169E1': 'linear-gradient(135deg, #4169E1 0%, #6495ED 50%, #B0C4DE 100%)',
   }
