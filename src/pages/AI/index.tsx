@@ -53,6 +53,11 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
   const [showLibraryPage, setShowLibraryPage] = useState(false)
   const [showSidebarLibrary, setShowSidebarLibrary] = useState(false)
   const [sidebarLibraryTab, setSidebarLibraryTab] = useState<'all' | 'starred'>('all')
+  const [showDiscoverPage, setShowDiscoverPage] = useState(false)
+  const [showMySkillsPage, setShowMySkillsPage] = useState(false)
+  const [mySkillsTab, setMySkillsTab] = useState<'added' | 'created'>('added')
+  const [showCreateSkillSheet, setShowCreateSkillSheet] = useState(false)
+  const [showCreateSkillChat, setShowCreateSkillChat] = useState(false)
   const [libraryTab, setLibraryTab] = useState<'personal' | 'org'>('personal')
   const [selectedLibraryIds, setSelectedLibraryIds] = useState<number[]>([])
   const [selectedOrgSpace, setSelectedOrgSpace] = useState('课堂评价')
@@ -307,6 +312,16 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
       color: '#4E46E5',
       icon: 'person',
     },
+  ]
+
+  const discoverAgents = [
+    { id: 1, title: '资深数据分析师', description: '具备精湛 SQL 查询能力和统计分析背景，可...', author: '张洪磊', chats: 0, avatar: '数', color: '#E8734A' },
+    { id: 2, title: '社交网站封面图生成', description: '根据用户的社交网站文章或标题生成社交网站...', author: '杨金玮', chats: 3, avatar: '社', color: '#7A95FF' },
+    { id: 3, title: '财报解读专家', description: '专注于解读财报，为用户提供专业的财报分析...', author: '张洪磊', chats: 1, avatar: '财', color: '#5E94E8' },
+    { id: 4, title: '案例仿真场景生成智能体', description: '用于生成各种案例仿真场景，为用户提供多样...', author: '朱永', chats: 6, avatar: '案', color: '#4FB7B3' },
+    { id: 5, title: '学习公社-亲子沟通案例仿真智能体', description: '您可以通过发起关于家庭教育的案例主题，与...', author: '朱永', chats: 62, avatar: '学', color: '#6FA8FF' },
+    { id: 6, title: 'AI案例仿真智能体', description: '让用户通过发起具体教育场景主题，与AI进行...', author: '朱永', chats: 37, avatar: 'AI', color: '#C68CE5' },
+    { id: 7, title: '学习公社6.0答疑助手', description: '基于产品知识库，为用户解答学习公社6.0相...', author: '朱永', chats: 7, avatar: '答', color: '#F0A35E' },
   ]
 
   const openSkillsPage = () => {
@@ -625,12 +640,6 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
 
       {showDrawer && (
         <div className="ai-drawer-overlay" onClick={() => setShowDrawer(false)}>
-          <div className="ai-drawer-close" onClick={() => setShowDrawer(false)}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#222" strokeWidth="2" strokeLinecap="round">
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          </div>
 
           <div className="ai-drawer-panel" onClick={(e) => e.stopPropagation()}>
             <div className="ai-drawer-body">
@@ -641,13 +650,29 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
 
               <div className="ai-drawer-menu">
                 {menuItems.map((item) => (
-                  <div className={`ai-drawer-menu-item ${(item.key === 'library' && showSidebarLibrary) || (item.key === 'new' && !showSidebarLibrary && !showSkillsPage) ? 'is-highlighted' : ''}`} key={item.key} onClick={() => {
+                  <div className={`ai-drawer-menu-item ${(item.key === 'library' && showSidebarLibrary) || (item.key === 'new' && !showSidebarLibrary && !showDiscoverPage && !showSkillsPage) || (item.key === 'discover' && showDiscoverPage) || (item.key === 'skills' && showSkillsPage) ? 'is-highlighted' : ''}`} key={item.key} onClick={() => {
                     if (item.key === 'library') {
                       setShowSidebarLibrary(true)
+                      setShowDiscoverPage(false)
+                      setShowSkillsPage(false)
                       setShowDrawer(false)
                     }
                     if (item.key === 'new') {
                       setShowSidebarLibrary(false)
+                      setShowDiscoverPage(false)
+                      setShowSkillsPage(false)
+                      setShowDrawer(false)
+                    }
+                    if (item.key === 'discover') {
+                      setShowDiscoverPage(true)
+                      setShowSidebarLibrary(false)
+                      setShowSkillsPage(false)
+                      setShowDrawer(false)
+                    }
+                    if (item.key === 'skills') {
+                      setShowSkillsPage(true)
+                      setShowSidebarLibrary(false)
+                      setShowDiscoverPage(false)
                       setShowDrawer(false)
                     }
                   }}>
@@ -686,6 +711,28 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
                     </svg>
                   </button>
                 )}
+              </div>
+
+              {/* 会话历史记录 */}
+              <div className="ai-drawer-section">
+                <div className="ai-drawer-section-title">四月</div>
+                {[
+                  { id: 1, title: '阴天照片天空修晴天' },
+                  { id: 2, title: '课程顾问技能演示' },
+                  { id: 3, title: '彩虹信息图示例' },
+                  { id: 4, title: '今日活动回顾' },
+                  { id: 5, title: '班级纪律管理仿真场景' },
+                  { id: 6, title: '身份询问' },
+                ].map((chat) => (
+                  <div className="ai-drawer-chat-item" key={chat.id}>
+                    <div className="ai-drawer-chat-icon">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                      </svg>
+                    </div>
+                    <span className="ai-drawer-chat-title">{chat.title}</span>
+                  </div>
+                ))}
               </div>
             </div>
 
@@ -796,47 +843,296 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
       )}
 
       {showSkillsPage && (
-        <div className="ai-skills-page">
-          <div className="ai-skills-header">
-            <div className="ai-skills-header-spacer" />
-            <div className="ai-skills-title">技能</div>
-            <button className="ai-skills-close" type="button" onClick={() => setShowSkillsPage(false)}>
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#555" strokeWidth="2" strokeLinecap="round">
-                <line x1="18" y1="6" x2="6" y2="18" />
-                <line x1="6" y1="6" x2="18" y2="18" />
+        <div className="ai-skill-community-page">
+          {/* Header */}
+          <div className="ai-skill-community-header">
+            <div className="ai-skill-community-menu" onClick={() => setShowDrawer(true)}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round">
+                <line x1="3" y1="6" x2="21" y2="6" />
+                <line x1="3" y1="12" x2="21" y2="12" />
+                <line x1="3" y1="18" x2="21" y2="18" />
               </svg>
-            </button>
+            </div>
+            <div className="ai-skill-community-title">技能社区</div>
+            <div className="ai-skill-community-actions">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round" onClick={() => setShowCreateSkillSheet(true)} style={{ cursor: 'pointer' }}>
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" onClick={() => setShowMySkillsPage(true)} style={{ cursor: 'pointer' }}>
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.54 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.54 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.54a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 15 4.54a1.65 1.65 0 0 0 1 1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+              </svg>
+            </div>
           </div>
 
-          <div className="ai-skills-search">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-              <circle cx="11" cy="11" r="7" />
-              <line x1="20" y1="20" x2="16.65" y2="16.65" />
-            </svg>
-            <span>搜索</span>
-          </div>
+          <div className="ai-skill-community-content">
+            {/* Search */}
+            <div className="ai-skill-community-search">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="2" strokeLinecap="round">
+                <circle cx="11" cy="11" r="7" />
+                <line x1="20" y1="20" x2="16.65" y2="16.65" />
+              </svg>
+              <span>搜索技能名称、描述或标签</span>
+            </div>
 
-          <div className="ai-skills-list">
-            {skillItems.map((item) => (
-              <div className="ai-skill-item" key={item.id}>
-                <div className="ai-skill-item-icon" style={{ background: item.color }}>
-                  {renderSkillItemIcon(item.icon)}
+            {/* Banner */}
+            <div className="ai-skill-community-banner">
+              <div className="ai-skill-community-banner-content">
+                <div className="ai-skill-community-banner-title">
+                  <span className="ai-skill-community-banner-highlight">你的技能</span>值得被更多人复用
                 </div>
-                <div className="ai-skill-item-content">
-                  <div className="ai-skill-item-top">
-                    <span className="ai-skill-item-title">{item.title}</span>
-                    <div className="ai-skill-item-tags">
-                      {item.tags.map((tag) => (
-                        <span className="ai-skill-item-tag" key={tag}>{tag}</span>
+                <div className="ai-skill-community-banner-desc">将沉淀的的工作技能，直接发布到aily SkillHub，让好技能不被埋没</div>
+                <div className="ai-skill-community-banner-link">了解详情 &gt;</div>
+              </div>
+              <div className="ai-skill-community-banner-img">
+                <div className="ai-skill-community-banner-card">Skill</div>
+              </div>
+            </div>
+
+            {/* Official Picks */}
+            <div className="ai-skill-community-section-header">
+              <div className="ai-skill-community-section-title">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 7h16l-2 10H6z" />
+                  <path d="m9 12 2.2 2.2L16 9" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                官方精选
+              </div>
+              <div className="ai-skill-community-refresh">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21.5 2v6h-6" />
+                  <path d="M2.5 12a9.5 9.5 0 0 1 16.5-6.5L21.5 8" />
+                  <path d="M2.5 22v-6h6" />
+                  <path d="M21.5 12a9.5 9.5 0 0 1-16.5 6.5L2.5 16" />
+                </svg>
+                换一换
+              </div>
+            </div>
+
+            {/* Skill Cards */}
+            <div className="ai-skill-community-cards">
+              {[
+                {
+                  id: 1,
+                  title: '社群运营群聊分析',
+                  desc: '对指定飞书群聊进行周期性消息分析，提取主要观点、热门话题、活跃用户，生成包含数据分析的总结报告。Use...',
+                  tags: ['运营', '数据分析', '写作'],
+                  count: '5.2k 次添加',
+                  color: '#FFB21A',
+                  icon: 'group',
+                },
+                {
+                  id: 2,
+                  title: '产品方案梳理',
+                  desc: '在开发具体功能前梳理用户意图、需求与设计方案，通过分步提问的方式，将模糊的产品需求转为为清晰可交付的文...',
+                  tags: ['产品', '文档', '规划'],
+                  count: '1.6w 次添加',
+                  color: '#4A7CFF',
+                  icon: 'lightbulb',
+                },
+                {
+                  id: 3,
+                  title: 'AI 文本优化',
+                  desc: '识别和去除 AI 生成文本的痕迹，使文字听起来更自然、更有人味',
+                  tags: ['写作', '内容优化'],
+                  count: '2.2w 次添加',
+                  color: '#7B49F1',
+                  icon: 'doc',
+                },
+              ].map((skill) => (
+                <div className="ai-skill-community-card" key={skill.id}>
+                  <div className="ai-skill-community-card-header">
+                    <div className="ai-skill-community-card-icon" style={{ background: skill.color }}>
+                      {skill.icon === 'group' && (
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                          <circle cx="9" cy="7" r="4" />
+                          <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                          <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                        </svg>
+                      )}
+                      {skill.icon === 'lightbulb' && (
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M15 14c.2-1 .8-1.8 1.5-2.5a5.5 5.5 0 0 0-9 0C7.8 12.2 8.3 13 8.5 14" />
+                          <path d="M9 18h6" />
+                          <path d="M10 22h4" />
+                          <path d="M12 2v2" />
+                          <path d="M12 8v2" />
+                          <circle cx="12" cy="12" r="3" />
+                        </svg>
+                      )}
+                      {skill.icon === 'doc' && (
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                          <polyline points="14 2 14 8 20 8" />
+                          <line x1="16" y1="13" x2="8" y2="13" />
+                          <line x1="16" y1="17" x2="8" y2="17" />
+                          <line x1="10" y1="9" x2="9" y2="9" />
+                        </svg>
+                      )}
+                    </div>
+                    <div className="ai-skill-community-card-title">{skill.title}</div>
+                  </div>
+                  <div className="ai-skill-community-card-desc">{skill.desc}</div>
+                  <div className="ai-skill-community-card-footer">
+                    <div className="ai-skill-community-card-tags">
+                      {skill.tags.map((tag) => (
+                        <span className="ai-skill-community-card-tag" key={tag}>{tag}</span>
                       ))}
                     </div>
+                    <span className="ai-skill-community-card-count">{skill.count}</span>
                   </div>
-                  <div className="ai-skill-item-subtitle">{item.subtitle}</div>
-                  <div className="ai-skill-item-description">{item.description}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* All Skills */}
+            <div className="ai-skill-community-all-skills">
+              <div className="ai-skill-community-all-skills-header">
+                <div className="ai-skill-community-all-skills-title">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M14.5 4.5a3 3 0 0 1 4.24 4.24l-1.42 1.42-4.24-4.24z" />
+                    <path d="M13.09 5.91 5.3 13.7a2 2 0 0 0 0 2.83l2.17 2.17a2 2 0 0 0 2.83 0l7.79-7.79" />
+                    <path d="m8.5 11.5 4 4" />
+                  </svg>
+                  全部技能
+                </div>
+                <div className="ai-skill-community-filter">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M22 3H2l8 9.46V19l4 2v-8.46z" />
+                  </svg>
+                  筛选
                 </div>
               </div>
-            ))}
+              <div className="ai-skill-community-all-list">
+                {[
+                  {
+                    id: 1,
+                    title: 'AI生成技能',
+                    desc: '帮助用户创建和更新技能，扩展 aily 工作助手的...',
+                    tags: ['工程研发', '编程'],
+                    color: '#4CAF50',
+                    icon: 'gear',
+                  },
+                  {
+                    id: 2,
+                    title: '群聊内容摘要',
+                    desc: '基于飞书群聊的智能摘要与洞察生成能力。从指定...',
+                    tags: ['运营', '文档', '沟通'],
+                    color: '#4A7CFF',
+                    icon: 'chat',
+                  },
+                  {
+                    id: 3,
+                    title: '行业研究报告',
+                    desc: '面向特定行业/赛道的系统性深度研究能力。从行...',
+                    tags: ['研究', '调研', '文档'],
+                    color: '#4A7CFF',
+                    icon: 'book',
+                  },
+                  {
+                    id: 4,
+                    title: '前沿论文解读',
+                    desc: '面向学术论文的原文级调研（Deep Research）...',
+                    tags: ['研究', '调研', '写作'],
+                    color: '#4A7CFF',
+                    icon: 'academic',
+                  },
+                  {
+                    id: 5,
+                    title: '新闻总结',
+                    desc: '根据用户指定的主题和时间范围，自动检索权威动...',
+                    tags: ['文档', '调研', '写作'],
+                    color: '#4A7CFF',
+                    icon: 'news',
+                  },
+                  {
+                    id: 6,
+                    title: '工作周报',
+                    desc: '基于飞书生态的每周周报自动生成 Skill：从当周...',
+                    tags: ['运营', '文档', '自动化'],
+                    color: '#4A7CFF',
+                    icon: 'briefcase',
+                  },
+                ].map((skill) => (
+                  <div className="ai-skill-community-all-item" key={skill.id}>
+                    <div className="ai-skill-community-all-icon" style={{ background: skill.color }}>
+                      {skill.icon === 'gear' && (
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="12" cy="12" r="3" />
+                          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.54 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.54 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.54a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 15 4.54a1.65 1.65 0 0 0 1 1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                        </svg>
+                      )}
+                      {skill.icon === 'chat' && (
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                        </svg>
+                      )}
+                      {skill.icon === 'book' && (
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                          <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+                        </svg>
+                      )}
+                      {skill.icon === 'academic' && (
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+                          <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+                        </svg>
+                      )}
+                      {skill.icon === 'news' && (
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                          <polyline points="14 2 14 8 20 8" />
+                          <line x1="16" y1="13" x2="8" y2="13" />
+                          <line x1="16" y1="17" x2="8" y2="17" />
+                          <line x1="10" y1="9" x2="9" y2="9" />
+                        </svg>
+                      )}
+                      {skill.icon === 'briefcase' && (
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
+                          <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+                        </svg>
+                      )}
+                    </div>
+                    <div className="ai-skill-community-all-body">
+                      <div className="ai-skill-community-all-title-row">
+                        <span className="ai-skill-community-all-title">{skill.title}</span>
+                        <div className="ai-skill-community-all-tags">
+                          {skill.tags.map((tag) => (
+                            <span className="ai-skill-community-all-tag" key={tag}>{tag}</span>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="ai-skill-community-all-desc">{skill.desc}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
+
+          {/* 创建技能底部弹层 */}
+          {showCreateSkillSheet && (
+            <div className="ai-skill-create-sheet-overlay" onClick={() => setShowCreateSkillSheet(false)}>
+              <div className="ai-skill-create-sheet" onClick={(e) => e.stopPropagation()}>
+                <div className="ai-skill-create-sheet-handle" />
+                <div className="ai-skill-create-sheet-icon">
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M14.5 4.5a3 3 0 0 1 4.24 4.24l-1.42 1.42-4.24-4.24z" />
+                    <path d="M13.09 5.91 5.3 13.7a2 2 0 0 0 0 2.83l2.17 2.17a2 2 0 0 0 2.83 0l7.79-7.79" />
+                    <path d="m8.5 11.5 4 4" />
+                  </svg>
+                </div>
+                <div className="ai-skill-create-sheet-title">使用对话创建</div>
+                <div className="ai-skill-create-sheet-desc">通过对话构建个人使用的技能</div>
+                <button className="ai-skill-create-sheet-btn" type="button" onClick={() => { setShowCreateSkillSheet(false); setShowCreateSkillChat(true) }}>去创建</button>
+                <div className="ai-skill-create-sheet-tip">如需上传本地文件，请前往电脑端操作</div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -1012,6 +1308,273 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
                   </div>
                 </div>
               ))}
+          </div>
+        </div>
+      )}
+
+      {/* 发现全屏页 */}
+      {showDiscoverPage && (
+        <div className="ai-discover-page">
+          <div className="ai-discover-header">
+            <div className="ai-discover-header-menu" onClick={() => setShowDrawer(true)}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round">
+                <line x1="3" y1="6" x2="21" y2="6" />
+                <line x1="3" y1="12" x2="21" y2="12" />
+                <line x1="3" y1="18" x2="21" y2="18" />
+              </svg>
+            </div>
+            <div className="ai-discover-header-title">发现</div>
+            <div className="ai-discover-header-actions">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round">
+                <circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /><circle cx="5" cy="12" r="1" />
+              </svg>
+              <div className="ai-discover-header-close" onClick={() => setShowDiscoverPage(false)}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          <div className="ai-discover-content">
+            <div className="ai-discover-section-title">企业智能体</div>
+            <div className="ai-discover-list">
+              {discoverAgents.map((agent) => (
+                <div className="ai-discover-card" key={agent.id}>
+                  <div className="ai-discover-card-avatar" style={{ background: agent.color }}>
+                    {agent.avatar}
+                  </div>
+                  <div className="ai-discover-card-body">
+                    <div className="ai-discover-card-title">{agent.title}</div>
+                    <div className="ai-discover-card-desc">{agent.description}</div>
+                    <div className="ai-discover-card-meta">
+                      <span className="ai-discover-card-author">@{agent.author}</span>
+                      <span className="ai-discover-card-chats">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                        </svg>
+                        {agent.chats}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 我的技能页 */}
+      {showMySkillsPage && (
+        <div className="ai-my-skills-page">
+          <div className="ai-my-skills-header">
+            <div className="ai-my-skills-back" onClick={() => setShowMySkillsPage(false)}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="15 18 9 12 15 6" />
+              </svg>
+            </div>
+            <div className="ai-my-skills-tabs">
+              <button
+                className={`ai-my-skills-tab ${mySkillsTab === 'added' ? 'is-active' : ''}`}
+                type="button"
+                onClick={() => setMySkillsTab('added')}
+              >
+                我添加的
+              </button>
+              <button
+                className={`ai-my-skills-tab ${mySkillsTab === 'created' ? 'is-active' : ''}`}
+                type="button"
+                onClick={() => setMySkillsTab('created')}
+              >
+                我创建的
+              </button>
+            </div>
+            <div className="ai-my-skills-actions">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M22 3H2l8 9.46V19l4 2v-8.46z" />
+              </svg>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.54 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.54 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.54a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 15 4.54a1.65 1.65 0 0 0 1 1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+              </svg>
+            </div>
+          </div>
+
+          <div className="ai-my-skills-search">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="2" strokeLinecap="round">
+              <circle cx="11" cy="11" r="7" />
+              <line x1="20" y1="20" x2="16.65" y2="16.65" />
+            </svg>
+            <span>搜索</span>
+          </div>
+
+          <div className="ai-my-skills-list">
+            {[
+              {
+                id: 1,
+                title: '导演日记',
+                desc: '影视飓风同款项目管理工作流 —— 在飞书群聊里说"记录一下"沉淀拍摄日志，说"复盘一下"自动生成阶段总结，让...',
+                addedCount: 2,
+                color: '#111111',
+                icon: 'record',
+              },
+              {
+                id: 2,
+                title: '课程顾问',
+                desc: '专业的课程设计与开发技能，帮助教育工作者、培训师和有开课想法的人快速设计完整课程体系。Use when user...',
+                addedCount: 2,
+                color: '#3D7CFF',
+                icon: 'skill',
+              },
+              {
+                id: 3,
+                title: '彩虹渐变信息图生成器',
+                desc: '将文章/文字内容转化为柔和彩虹渐变风格的竖版信息图（HTML格式，1080×1440px，3:4比例）。采用半透明...',
+                addedCount: 2,
+                color: '#FFB21A',
+                icon: 'skill',
+              },
+              {
+                id: 4,
+                title: '营销文案润色',
+                desc: '用于编辑、审阅或优化现有营销文案。当用户提及以下内容时适用：编辑文案、审阅文案、文案反馈、校对、润色、...',
+                addedCount: 2,
+                color: '#34C759',
+                icon: 'doc',
+                openSource: true,
+              },
+            ].map((skill) => (
+              <div className="ai-my-skill-card" key={skill.id}>
+                <div className="ai-my-skill-card-header">
+                  <div className="ai-my-skill-card-icon" style={{ background: skill.color }}>
+                    {skill.icon === 'record' && (
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="8" />
+                        <circle cx="12" cy="12" r="4" fill="#fff" />
+                      </svg>
+                    )}
+                    {skill.icon === 'skill' && (
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M14.5 4.5a3 3 0 0 1 4.24 4.24l-1.42 1.42-4.24-4.24z" />
+                        <path d="M13.09 5.91 5.3 13.7a2 2 0 0 0 0 2.83l2.17 2.17a2 2 0 0 0 2.83 0l7.79-7.79" />
+                        <path d="m8.5 11.5 4 4" />
+                      </svg>
+                    )}
+                    {skill.icon === 'doc' && (
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                        <polyline points="14 2 14 8 20 8" />
+                        <line x1="16" y1="13" x2="8" y2="13" />
+                        <line x1="16" y1="17" x2="8" y2="17" />
+                        <line x1="10" y1="9" x2="9" y2="9" />
+                      </svg>
+                    )}
+                  </div>
+                  <div className="ai-my-skill-card-title">{skill.title}</div>
+                  {skill.openSource && <span className="ai-my-skill-card-badge">开源</span>}
+                  <div className="ai-my-skill-card-more">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="#999">
+                      <circle cx="12" cy="5" r="1.8" />
+                      <circle cx="12" cy="12" r="1.8" />
+                      <circle cx="12" cy="19" r="1.8" />
+                    </svg>
+                  </div>
+                </div>
+                <div className="ai-my-skill-card-desc">{skill.desc}</div>
+                <div className="ai-my-skill-card-meta">
+                  <div className="ai-my-skill-card-avatars">
+                    <div className="ai-my-skill-card-avatar" style={{ background: '#E8734A' }}>A</div>
+                    <div className="ai-my-skill-card-avatar" style={{ background: '#7A95FF', marginLeft: '-6px' }}>B</div>
+                  </div>
+                  <span>已添加到 {skill.addedCount} 个智能体</span>
+                </div>
+                <button className="ai-my-skill-card-btn" type="button">立即使用</button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {/* 创建技能对话页 */}
+      {showCreateSkillChat && (
+        <div className="ai-create-skill-chat-page">
+          <div className="ai-create-skill-chat-header">
+            <div className="ai-create-skill-chat-menu" onClick={() => setShowDrawer(true)}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round">
+                <line x1="3" y1="6" x2="21" y2="6" />
+                <line x1="3" y1="12" x2="21" y2="12" />
+                <line x1="3" y1="18" x2="21" y2="18" />
+              </svg>
+            </div>
+            <div className="ai-create-skill-chat-actions">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round">
+                <circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /><circle cx="5" cy="12" r="1" />
+              </svg>
+              <div className="ai-create-skill-chat-close" onClick={() => setShowCreateSkillChat(false)}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          <div className="ai-create-skill-chat-content">
+            <div className="ai-create-skill-chat-welcome">
+              <h1>Hi 张洪磊，有什么可以帮你的？</h1>
+              <div className="ai-create-skill-chat-practice">
+                <span>全部最佳实践</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="9 18 15 12 9 6" />
+                </svg>
+              </div>
+            </div>
+
+            <div className="ai-create-skill-chat-cards">
+              <div className="ai-create-skill-chat-card">
+                <div className="ai-create-skill-chat-card-icon" style={{ background: '#FF8C00' }}>🎁</div>
+                <div className="ai-create-skill-chat-card-text">
+                  <span>领取新人免费体验礼包</span>
+                </div>
+              </div>
+              <div className="ai-create-skill-chat-card">
+                <div className="ai-create-skill-chat-card-icon" style={{ background: '#8E8E93' }}>📄</div>
+                <div className="ai-create-skill-chat-text">
+                  <span>解读Harness</span>
+                  <span>Engineering</span>
+                </div>
+              </div>
+              <div className="ai-create-skill-chat-card">
+                <div className="ai-create-skill-chat-card-icon" style={{ background: '#5AC8FA' }}>⭐</div>
+                <div className="ai-create-skill-chat-text">
+                  <span>影视飓风同款</span>
+                  <span>落地行动建…</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="ai-create-skill-chat-bottom">
+            <div className="ai-create-skill-chat-actions">
+              <div className="ai-create-skill-chat-action">创建图片 PPT</div>
+              <div className="ai-create-skill-chat-action">创建网页 PPT</div>
+              <div className="ai-create-skill-chat-action">写云文档</div>
+              <div className="ai-create-skill-chat-action">…</div>
+            </div>
+            <div className="ai-create-skill-chat-input-bar">
+              <div className="ai-create-skill-chat-plus">+</div>
+              <div className="ai-create-skill-chat-input-field">
+                帮我使用 <span className="ai-create-skill-chat-highlight">AI 生成技能</span> 创建一个技能。请先问我这个技能可以做什么。
+              </div>
+              <div className="ai-create-skill-chat-send">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="12" y1="19" x2="12" y2="5" />
+                  <line x1="5" y1="12" x2="12" y2="5" />
+                  <line x1="12" y1="5" x2="19" y2="12" />
+                </svg>
+              </div>
+            </div>
+            <p className="ai-create-skill-chat-disclaimer">使用国内合规模型并严格遵循权限隔离，保障企业数据安全</p>
           </div>
         </div>
       )}
