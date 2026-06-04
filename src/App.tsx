@@ -4,6 +4,7 @@ import SpacePage from './pages/Space'
 import AIPage from './pages/AI'
 import LibraryPage from './pages/Library'
 import CalendarPage from './pages/Calendar'
+import TaskPage from './pages/Task'
 import './App.css'
 
 // 底部导航图标
@@ -16,21 +17,23 @@ function HomeIcon({ active }: { active: boolean }) {
   )
 }
 
-function NotesIcon({ active }: { active: boolean }) {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? '#333' : '#999'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="3" width="18" height="18" rx="2" />
-      <path d="M3 9h18" />
-      <path d="M9 3v6" />
-    </svg>
-  )
-}
-
 function LibraryIcon({ active }: { active: boolean }) {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? '#333' : '#999'} strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
       <path d="M4.5 7.5c0-1.1.9-2 2-2h3.1c.54 0 1.05.26 1.36.69l1.03 1.42c.3.42.8.67 1.31.67h4.19c1.1 0 2 .9 2 2v6.22c0 1.1-.9 2-2 2H6.5c-1.1 0-2-.9-2-2z" />
       <path d="M4.5 9.5h15" />
+    </svg>
+  )
+}
+
+function TaskIcon({ active }: { active: boolean }) {
+  const stroke = active ? '#333' : '#999'
+  const fill = active ? '#4A7CFF' : '#fff'
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 11l3 3L22 4" />
+      <path d="M21 12c0 7.18-5.82 12-12 12S0 16.18 0 9 4.82 0 9 0c2.05 0 3.95.65 5.5 1.75" stroke={stroke} strokeWidth="1.9" />
+      <circle cx="12" cy="12" r="10" fill={fill} fillOpacity={active ? 0.08 : 0} stroke={stroke} strokeWidth="1.9" />
     </svg>
   )
 }
@@ -91,6 +94,7 @@ export const apps = [
   { id: 8, name: '妙记', color: '#4D7CFE', type: 'note' },
   { id: 9, name: '发现', color: '#444', type: 'discover' },
   { id: 10, name: '资料库', color: '#4A7CFF', type: 'library' },
+  { id: 11, name: '空间', color: '#87CEEB', type: 'space' },
 ]
 
 export const renderAppGlyph = (type: string) => {
@@ -167,6 +171,14 @@ export const renderAppGlyph = (type: string) => {
           <path d="M4.5 9.5h15" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" />
         </svg>
       )
+    case 'space':
+      return (
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+          <rect x="3" y="3" width="18" height="18" rx="2" fill="#87CEEB" />
+          <path d="M3 9h18" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" />
+          <path d="M9 3v6" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" />
+        </svg>
+      )
     default:
       return null
   }
@@ -183,7 +195,7 @@ type TabItem = {
 
 const defaultMainTabs: TabItem[] = [
   { key: 'home', label: '首页', icon: HomeIcon, source: 'system' },
-  { key: 'space', label: '空间', icon: NotesIcon, source: 'system' },
+  { key: 'task', label: '任务', icon: TaskIcon, source: 'system' },
   { key: 'calendar', label: '日历', icon: CalendarIcon, source: 'system' },
   { key: 'more', label: '更多', icon: MoreIcon, source: 'system' },
 ]
@@ -237,12 +249,14 @@ function App() {
     <div className="app-container">
       <div className="app-content">
         {activeKey === 'home' && <Home />}
-        {activeKey === 'space' && <SpacePage />}
+        {activeKey === 'task' && <TaskPage />}
         {activeKey === 'calendar' && <CalendarPage />}
+        {activeKey === 'space' && <SpacePage />}
         {activeKey === 'library' && <LibraryPage />}
         {activeKey === 'app-10' && <LibraryPage />}
+        {activeKey === 'app-11' && <SpacePage />}
         {activeKey === 'ai' && <PlaceholderPage title="AI" />}
-        {activeCustomTab && activeKey !== 'app-10' && <PlaceholderPage title={activeCustomTab.label} />}
+        {activeCustomTab && !['app-10', 'app-11'].includes(activeKey) && <PlaceholderPage title={activeCustomTab.label} />}
       </div>
       <div className="app-bottom">
         <div className="bottom-tabs">
@@ -347,6 +361,7 @@ function MoreDrawer({ onClose, onEdit, onSelectApp }: { onClose: () => void, onE
     { id: 8, name: '妙记', color: '#4D7CFE', type: 'note' },
     { id: 9, name: '发现', color: '#444', type: 'discover' },
     { id: 10, name: '资料库', color: '#4A7CFF', type: 'library' },
+    { id: 11, name: '空间', color: '#87CEEB', type: 'space' },
   ]
 
   const renderAppGlyph = (type: string) => {
@@ -421,6 +436,14 @@ function MoreDrawer({ onClose, onEdit, onSelectApp }: { onClose: () => void, onE
           <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
             <path d="M4.5 7.5c0-1.1.9-2 2-2h3.1c.54 0 1.05.26 1.36.69l1.03 1.42c.3.42.8.67 1.31.67h4.19c1.1 0 2 .9 2 2v6.22c0 1.1-.9 2-2 2H6.5c-1.1 0-2-.9-2-2z" fill="#4A7CFF" />
             <path d="M4.5 9.5h15" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+        )
+      case 'space':
+        return (
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+            <rect x="3" y="3" width="18" height="18" rx="2" fill="#87CEEB" />
+            <path d="M3 9h18" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" />
+            <path d="M9 3v6" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" />
           </svg>
         )
       default:
