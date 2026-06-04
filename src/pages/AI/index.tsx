@@ -59,6 +59,8 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
   const [mySkillsTab, setMySkillsTab] = useState<'added' | 'created'>('added')
   const [showCreateSkillSheet, setShowCreateSkillSheet] = useState(false)
   const [showCreateSkillChat, setShowCreateSkillChat] = useState(false)
+  const [showAgentChat, setShowAgentChat] = useState(false)
+  const [selectedAgentId, setSelectedAgentId] = useState<number | null>(null)
   const [libraryTab, setLibraryTab] = useState<'personal' | 'org'>('personal')
   const [selectedLibraryIds, setSelectedLibraryIds] = useState<number[]>([])
   const [selectedOrgSpace, setSelectedOrgSpace] = useState('课堂评价')
@@ -72,15 +74,15 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
   ]
 
   const agents = [
-    { id: 1, name: '建国', avatar: '建', color: '#E8734A' },
-    { id: 2, name: '创新产品设计专家', avatar: '创', color: '#7A95FF' },
-    { id: 3, name: 'vibe coding 必备的资深 UI', avatar: 'UI', color: '#4FB7B3' },
-    { id: 4, name: '修图小助手，相册中不再有废片！', avatar: '修', color: '#F0A35E' },
-    { id: 5, name: '财报解读专家', avatar: '财', color: '#5E94E8' },
-    { id: 6, name: '运营达人', avatar: '运', color: '#C68CE5' },
-    { id: 7, name: '学习公社6.0答疑助手', avatar: '学', color: '#6FA8FF' },
-    { id: 8, name: '会议纪要助手', avatar: '会', color: '#4FC3A1' },
-    { id: 9, name: '短视频脚本达人', avatar: '短', color: '#F08080' },
+    { id: 1, name: '建国', avatar: '建', color: '#E8734A', description: '智能伙伴，帮你处理各类日常任务' },
+    { id: 2, name: '创新产品设计专家', avatar: '创', color: '#7A95FF', description: '专注于产品创新设计，提供从概念到落地的全流程支持' },
+    { id: 3, name: 'vibe coding 必备的资深 UI', avatar: 'UI', color: '#4FB7B3', description: '资深 UI 设计专家，帮你快速产出高质量界面方案' },
+    { id: 4, name: '修图小助手，相册中不再有废片！', avatar: '修', color: '#F0A35E', description: '智能修图助手，一键优化照片，让相册不留废片' },
+    { id: 5, name: '财报解读专家', avatar: '财', color: '#5E94E8', description: '专业解读财报数据，帮你快速理解企业财务状况' },
+    { id: 6, name: '运营达人', avatar: '运', color: '#C68CE5', description: '运营全流程支持，从策划到执行一站式搞定' },
+    { id: 7, name: '学习公社6.0答疑助手', avatar: '学', color: '#6FA8FF', description: '基于产品知识库，为用户解答学习公社6.0相关问题' },
+    { id: 8, name: '会议纪要助手', avatar: '会', color: '#4FC3A1', description: '自动生成会议纪要，帮你高效记录和跟进会议内容' },
+    { id: 9, name: '短视频脚本达人', avatar: '短', color: '#F08080', description: '创作爆款短视频脚本，从选题到脚本一站式搞定' },
   ]
 
   const builtInAgent = agents[0]
@@ -696,7 +698,7 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
               <div className="ai-drawer-section">
                 <div className="ai-drawer-section-title">自定义智能体</div>
                 {visibleCustomAgents.map((agent) => (
-                  <div className="ai-drawer-agent-item" key={agent.id}>
+                  <div className="ai-drawer-agent-item" key={agent.id} onClick={() => { setSelectedAgentId(agent.id); setShowAgentChat(true); setShowDrawer(false) }}>
                     <div className="ai-drawer-agent-avatar" style={{ background: agent.color }}>
                       {agent.avatar}
                     </div>
@@ -1595,6 +1597,62 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
           </div>
         </div>
       )}
+
+      {/* 智能体对话全屏页 */}
+      {showAgentChat && selectedAgentId && (() => {
+        const agent = agents.find(a => a.id === selectedAgentId)
+        if (!agent) return null
+        return (
+          <div className="ai-agent-chat-page">
+            <div className="ai-agent-chat-header">
+              <div className="ai-agent-chat-back" onClick={() => { setShowAgentChat(false); setSelectedAgentId(null) }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="15 18 9 12 15 6" />
+                </svg>
+              </div>
+              <div className="ai-agent-chat-title">{agent.name}</div>
+              <div className="ai-agent-chat-header-actions">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round">
+                  <circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /><circle cx="5" cy="12" r="1" />
+                </svg>
+                <div className="ai-agent-chat-close" onClick={() => { setShowAgentChat(false); setSelectedAgentId(null) }}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </div>
+              </div>
+            </div>
+
+            <div className="ai-agent-chat-content">
+              <div className="ai-agent-chat-avatar" style={{ background: agent.color }}>
+                {agent.avatar}
+              </div>
+              <div className="ai-agent-chat-name">{agent.name}</div>
+              <div className="ai-agent-chat-desc">{agent.description}</div>
+              <button className="ai-agent-chat-start-btn" type="button">开始对话</button>
+            </div>
+
+            <div className="ai-agent-chat-bottom">
+              <div className="ai-agent-chat-input-bar">
+                <div className="ai-agent-chat-plus">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round">
+                    <line x1="12" y1="5" x2="12" y2="19" />
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                  </svg>
+                </div>
+                <input className="ai-agent-chat-input-field" placeholder="向 {agent.name} 提问…" />
+                <div className="ai-agent-chat-send">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="#fff" stroke="none">
+                    <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+                  </svg>
+                </div>
+              </div>
+              <p className="ai-agent-chat-disclaimer">使用国内合规模型并严格遵循权限隔离，保障企业数据安全</p>
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }
