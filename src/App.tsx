@@ -3,6 +3,7 @@ import Home from './pages/Home'
 import SpacePage from './pages/Space'
 import AIPage from './pages/AI'
 import LibraryPage from './pages/Library'
+import CalendarPage from './pages/Calendar'
 import './App.css'
 
 // 底部导航图标
@@ -30,6 +31,21 @@ function LibraryIcon({ active }: { active: boolean }) {
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? '#333' : '#999'} strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
       <path d="M4.5 7.5c0-1.1.9-2 2-2h3.1c.54 0 1.05.26 1.36.69l1.03 1.42c.3.42.8.67 1.31.67h4.19c1.1 0 2 .9 2 2v6.22c0 1.1-.9 2-2 2H6.5c-1.1 0-2-.9-2-2z" />
       <path d="M4.5 9.5h15" />
+    </svg>
+  )
+}
+
+function CalendarIcon({ active }: { active: boolean }) {
+  const stroke = active ? '#333' : '#999'
+  const fill = active ? '#4A7CFF' : 'none'
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="18" rx="2" />
+      <line x1="3" y1="10" x2="21" y2="10" />
+      <line x1="8" y1="2" x2="8" y2="6" />
+      <line x1="16" y1="2" x2="16" y2="6" />
+      <rect x="7" y="13" width="3" height="3" rx="0.5" fill={fill} stroke={stroke} />
+      <rect x="14" y="13" width="3" height="3" rx="0.5" fill={fill} stroke={stroke} />
     </svg>
   )
 }
@@ -74,6 +90,7 @@ export const apps = [
   { id: 7, name: '通讯录', color: '#F5B400', type: 'contact' },
   { id: 8, name: '妙记', color: '#4D7CFE', type: 'note' },
   { id: 9, name: '发现', color: '#444', type: 'discover' },
+  { id: 10, name: '资料库', color: '#4A7CFF', type: 'library' },
 ]
 
 export const renderAppGlyph = (type: string) => {
@@ -143,6 +160,13 @@ export const renderAppGlyph = (type: string) => {
           <path d="M17.5 14v7M14 17.5h7" strokeLinecap="round" />
         </svg>
       )
+    case 'library':
+      return (
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+          <path d="M4.5 7.5c0-1.1.9-2 2-2h3.1c.54 0 1.05.26 1.36.69l1.03 1.42c.3.42.8.67 1.31.67h4.19c1.1 0 2 .9 2 2v6.22c0 1.1-.9 2-2 2H6.5c-1.1 0-2-.9-2-2z" fill="#4A7CFF" />
+          <path d="M4.5 9.5h15" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" />
+        </svg>
+      )
     default:
       return null
   }
@@ -160,7 +184,7 @@ type TabItem = {
 const defaultMainTabs: TabItem[] = [
   { key: 'home', label: '首页', icon: HomeIcon, source: 'system' },
   { key: 'space', label: '空间', icon: NotesIcon, source: 'system' },
-  { key: 'library', label: '资料库', icon: LibraryIcon, source: 'system' },
+  { key: 'calendar', label: '日历', icon: CalendarIcon, source: 'system' },
   { key: 'more', label: '更多', icon: MoreIcon, source: 'system' },
 ]
 
@@ -181,6 +205,11 @@ function App() {
   const [showMoreEdit, setShowMoreEdit] = useState(false)
   const [mainTabs, setMainTabs] = useState(defaultMainTabs)
 
+  const handleSelectApp = (appKey: string) => {
+    setShowMoreDrawer(false)
+    setActiveKey(appKey)
+  }
+
   const handleTabChange = (key: string) => {
     if (key === 'more') {
       setShowMoreDrawer(true)
@@ -193,7 +222,7 @@ function App() {
   }
 
   useEffect(() => {
-    if (activeKey === 'ai' || activeKey === 'more') return
+    if (activeKey === 'ai' || activeKey === 'more' || activeKey.startsWith('app-')) return
     if (!mainTabs.some((tab) => tab.key === activeKey) && mainTabs.length > 0) {
       setActiveKey(mainTabs[0].key)
     }
@@ -209,9 +238,11 @@ function App() {
       <div className="app-content">
         {activeKey === 'home' && <Home />}
         {activeKey === 'space' && <SpacePage />}
+        {activeKey === 'calendar' && <CalendarPage />}
         {activeKey === 'library' && <LibraryPage />}
+        {activeKey === 'app-10' && <LibraryPage />}
         {activeKey === 'ai' && <PlaceholderPage title="AI" />}
-        {activeCustomTab && <PlaceholderPage title={activeCustomTab.label} />}
+        {activeCustomTab && activeKey !== 'app-10' && <PlaceholderPage title={activeCustomTab.label} />}
       </div>
       <div className="app-bottom">
         <div className="bottom-tabs">
@@ -220,12 +251,21 @@ function App() {
             <div
               className="tab-slider"
               style={{
-                transform: `translateX(${mainTabs.findIndex(t => t.key === activeKey) >= 0 ? mainTabs.findIndex(t => t.key === activeKey) * 100 : 0}%)`,
-                opacity: mainTabs.findIndex(t => t.key === activeKey) >= 0 ? 1 : 0,
+                transform: `translateX(${(() => {
+                  const idx = mainTabs.findIndex(t => t.key === activeKey)
+                  if (idx >= 0) return idx * 100
+                  // 更多子页面（app- 开头）时，滑块移到"更多"位置
+                  if (activeKey.startsWith('app-')) {
+                    const moreIdx = mainTabs.findIndex(t => t.key === 'more')
+                    return moreIdx >= 0 ? moreIdx * 100 : 0
+                  }
+                  return 0
+                })()}%)`,
+                opacity: mainTabs.findIndex(t => t.key === activeKey) >= 0 || activeKey.startsWith('app-') ? 1 : 0,
               }}
             />
             {mainTabs.map((tab) => {
-              const isActive = activeKey === tab.key
+              const isActive = activeKey === tab.key || (tab.key === 'more' && activeKey.startsWith('app-'))
               const Icon = tab.icon
               return (
                 <div
@@ -265,7 +305,7 @@ function App() {
         <MoreDrawer onClose={() => setShowMoreDrawer(false)} onEdit={() => {
           setShowMoreDrawer(false)
           setShowMoreEdit(true)
-        }} />
+        }} onSelectApp={handleSelectApp} />
       )}
 
       {/* 更多编辑页面 */}
@@ -288,7 +328,7 @@ function PlaceholderPage({ title }: { title: string }) {
   )
 }
 
-function MoreDrawer({ onClose, onEdit }: { onClose: () => void, onEdit: () => void }) {
+function MoreDrawer({ onClose, onEdit, onSelectApp }: { onClose: () => void, onEdit: () => void, onSelectApp: (appKey: string) => void }) {
   const recentItems = [
     { id: 1, title: '飞书 aily', icon: 'avatar' },
     { id: 2, title: '花三年时间整理出的向量数据库最佳实践', icon: 'chat' },
@@ -306,6 +346,7 @@ function MoreDrawer({ onClose, onEdit }: { onClose: () => void, onEdit: () => vo
     { id: 7, name: '通讯录', color: '#F5B400', type: 'contact' },
     { id: 8, name: '妙记', color: '#4D7CFE', type: 'note' },
     { id: 9, name: '发现', color: '#444', type: 'discover' },
+    { id: 10, name: '资料库', color: '#4A7CFF', type: 'library' },
   ]
 
   const renderAppGlyph = (type: string) => {
@@ -375,6 +416,13 @@ function MoreDrawer({ onClose, onEdit }: { onClose: () => void, onEdit: () => vo
             <path d="M17.5 14v7M14 17.5h7" strokeLinecap="round" />
           </svg>
         )
+      case 'library':
+        return (
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+            <path d="M4.5 7.5c0-1.1.9-2 2-2h3.1c.54 0 1.05.26 1.36.69l1.03 1.42c.3.42.8.67 1.31.67h4.19c1.1 0 2 .9 2 2v6.22c0 1.1-.9 2-2 2H6.5c-1.1 0-2-.9-2-2z" fill="#4A7CFF" />
+            <path d="M4.5 9.5h15" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+        )
       default:
         return null
     }
@@ -428,7 +476,7 @@ function MoreDrawer({ onClose, onEdit }: { onClose: () => void, onEdit: () => vo
 
           <div className="more-page-app-grid">
             {apps.map((app) => (
-              <div className="more-page-app-item" key={app.id}>
+              <div className="more-page-app-item" key={app.id} onClick={() => onSelectApp(`app-${app.id}`)}>
                 <div className="more-page-app-icon" style={{ background: app.type === 'discover' ? '#fff' : `${app.color}18` }}>
                   {renderAppGlyph(app.type)}
                 </div>
