@@ -440,3 +440,237 @@
   height: 80px;
   flex-shrink: 0;
 }
+
+/* ===== 老年模式切换按钮 ===== */
+.elder-toggle-btn {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  background: #f5f6f8;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+
+.elder-toggle-btn:active {
+  background: #e8e8e8;
+}
+
+/* ===== 老年模式样式覆盖 ===== */
+.home.elder-mode .header-logo {
+  font-size: 28px;
+}
+
+.home.elder-mode .home-header {
+  padding: 20px 20px 16px;
+}
+
+.home.elder-mode .voice-search-btn {
+  font-size: 18px;
+  padding: 14px 20px;
+  min-height: 56px;
+  gap: 10px;
+}
+
+.home.elder-mode .greeting-text {
+  font-size: 19px;
+}
+
+.home.elder-mode .greeting-hint {
+  font-size: 16px;
+  padding: 6px 14px;
+}
+
+.home.elder-mode .home-quick-grid {
+  gap: 16px;
+  padding: 20px;
+}
+
+.home.elder-mode .quick-item {
+  padding: 20px 16px;
+  min-height: 100px;
+}
+
+.home.elder-mode .quick-title {
+  font-size: 19px;
+}
+
+.home.elder-mode .quick-subtitle {
+  font-size: 15px;
+}
+
+.home.elder-mode .home-section {
+  padding: 20px;
+}
+
+.home.elder-mode .section-title {
+  font-size: 22px;
+}
+
+.home.elder-mode .section-more {
+  font-size: 16px;
+}
+
+.home.elder-mode .ai-scenarios {
+  gap: 14px;
+}
+
+.home.elder-mode .scenario-card {
+  padding: 18px 14px;
+}
+
+.home.elder-mode .scenario-title {
+  font-size: 17px;
+}
+
+.home.elder-mode .scenario-desc {
+  font-size: 14px;
+}
+
+.home.elder-mode .ai-chat-btn {
+  font-size: 18px;
+  padding: 14px 28px;
+  min-height: 56px;
+}
+
+.home.elder-mode .lang-tag {
+  font-size: 15px;
+  padding: 8px 16px;
+}
+
+.home.elder-mode .course-tab {
+  font-size: 17px;
+  padding: 8px 20px;
+}
+
+.home.elder-mode .course-card {
+  padding: 16px;
+  min-height: 56px;
+}
+
+.home.elder-mode .course-card-title {
+  font-size: 18px;
+}
+
+.home.elder-mode .course-free-tag {
+  font-size: 14px;
+  padding: 3px 10px;
+}
+
+.home.elder-mode .course-card-meta {
+  font-size: 16px;
+}
+
+.home.elder-mode .category-item {
+  width: 84px;
+  height: 84px;
+}
+
+.home.elder-mode .category-emoji {
+  font-size: 28px;
+}
+
+.home.elder-mode .category-name {
+  font-size: 15px;
+}
+
+.home.elder-mode .service-block-title {
+  font-size: 17px;
+}
+
+.home.elder-mode .service-item {
+  padding: 14px 0;
+  min-height: 52px;
+}
+
+.home.elder-mode .service-name {
+  font-size: 18px;
+}
+
+.home.elder-mode .service-icon {
+  font-size: 24px;
+}
+
+.home.elder-mode .home-bottom-space {
+  height: 100px;
+}
+
+.home.elder-mode .elder-toggle-btn {
+  width: 36px;
+  height: 36px;
+  font-size: 22px;
+}
+
+/* ===== PWA 安装提示 ===== */
+.pwa-install-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 10px 14px;
+  background: linear-gradient(135deg, rgba(74, 124, 255, 0.08), rgba(74, 124, 255, 0.04));
+  border: 1px solid rgba(74, 124, 255, 0.15);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+
+.pwa-install-bar:active {
+  transform: scale(0.98);
+}
+
+.pwa-install-icon {
+  font-size: 18px;
+}
+
+.pwa-install-text {
+  flex: 1;
+  font-size: 14px;
+  color: #333;
+  font-weight: 500;
+}
+
+.pwa-install-btn {
+  padding: 6px 14px;
+  background: #4A7CFF;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  border: none;
+  border-radius: 16px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.pwa-install-btn:active {
+  background: #3a6ae0;
+}
+
+.pwa-installed-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 10px 14px;
+  background: rgba(60, 194, 163, 0.08);
+  border: 1px solid rgba(60, 194, 163, 0.15);
+  border-radius: 12px;
+}
+
+.pwa-installed-bar .pwa-install-text {
+  color: #3CC2A3;
+}
+
+/* 老年模式 PWA 样式 */
+.home.elder-mode .pwa-install-text {
+  font-size: 16px;
+}
+
+.home.elder-mode .pwa-install-btn {
+  font-size: 16px;
+  padding: 8px 18px;
+}

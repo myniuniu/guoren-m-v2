@@ -207,6 +207,7 @@ function App() {
   const [showMoreDrawer, setShowMoreDrawer] = useState(false)
   const [showMoreEdit, setShowMoreEdit] = useState(false)
   const [mainTabs, setMainTabs] = useState(defaultMainTabs)
+  const [elderMode, setElderMode] = useState(false)
 
   const handleSelectApp = (appKey: string) => {
     setShowMoreDrawer(false)
@@ -239,7 +240,7 @@ function App() {
   return (
     <div className="app-container">
       <div className="app-content">
-        {activeKey === 'home' && <Home onOpenAI={() => setShowAI(true)} />}
+        {activeKey === 'home' && <Home onOpenAI={() => setShowAI(true)} elderMode={elderMode} onToggleElderMode={() => setElderMode(!elderMode)} />}
         {activeKey === 'task' && <TaskPage />}
         {activeKey === 'calendar' && <CalendarPage />}
         {activeKey === 'space' && <SpacePage />}

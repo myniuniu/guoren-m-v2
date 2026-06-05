@@ -1,9 +1,11 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Badge } from 'antd-mobile'
 import './index.css'
 
 interface HomeProps {
   onOpenAI: () => void
+  elderMode: boolean
+  onToggleElderMode: () => void
 }
 
 // 判断当前时间段
@@ -204,11 +206,39 @@ const lifeServices = [
   { id: 'l2', name: '医保科普', icon: '📋' },
 ]
 
-export default function Home({ onOpenAI }: HomeProps) {
+export default function Home({ onOpenAI, elderMode, onToggleElderMode }: HomeProps) {
   const [courseTab, setCourseTab] = useState<'hot' | 'system'>('hot')
   const [langMode, setLangMode] = useState<'mandarin' | 'dialect'>('mandarin')
+  const [canInstall, setCanInstall] = useState(false)
+  const [isStandalone, setIsStandalone] = useState(false)
+  const installPromptRef = useRef<any>(null)
   const greeting = getGreeting()
   const greetingSuffix = getGreetingSuffix()
+
+  // 检测是否已是 PWA 模式 & 捕获安装事件
+  useEffect(() => {
+    const isStandaloneMode = window.matchMedia('(display-mode: standalone)').matches
+      || (navigator as any).standalone === true
+    setIsStandalone(isStandaloneMode)
+
+    const handler = (e: Event) => {
+      e.preventDefault()
+      installPromptRef.current = e
+      setCanInstall(true)
+    }
+    window.addEventListener('beforeinstallprompt', handler)
+    return () => window.removeEventListener('beforeinstallprompt', handler)
+  }, [])
+
+  const handleInstallPWA = async () => {
+    if (!installPromptRef.current) return
+    installPromptRef.current.prompt()
+    const { outcome } = await installPromptRef.current.userChoice
+    if (outcome === 'accepted') {
+      setCanInstall(false)
+    }
+    installPromptRef.current = null
+  }
 
   const renderQuickIcon = (type: string) => {
     switch (type) {
@@ -230,7 +260,7 @@ export default function Home({ onOpenAI }: HomeProps) {
   }
 
   return (
-    <div className="home">
+    <div className={`home ${elderMode ? 'elder-mode' : ''}`}>
       {/* ===== 1. 顶部导航区 ===== */}
       <div className="home-header">
         <div className="header-row">
@@ -238,6 +268,9 @@ export default function Home({ onOpenAI }: HomeProps) {
             <span className="header-logo">老年社区</span>
           </div>
           <div className="header-right">
+            <div className="elder-toggle-btn" onClick={onToggleElderMode} title={elderMode ? '切换标准模式' : '切换老年模式'}>
+              {elderMode ? '👵' : '🧑'}
+            </div>
             <Badge content="3" style={{ '--right': '-4px', '--top': '-2px' }}>
               <BellIcon />
             </Badge>
@@ -250,6 +283,21 @@ export default function Home({ onOpenAI }: HomeProps) {
           <MicIcon />
           <span>{langMode === 'mandarin' ? '按住说话搜课程' : '方言语音搜课程'}</span>
         </div>
+
+        {/* PWA 安装提示 */}
+        {canInstall && !isStandalone && (
+          <div className="pwa-install-bar" onClick={handleInstallPWA}>
+            <span className="pwa-install-icon">📱</span>
+            <span className="pwa-install-text">添加到桌面，离线也能用</span>
+            <button className="pwa-install-btn">一键安装</button>
+          </div>
+        )}
+        {isStandalone && (
+          <div className="pwa-installed-bar">
+            <span className="pwa-install-icon">✅</span>
+            <span className="pwa-install-text">已安装为桌面应用，离线可用</span>
+          </div>
+        )}
 
         {/* 温馨标语 */}
         <div className="greeting-row">
