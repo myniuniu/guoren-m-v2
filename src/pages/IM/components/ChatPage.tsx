@@ -118,7 +118,7 @@ const ChatPage: React.FC<ChatPageProps> = ({ conversation, onBack }) => {
     <div className="im-chat-page">
       {/* 顶部导航 */}
       <NavBar onBack={onBack} className="im-chat-navbar">
-        <div className="im-chat-navbar-title">{conversation.title}</div>
+        <div className="im-chat-navbar-title">{displayName}</div>
       </NavBar>
 
       {/* 消息列表 */}

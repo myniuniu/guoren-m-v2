@@ -3,7 +3,7 @@
  */
 
 import React, { useState } from 'react';
-import { type SeminarInviteCustomData, resolveSeminarInviteInviterUserId } from '../utils/seminarInviteCustomMessage';
+import { type SeminarInviteCustomData, resolveSeminarInviteInviterUserId, getSeminarInviteSearchParams } from '../utils/seminarInviteCustomMessage';
 import { useDisplayName, useDisplayNamePrefetch, useDisplayNameLookup } from '../utils/displayNameHooks';
 
 export interface SeminarInviteCardProps {
@@ -37,33 +37,33 @@ export function openSeminarInviteJoinUrl(joinUrl: string): void {
   window.open(targetUrl, '_blank', 'noopener,noreferrer');
 }
 
-function getSeminarInviteAttendeeCount(joinUrl: string): number | undefined {
-  try {
-    const url = new URL(joinUrl);
-    const scheduleAttendees = url.searchParams.get('scheduleAttendees') || '';
-    if (!scheduleAttendees) return undefined;
+function getSeminarInviteAttendeeCount(joinUrl: string, memberCount?: number): number | undefined {
+  const params = getSeminarInviteSearchParams(joinUrl);
+  const scheduleAttendees = params.get('scheduleAttendees') || '';
+  if (scheduleAttendees) {
     const attendeeList = scheduleAttendees
       .split(',')
       .map((item) => item.trim())
       .filter(Boolean);
-    return attendeeList.length > 0 ? attendeeList.length : undefined;
-  } catch {
-    return undefined;
+    if (attendeeList.length > 0) return attendeeList.length;
   }
+  // 兜底：从 memberCount 字段获取
+  return memberCount;
 }
 
-function getSeminarInviteAttendeeUserIds(joinUrl: string): string[] {
-  try {
-    const url = new URL(joinUrl);
-    const scheduleAttendees = url.searchParams.get('scheduleAttendees') || '';
-    if (!scheduleAttendees) return [];
-    return scheduleAttendees
-      .split(',')
-      .map((item) => item.trim())
-      .filter(Boolean);
-  } catch {
-    return [];
+function getSeminarInviteAttendeeUserIds(invite: SeminarInviteCustomData): string[] {
+  // 优先从 invite 对象的 members 字段获取
+  if (Array.isArray(invite.members) && invite.members.length > 0) {
+    return invite.members.map((item) => String(item).trim()).filter(Boolean);
   }
+  // 兜底：从 joinUrl 的 scheduleAttendees 参数解析（支持 hash query）
+  const params = getSeminarInviteSearchParams(invite.joinUrl || '');
+  const scheduleAttendees = params.get('scheduleAttendees') || '';
+  if (!scheduleAttendees) return [];
+  return scheduleAttendees
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 const SeminarInviteCard: React.FC<SeminarInviteCardProps> = ({ invite }) => {
@@ -76,14 +76,14 @@ const SeminarInviteCard: React.FC<SeminarInviteCardProps> = ({ invite }) => {
   const handleOpen = () => openSeminarInviteJoinUrl(invite.joinUrl || '');
   const handleToggleAttendees = () => setShowAttendees((prev) => !prev);
 
-  const attendeeCount = getSeminarInviteAttendeeCount(invite.joinUrl || '');
-  const attendeeUserIds = getSeminarInviteAttendeeUserIds(invite.joinUrl || '');
+  const attendeeCount = getSeminarInviteAttendeeCount(invite.joinUrl || '', invite.memberCount);
+  const attendeeUserIds = getSeminarInviteAttendeeUserIds(invite);
 
   // 获取 lookup 函数，用于参会人员姓名的同步查询
   const lookupName = useDisplayNameLookup();
 
-  // 只在展开时预热参会人员姓名
-  useDisplayNamePrefetch(showAttendees ? attendeeUserIds : []);
+  // 组件 mount 时预取所有参会人员的 displayName，确保点击"查看"时数据已就绪
+  useDisplayNamePrefetch(attendeeUserIds);
 
   return (
     <div className="im-seminar-card">
@@ -108,27 +108,31 @@ const SeminarInviteCard: React.FC<SeminarInviteCardProps> = ({ invite }) => {
             <div className="im-seminar-card__sender-label">邀请人</div>
             <div className="im-seminar-card__sender-name">{inviterName || '未知'}</div>
           </div>
-          {attendeeCount ? (
-            <>
-              <div className="im-seminar-card__attendee-chip">
-                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" width="14" height="14">
-                  <circle cx="8" cy="9" r="2.3" stroke="currentColor" strokeWidth="1.8" />
-                  <circle cx="16" cy="10" r="2.1" stroke="currentColor" strokeWidth="1.8" />
-                  <path d="M5 17C5 15.067 6.567 13.5 8.5 13.5H9.5C11.433 13.5 13 15.067 13 17" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-                  <path d="M13 17C13.155 15.477 14.438 14.3 15.97 14.3H16.03C17.562 14.3 18.845 15.477 19 17" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-                </svg>
-                <span>{attendeeCount} 人参会</span>
-              </div>
+        </div>
+
+        {/* 参会人数和查看按钮作为独立区域 */}
+        {attendeeCount ? (
+          <div className="im-seminar-card__attendee-bar">
+            <div className="im-seminar-card__attendee-chip">
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" width="14" height="14">
+                <circle cx="8" cy="9" r="2.3" stroke="currentColor" strokeWidth="1.8" />
+                <circle cx="16" cy="10" r="2.1" stroke="currentColor" strokeWidth="1.8" />
+                <path d="M5 17C5 15.067 6.567 13.5 8.5 13.5H9.5C11.433 13.5 13 15.067 13 17" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                <path d="M13 17C13.155 15.477 14.438 14.3 15.97 14.3H16.03C17.562 14.3 18.845 15.477 19 17" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+              </svg>
+              <span>{attendeeCount} 人参会</span>
+            </div>
+            {attendeeUserIds.length > 0 ? (
               <button
                 type="button"
                 className="im-seminar-card__view-attendees"
                 onClick={handleToggleAttendees}
               >
-                {showAttendees ? '收起' : '查看'}
+                {showAttendees ? '收起' : '查看参会人员'}
               </button>
-            </>
-          ) : null}
-        </div>
+            ) : null}
+          </div>
+        ) : null}
 
         {showAttendees && attendeeUserIds.length > 0 ? (
           <div className="im-seminar-card__attendee-list">

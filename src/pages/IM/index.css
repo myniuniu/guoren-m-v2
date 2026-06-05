@@ -900,6 +900,18 @@
   font-weight: 700;
   line-height: 1.4;
   word-break: break-word;
+  white-space: nowrap;
+}
+
+/* 参会信息栏（独立于邀请人区域） */
+.im-seminar-card__attendee-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #f3f7ff;
 }
 
 /* 参会人数标签 */
@@ -1018,9 +1030,8 @@
   font-size: 12px;
   font-weight: 700;
   line-height: 1.5;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  word-break: break-word;
 }
 
 .im-seminar-card__schedule-sep {

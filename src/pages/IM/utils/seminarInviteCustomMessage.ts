@@ -15,6 +15,7 @@ export interface SeminarInviteCustomData {
   scheduleStartTime?: number;
   scheduleEndTime?: number;
   memberCount?: number;
+  members?: string[];
 }
 
 function normalizeText(value: unknown): string {
