@@ -217,6 +217,7 @@ function App() {
   const [showAI, setShowAI] = useState(false)
   const [showMoreDrawer, setShowMoreDrawer] = useState(false)
   const [showMoreEdit, setShowMoreEdit] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
   const [mainTabs, setMainTabs] = useState(defaultMainTabs)
   const [elderMode, setElderMode] = useState(false)
   const [draggedTabKey, setDraggedTabKey] = useState<string | null>(null)
@@ -336,18 +337,26 @@ function App() {
         }} />
       )}
 
-      {/* 更多抽屉 */}
+      {/* 更多抽屉 — 只显示应用 */}
       {showMoreDrawer && (
         <MoreDrawer onClose={() => setShowMoreDrawer(false)} onEdit={() => {
           setShowMoreDrawer(false)
           setShowMoreEdit(true)
+        }} onOpenSettings={() => {
+          setShowMoreDrawer(false)
+          setShowSettings(true)
         }} onSelectApp={handleSelectApp} />
+      )}
+
+      {/* 设置抽屉 */}
+      {showSettings && (
+        <SettingsDrawer onClose={() => setShowSettings(false)} elderMode={elderMode} onToggleElderMode={() => setElderMode(!elderMode)} />
       )}
 
       {/* 更多编辑页面 */}
       {showMoreEdit && (
-        <MoreEditPage 
-          onClose={() => setShowMoreEdit(false)} 
+        <MoreEditPage
+          onClose={() => setShowMoreEdit(false)}
           mainTabs={mainTabs}
           setMainTabs={setMainTabs}
         />
@@ -364,13 +373,8 @@ function PlaceholderPage({ title }: { title: string }) {
   )
 }
 
-function MoreDrawer({ onClose, onEdit, onSelectApp }: { onClose: () => void, onEdit: () => void, onSelectApp: (appKey: string) => void }) {
-  const recentItems = [
-    { id: 2, title: '花三年时间整理出的向量数据库最佳实践', icon: 'chat' },
-    { id: 3, title: '审批', icon: 'approve' },
-    { id: 4, title: '妙搭｜轻量系统，AI搭建，现已支持 Open...', icon: 'build' },
-  ]
-
+// ===== 更多抽屉：只显示应用网格 + 设置入口 =====
+function MoreDrawer({ onClose, onEdit, onOpenSettings, onSelectApp }: { onClose: () => void, onEdit: () => void, onOpenSettings: () => void, onSelectApp: (appKey: string) => void }) {
   const apps = [
     { id: 3, name: '日历', color: '#4A7CFF', type: 'calendar' },
     { id: 11, name: '空间', color: '#87CEEB', type: 'space' },
@@ -378,86 +382,6 @@ function MoreDrawer({ onClose, onEdit, onSelectApp }: { onClose: () => void, onE
 
   const renderAppGlyph = (type: string) => {
     switch (type) {
-      case 'grid':
-        return (
-          <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
-            <rect x="3" y="3" width="8" height="8" fill="#3CC2A3" />
-            <rect x="13" y="3" width="8" height="8" fill="#5ED3B9" />
-            <rect x="3" y="13" width="8" height="8" fill="#64D8C0" />
-            <rect x="13" y="13" width="8" height="8" fill="#2EB99A" />
-          </svg>
-        )
-      case 'avatar':
-        return <div className="more-page-app-avatar" />
-      case 'video':
-        return (
-          <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
-            <rect x="4" y="6" width="11" height="12" fill="#4A7CFF" />
-            <path d="M16 9.2 20 7v10l-4-2.2z" fill="#6A95FF" />
-          </svg>
-        )
-      case 'knowledge':
-        return (
-          <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
-            <path d="M5 5h14v14H5z" fill="#4A7CFF" opacity="0.2" />
-            <path d="M7 7h4v10H7z" fill="#4A7CFF" />
-            <path d="M13 7h4v3h-4z" fill="#6A95FF" />
-            <path d="M13 11.5h4V17h-4z" fill="#4A7CFF" />
-          </svg>
-        )
-      case 'diamond':
-        return (
-          <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
-            <path d="M12 3 21 12 12 21 3 12z" fill="#7B49F1" />
-            <path d="M12 7.2 16.8 12 12 16.8 7.2 12z" fill="#fff" opacity="0.9" />
-          </svg>
-        )
-      case 'person':
-        return (
-          <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
-            <circle cx="12" cy="9" r="4" fill="#fff" opacity="0.95" />
-            <path d="M5 20a7 7 0 0 1 14 0" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
-          </svg>
-        )
-      case 'contact':
-        return (
-          <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
-            <circle cx="11" cy="8.5" r="4" fill="#F5B400" />
-            <path d="M4 20a7 7 0 0 1 14 0" fill="#F5B400" />
-            <path d="M18 9h3M19.5 7.5v3" stroke="#F5B400" strokeWidth="1.8" strokeLinecap="round" />
-          </svg>
-        )
-      case 'note':
-        return (
-          <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
-            <path d="M5 16c3-1 4.5-2.7 5.5-6 1 3 2.5 4.6 5.5 5.5" stroke="#4D7CFE" strokeWidth="3" strokeLinecap="round" />
-            <path d="M14 8c.8 2.1 2 3.3 4 4" stroke="#7A9DFF" strokeWidth="3" strokeLinecap="round" />
-          </svg>
-        )
-      case 'discover':
-        return (
-          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#444" strokeWidth="2">
-            <rect x="3" y="3" width="7" height="7" />
-            <rect x="14" y="3" width="7" height="7" />
-            <rect x="3" y="14" width="7" height="7" />
-            <path d="M17.5 14v7M14 17.5h7" strokeLinecap="round" />
-          </svg>
-        )
-      case 'library':
-        return (
-          <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
-            <path d="M4.5 7.5c0-1.1.9-2 2-2h3.1c.54 0 1.05.26 1.36.69l1.03 1.42c.3.42.8.67 1.31.67h4.19c1.1 0 2 .9 2 2v6.22c0 1.1-.9 2-2 2H6.5c-1.1 0-2-.9-2-2z" fill="#4A7CFF" />
-            <path d="M4.5 9.5h15" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" />
-          </svg>
-        )
-      case 'space':
-        return (
-          <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
-            <rect x="3" y="3" width="18" height="18" rx="2" fill="#87CEEB" />
-            <path d="M3 9h18" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" />
-            <path d="M9 3v6" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" />
-          </svg>
-        )
       case 'calendar':
         return (
           <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
@@ -467,6 +391,14 @@ function MoreDrawer({ onClose, onEdit, onSelectApp }: { onClose: () => void, onE
             <line x1="16" y1="2" x2="16" y2="6" stroke="#4A7CFF" strokeWidth="2" strokeLinecap="round" />
             <rect x="7" y="13" width="3" height="3" rx="0.5" fill="#fff" />
             <rect x="14" y="13" width="3" height="3" rx="0.5" fill="#fff" opacity="0.6" />
+          </svg>
+        )
+      case 'space':
+        return (
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+            <rect x="3" y="3" width="18" height="18" rx="2" fill="#87CEEB" />
+            <path d="M3 9h18" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" />
+            <path d="M9 3v6" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" />
           </svg>
         )
       default:
@@ -479,53 +411,94 @@ function MoreDrawer({ onClose, onEdit, onSelectApp }: { onClose: () => void, onE
       <div className="more-drawer-panel" onClick={e => e.stopPropagation()}>
         <div className="more-drawer-handle" />
         <div className="more-drawer-scroll">
+          {/* 头部：标题 + 编辑 + 设置 */}
           <div className="more-page-section-header">
-            <span>最近使用</span>
-            <button className="more-page-section-link" type="button">全部</button>
-          </div>
-
-          <div className="more-page-recent-list">
-            {recentItems.map((item) => (
-              <div className="more-page-recent-item" key={item.id}>
-                <div className={`more-page-recent-icon type-${item.icon}`}>
-                  {item.icon === 'chat' && (
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                      <path d="M5 6.5h14a3 3 0 0 1 3 3v5a3 3 0 0 1-3 3H11l-4 3v-3H5a3 3 0 0 1-3-3v-5a3 3 0 0 1 3-3z" fill="#30C85A" />
-                      <circle cx="9" cy="12" r="1" fill="#fff" />
-                      <circle cx="12" cy="12" r="1" fill="#fff" />
-                      <circle cx="15" cy="12" r="1" fill="#fff" />
-                    </svg>
-                  )}
-                  {item.icon === 'approve' && (
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                      <path d="M4 7h16l-2 10H6z" fill="#FF8A00" />
-                      <path d="m8 12 2.2 2.2L16 9" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  )}
-                  {item.icon === 'build' && (
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                      <path d="M6 12h12" stroke="#4A7CFF" strokeWidth="2.2" strokeLinecap="round" />
-                      <path d="m12 6 6 6-6 6" stroke="#82A5FF" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-                      <path d="m12 6-6 6 6 6" stroke="#4A7CFF" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  )}
-                </div>
-                <div className="more-page-recent-text">{item.title}</div>
-              </div>
-            ))}
-          </div>
-          <div className="more-page-section-header second">
             <span>更多</span>
-            <button className="more-page-section-link" type="button" onClick={onEdit}>编辑</button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <button className="more-page-section-link" type="button" onClick={onEdit}>编辑</button>
+              <div className="more-settings-btn" onClick={onOpenSettings}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="3" />
+                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                </svg>
+              </div>
+            </div>
           </div>
 
+          {/* 应用网格 */}
           <div className="more-page-app-grid">
             {apps.map((app) => (
               <div className="more-page-app-item" key={app.id} onClick={() => onSelectApp(`app-${app.id}`)}>
-                <div className="more-page-app-icon" style={{ background: app.type === 'discover' ? '#fff' : `${app.color}18` }}>
+                <div className="more-page-app-icon" style={{ background: `${app.color}18` }}>
                   {renderAppGlyph(app.type)}
                 </div>
                 <div className="more-page-app-name">{app.name}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ===== 设置抽屉：常用工具 + 设置中心 =====
+function SettingsDrawer({ onClose, elderMode, onToggleElderMode }: { onClose: () => void, elderMode: boolean, onToggleElderMode: () => void }) {
+  const tools = [
+    { id: 't1', name: '字体大小', emoji: '🔤' },
+    { id: 't2', name: '护眼模式', emoji: '👁️' },
+    { id: 't3', name: '清理缓存', emoji: '🧹' },
+    { id: 't4', name: '意见反馈', emoji: '💬' },
+  ]
+
+  const settings = [
+    { id: 's1', name: '账号与隐私', emoji: '👤' },
+    { id: 's2', name: '通知管理', emoji: '🔔' },
+    { id: 's3', name: '关于我们', emoji: 'ℹ️' },
+  ]
+
+  return (
+    <div className="more-drawer-overlay" onClick={onClose}>
+      <div className="more-drawer-panel" onClick={e => e.stopPropagation()}>
+        <div className="more-drawer-handle" />
+        <div className="more-drawer-scroll">
+          {/* 头部 */}
+          <div className="more-page-section-header">
+            <span>设置</span>
+          </div>
+
+          {/* 常用工具 */}
+          <div className="more-page-section-header second">
+            <span>常用工具</span>
+          </div>
+          <div className="more-page-tools-grid">
+            {tools.map((t) => (
+              <div className="more-page-tools-item" key={t.id}>
+                <div className="more-page-tools-icon">{t.emoji}</div>
+                <div className="more-page-tools-name">{t.name}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* 设置中心 */}
+          <div className="more-page-section-header second">
+            <span>设置中心</span>
+          </div>
+          <div className="more-page-settings-list">
+            <div className="more-page-settings-item" onClick={onToggleElderMode}>
+              <span className="more-page-settings-emoji">👵</span>
+              <span className="more-page-settings-name">老年模式</span>
+              <span className={`more-page-settings-toggle ${elderMode ? 'toggle-on' : 'toggle-off'}`}>
+                {elderMode ? '已开启' : '已关闭'}
+              </span>
+            </div>
+            {settings.map((s) => (
+              <div className="more-page-settings-item" key={s.id}>
+                <span className="more-page-settings-emoji">{s.emoji}</span>
+                <span className="more-page-settings-name">{s.name}</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="9 18 15 12 9 6" />
+                </svg>
               </div>
             ))}
           </div>
@@ -594,7 +567,7 @@ function MoreEditPage({ onClose, mainTabs, setMainTabs }: { onClose: () => void,
         <div className="more-edit-title">更多</div>
         <button className="more-edit-done" onClick={onClose}>完成</button>
       </div>
-      
+
       <div className="more-edit-content">
         <div
           className="more-edit-pool"

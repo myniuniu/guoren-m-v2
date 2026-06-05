@@ -211,6 +211,7 @@ export default function Home({ onOpenAI, elderMode, onToggleElderMode }: HomePro
   const [langMode, setLangMode] = useState<'mandarin' | 'dialect'>('mandarin')
   const [canInstall, setCanInstall] = useState(false)
   const [isStandalone, setIsStandalone] = useState(false)
+  const [showUserMenu, setShowUserMenu] = useState(false)
   const installPromptRef = useRef<any>(null)
   const greeting = getGreeting()
   const greetingSuffix = getGreetingSuffix()
@@ -268,13 +269,12 @@ export default function Home({ onOpenAI, elderMode, onToggleElderMode }: HomePro
             <span className="header-logo">老年社区</span>
           </div>
           <div className="header-right">
-            <div className="elder-toggle-btn" onClick={onToggleElderMode} title={elderMode ? '切换标准模式' : '切换老年模式'}>
-              {elderMode ? '👵' : '🧑'}
-            </div>
             <Badge content="3" style={{ '--right': '-4px', '--top': '-2px' }}>
               <BellIcon />
             </Badge>
-            <UserIcon />
+            <div className="header-user-icon" onClick={() => setShowUserMenu(!showUserMenu)}>
+              <UserIcon />
+            </div>
           </div>
         </div>
 
@@ -304,6 +304,60 @@ export default function Home({ onOpenAI, elderMode, onToggleElderMode }: HomePro
           <span className="greeting-text">{greeting}，{greetingSuffix}</span>
           <span className="greeting-hint">今日2节直播课</span>
         </div>
+
+        {/* 用户头像下拉菜单 */}
+        {showUserMenu && (<>
+          <div className="user-menu-overlay" onClick={() => setShowUserMenu(false)} />
+          <div className="user-menu-dropdown">
+            {/* 常用工具 */}
+            <div className="user-menu-section-title">常用工具</div>
+            <div className="user-menu-tools-grid">
+              <div className="user-menu-tools-item">
+                <span className="user-menu-tools-emoji">🔤</span>
+                <span className="user-menu-tools-name">字体大小</span>
+              </div>
+              <div className="user-menu-tools-item">
+                <span className="user-menu-tools-emoji">👁️</span>
+                <span className="user-menu-tools-name">护眼模式</span>
+              </div>
+              <div className="user-menu-tools-item">
+                <span className="user-menu-tools-emoji">🧹</span>
+                <span className="user-menu-tools-name">清理缓存</span>
+              </div>
+              <div className="user-menu-tools-item">
+                <span className="user-menu-tools-emoji">💬</span>
+                <span className="user-menu-tools-name">意见反馈</span>
+              </div>
+            </div>
+
+            {/* 设置中心 */}
+            <div className="user-menu-section-title">设置中心</div>
+            <div className="user-menu-settings-list">
+              <div className="user-menu-settings-item" onClick={onToggleElderMode}>
+                <span className="user-menu-settings-emoji">👵</span>
+                <span className="user-menu-settings-name">老年模式</span>
+                <span className={`user-menu-toggle-tag ${elderMode ? 'user-menu-toggle-tag-on' : 'user-menu-toggle-tag-off'}`}>
+                  {elderMode ? '已开启' : '已关闭'}
+                </span>
+              </div>
+              <div className="user-menu-settings-item">
+                <span className="user-menu-settings-emoji">👤</span>
+                <span className="user-menu-settings-name">账号与隐私</span>
+                <ArrowRightIcon />
+              </div>
+              <div className="user-menu-settings-item">
+                <span className="user-menu-settings-emoji">🔔</span>
+                <span className="user-menu-settings-name">通知管理</span>
+                <ArrowRightIcon />
+              </div>
+              <div className="user-menu-settings-item">
+                <span className="user-menu-settings-emoji">ℹ️</span>
+                <span className="user-menu-settings-name">关于我们</span>
+                <ArrowRightIcon />
+              </div>
+            </div>
+          </div>
+        </>)}
       </div>
 
       {/* ===== 2. 核心快捷功能区 ===== */}
