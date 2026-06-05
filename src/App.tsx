@@ -84,14 +84,6 @@ function AIIcon({ active }: { active: boolean }) {
 }
 
 export const apps = [
-  { id: 1, name: '工作台', color: '#3CC2A3', type: 'grid' },
-  { id: 3, name: '视频会议', color: '#4A7CFF', type: 'video' },
-  { id: 4, name: '知识库', color: '#4A7CFF', type: 'knowledge' },
-  { id: 5, name: '多维表格', color: '#7B49F1', type: 'diamond' },
-  { id: 6, name: '假勤', color: '#FF8A00', type: 'person' },
-  { id: 7, name: '通讯录', color: '#F5B400', type: 'contact' },
-  { id: 8, name: '妙记', color: '#4D7CFE', type: 'note' },
-  { id: 9, name: '发现', color: '#444', type: 'discover' },
   { id: 10, name: '资料库', color: '#4A7CFF', type: 'library' },
   { id: 11, name: '空间', color: '#87CEEB', type: 'space' },
 ]
