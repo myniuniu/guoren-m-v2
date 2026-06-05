@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from 'react'
-import { Badge } from 'antd-mobile'
 import './index.css'
 
 interface HomeProps {
@@ -31,15 +30,6 @@ function MicIcon() {
       <path d="M5 10a7 7 0 0 0 14 0" />
       <line x1="12" y1="17" x2="12" y2="23" />
       <line x1="8" y2="23" x2="16" y1="23" />
-    </svg>
-  )
-}
-
-function BellIcon() {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
     </svg>
   )
 }
@@ -269,9 +259,6 @@ export default function Home({ onOpenAI, elderMode, onToggleElderMode }: HomePro
             <span className="header-logo">老年社区</span>
           </div>
           <div className="header-right">
-            <Badge content="3" style={{ '--right': '-4px', '--top': '-2px' }}>
-              <BellIcon />
-            </Badge>
             <div className="header-user-icon" onClick={() => setShowUserMenu(!showUserMenu)}>
               <UserIcon />
             </div>
