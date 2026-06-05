@@ -84,7 +84,7 @@ function AIIcon({ active }: { active: boolean }) {
 }
 
 export const apps = [
-  { id: 10, name: '资料库', color: '#4A7CFF', type: 'library' },
+  { id: 3, name: '日历', color: '#4A7CFF', type: 'calendar' },
   { id: 11, name: '空间', color: '#87CEEB', type: 'space' },
 ]
 
@@ -170,6 +170,17 @@ export const renderAppGlyph = (type: string) => {
           <path d="M9 3v6" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" />
         </svg>
       )
+    case 'calendar':
+      return (
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+          <rect x="3" y="4" width="18" height="18" rx="2" fill="#4A7CFF" />
+          <line x1="3" y1="10" x2="21" y2="10" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" />
+          <line x1="8" y1="2" x2="8" y2="6" stroke="#4A7CFF" strokeWidth="2" strokeLinecap="round" />
+          <line x1="16" y1="2" x2="16" y2="6" stroke="#4A7CFF" strokeWidth="2" strokeLinecap="round" />
+          <rect x="7" y="13" width="3" height="3" rx="0.5" fill="#fff" />
+          <rect x="14" y="13" width="3" height="3" rx="0.5" fill="#fff" opacity="0.6" />
+        </svg>
+      )
     default:
       return null
   }
@@ -187,7 +198,7 @@ type TabItem = {
 const defaultMainTabs: TabItem[] = [
   { key: 'home', label: '首页', icon: HomeIcon, source: 'system' },
   { key: 'task', label: '任务', icon: TaskIcon, source: 'system' },
-  { key: 'calendar', label: '日历', icon: CalendarIcon, source: 'system' },
+  { key: 'app-10', label: '资料库', appType: 'library', color: '#4A7CFF', source: 'app' },
   { key: 'more', label: '更多', icon: MoreIcon, source: 'system' },
 ]
 
@@ -208,6 +219,7 @@ function App() {
   const [showMoreEdit, setShowMoreEdit] = useState(false)
   const [mainTabs, setMainTabs] = useState(defaultMainTabs)
   const [elderMode, setElderMode] = useState(false)
+  const [draggedTabKey, setDraggedTabKey] = useState<string | null>(null)
 
   const handleSelectApp = (appKey: string) => {
     setShowMoreDrawer(false)
@@ -238,7 +250,7 @@ function App() {
   )
 
   return (
-    <div className="app-container">
+    <div className={`app-container ${elderMode ? 'elder-mode' : ''}`}>
       <div className="app-content">
         {activeKey === 'home' && <Home onOpenAI={() => setShowAI(true)} elderMode={elderMode} onToggleElderMode={() => setElderMode(!elderMode)} />}
         {activeKey === 'task' && <TaskPage />}
@@ -246,9 +258,10 @@ function App() {
         {activeKey === 'space' && <SpacePage />}
         {activeKey === 'library' && <LibraryPage />}
         {activeKey === 'app-10' && <LibraryPage />}
+        {activeKey === 'app-3' && <CalendarPage />}
         {activeKey === 'app-11' && <SpacePage />}
         {activeKey === 'ai' && <PlaceholderPage title="AI" />}
-        {activeCustomTab && !['app-10', 'app-11'].includes(activeKey) && <PlaceholderPage title={activeCustomTab.label} />}
+        {activeCustomTab && !['app-10', 'app-3', 'app-11'].includes(activeKey) && <PlaceholderPage title={activeCustomTab.label} />}
       </div>
       <div className="app-bottom">
         <div className="bottom-tabs">
@@ -273,11 +286,28 @@ function App() {
             {mainTabs.map((tab) => {
               const isActive = activeKey === tab.key || (tab.key === 'more' && activeKey.startsWith('app-'))
               const Icon = tab.icon
+              const isFixed = tab.key === 'home'
               return (
                 <div
                   key={tab.key}
-                  className={`bottom-tab-item ${isActive ? 'active' : ''}`}
+                  className={`bottom-tab-item ${isActive ? 'active' : ''} ${draggedTabKey === tab.key ? 'dragging' : ''} ${isFixed ? 'tab-fixed' : ''}`}
                   onClick={() => handleTabChange(tab.key)}
+                  draggable={!isFixed}
+                  onDragStart={(e) => { if (!isFixed) { setDraggedTabKey(tab.key); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', tab.key) } }}
+                  onDragEnd={() => setDraggedTabKey(null)}
+                  onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move' }}
+                  onDrop={(e) => {
+                    e.preventDefault()
+                    if (!draggedTabKey || draggedTabKey === tab.key) return
+                    const fromIdx = mainTabs.findIndex(t => t.key === draggedTabKey)
+                    const toIdx = mainTabs.findIndex(t => t.key === tab.key)
+                    if (fromIdx < 0 || toIdx < 0) return
+                    const next = [...mainTabs]
+                    const [moved] = next.splice(fromIdx, 1)
+                    next.splice(toIdx, 0, moved)
+                    setMainTabs(next)
+                    setDraggedTabKey(null)
+                  }}
                 >
                   <div className="tab-icon-wrap">
                     {Icon ? <Icon active={isActive} /> : (
@@ -342,7 +372,7 @@ function MoreDrawer({ onClose, onEdit, onSelectApp }: { onClose: () => void, onE
   ]
 
   const apps = [
-    { id: 10, name: '资料库', color: '#4A7CFF', type: 'library' },
+    { id: 3, name: '日历', color: '#4A7CFF', type: 'calendar' },
     { id: 11, name: '空间', color: '#87CEEB', type: 'space' },
   ]
 
@@ -426,6 +456,17 @@ function MoreDrawer({ onClose, onEdit, onSelectApp }: { onClose: () => void, onE
             <rect x="3" y="3" width="18" height="18" rx="2" fill="#87CEEB" />
             <path d="M3 9h18" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" />
             <path d="M9 3v6" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+        )
+      case 'calendar':
+        return (
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+            <rect x="3" y="4" width="18" height="18" rx="2" fill="#4A7CFF" />
+            <line x1="3" y1="10" x2="21" y2="10" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" />
+            <line x1="8" y1="2" x2="8" y2="6" stroke="#4A7CFF" strokeWidth="2" strokeLinecap="round" />
+            <line x1="16" y1="2" x2="16" y2="6" stroke="#4A7CFF" strokeWidth="2" strokeLinecap="round" />
+            <rect x="7" y="13" width="3" height="3" rx="0.5" fill="#fff" />
+            <rect x="14" y="13" width="3" height="3" rx="0.5" fill="#fff" opacity="0.6" />
           </svg>
         )
       default:
@@ -586,7 +627,7 @@ function MoreEditPage({ onClose, mainTabs, setMainTabs }: { onClose: () => void,
 
       <div className="more-edit-bottom-preview">
         <div className="more-edit-section-title">菜单区</div>
-        <div className="more-edit-section-desc">支持拖动排序。AI 常驻显示，不参与自定义，所以这里不展示</div>
+        <div className="more-edit-section-desc">首页和AI固定显示，不参与自定义。其他图标可拖动排序</div>
         <div className="bottom-tabs">
           <div
             className="tabs-group more-edit-tabs-group"
@@ -594,7 +635,15 @@ function MoreEditPage({ onClose, mainTabs, setMainTabs }: { onClose: () => void,
             onDragOver={handleDragOver}
             onDrop={(e) => handleDropToMenu(e)}
           >
-            {mainTabs.map((tab, index) => (
+            {/* 首页固定在最前面，不可拖动 */}
+            <div className="bottom-tab-item preview more-edit-menu-item fixed">
+              <div className="tab-icon-wrap" style={{ background: 'transparent' }}>{renderEditableIcon(mainTabs.find(t => t.key === 'home') || mainTabs[0])}</div>
+              <span className="tab-label">{(mainTabs.find(t => t.key === 'home') || mainTabs[0]).label}</span>
+              <span className="more-edit-fixed-tag">固定</span>
+            </div>
+
+            {/* 可拖动排序的中间 tabs */}
+            {mainTabs.filter(tab => tab.key !== 'home').map((tab, index) => (
               <div
                 key={tab.key}
                 className={`bottom-tab-item preview more-edit-menu-item ${draggedKey === tab.key ? 'dragging' : ''}`}
@@ -602,7 +651,7 @@ function MoreEditPage({ onClose, mainTabs, setMainTabs }: { onClose: () => void,
                 onDragStart={(e) => handleDragStart(e, tab)}
                 onDragEnd={() => setDraggedKey(null)}
                 onDragOver={handleDragOver}
-                onDrop={(e) => handleDropToMenu(e, index)}
+                onDrop={(e) => handleDropToMenu(e, index + 1)}
               >
                 <div className="tab-icon-wrap" style={{ background: 'transparent' }}>{renderEditableIcon(tab)}</div>
                 <span className="tab-label">{tab.label}</span>

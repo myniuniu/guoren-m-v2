@@ -87,6 +87,15 @@
   transition: transform 0.15s;
 }
 
+.bottom-tab-item.dragging {
+  opacity: 0.4;
+  transform: scale(0.9);
+}
+
+.bottom-tab-item.tab-fixed {
+  cursor: default;
+}
+
 .bottom-tab-item:active {
   transform: scale(0.95);
 }
@@ -601,4 +610,68 @@
 
 .more-edit-menu-item.dragging {
   opacity: 0.45;
+}
+
+.more-edit-menu-item.fixed {
+  opacity: 1;
+  pointer-events: none;
+}
+
+.more-edit-fixed-tag {
+  font-size: 9px;
+  color: #4A7CFF;
+  background: rgba(74, 124, 255, 0.1);
+  padding: 1px 4px;
+  border-radius: 4px;
+  position: absolute;
+  top: 2px;
+  right: -6px;
+}
+
+/* ===== 全局老年模式 ===== */
+.app-container.elder-mode .app-bottom {
+  padding: 12px 12px;
+  padding-bottom: calc(12px + env(safe-area-inset-bottom));
+}
+
+.app-container.elder-mode .bottom-tab-item {
+  padding: 10px 0;
+}
+
+.app-container.elder-mode .tab-label {
+  font-size: 13px;
+}
+
+.app-container.elder-mode .tab-icon-wrap {
+  width: 32px;
+  height: 32px;
+}
+
+.app-container.elder-mode .ai-tab {
+  width: 60px;
+  height: 60px;
+}
+
+.app-container.elder-mode .ai-tab .tab-label {
+  font-size: 11px;
+}
+
+.app-container.elder-mode .more-page-section-header {
+  font-size: 17px;
+}
+
+.app-container.elder-mode .more-page-app-name {
+  font-size: 15px;
+}
+
+.app-container.elder-mode .more-page-recent-text {
+  font-size: 15px;
+}
+
+.app-container.elder-mode .more-edit-title {
+  font-size: 20px;
+}
+
+.app-container.elder-mode .more-edit-done {
+  font-size: 16px;
 }
