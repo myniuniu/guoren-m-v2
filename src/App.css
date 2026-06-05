@@ -22,6 +22,10 @@
   background-color: transparent; /* 让子页面的背景色透过来 */
 }
 
+.app-container.im-chat-view .app-bottom {
+  display: none;
+}
+
 .app-bottom {
   position: absolute;
   bottom: 0;
@@ -216,7 +220,7 @@
 
 .more-page-user-avatar,
 .more-page-mini-avatar {
-  background: linear-gradient(135deg, #3B82F6, #60A5FA);
+  background: linear-gradient(135deg, #7d8cff, #c68eff);
 }
 
 .more-page-user-avatar {
@@ -301,10 +305,10 @@
   background: #f6f9de;
 }
 
-.more-page-group-icon.type-textBlue {
-  color: #2563EB;
-  border-color: #60A5FA;
-  background: #EFF6FF;
+.more-page-group-icon.type-textPurple {
+  color: #7c48e5;
+  border-color: #9f7bea;
+  background: #f3edff;
 }
 
 .more-page-group-icon.type-collapse {
@@ -423,7 +427,7 @@
 }
 
 .more-page-recent-icon.type-avatar {
-  background: linear-gradient(135deg, #60A5FA, #93C5FD);
+  background: linear-gradient(135deg, #8f8bff, #c99cff);
 }
 
 .more-page-recent-text {
@@ -638,7 +642,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #3B82F6, #60A5FA);
+  background: linear-gradient(135deg, #3B82F6, #6366F1);
   color: #fff;
   font-size: 16px;
   font-weight: 600;

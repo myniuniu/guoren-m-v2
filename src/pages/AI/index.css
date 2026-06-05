@@ -926,7 +926,7 @@
   font-size: 16px;
   font-weight: 700;
   color: #fff;
-  background: linear-gradient(135deg, #3B82F6, #60A5FA);
+  background: linear-gradient(135deg, #7c93ff, #ba8cff);
 }
 
 .ai-drawer-profile-name {
@@ -1438,7 +1438,7 @@
 
 .ai-skill-community-banner {
   margin-top: 16px;
-  background: linear-gradient(135deg, #e8f0fe 0%, #f0f7ff 100%);
+  background: linear-gradient(135deg, #e8f0fe 0%, #f0e8ff 100%);
   border-radius: 12px;
   padding: 16px;
   display: flex;

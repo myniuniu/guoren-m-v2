@@ -1,21 +1,50 @@
-import './index.css'
+/**
+ * IM 页面入口
+ * 管理子页面路由（会话列表 <-> 聊天窗口），不引入 react-router
+ */
+
+import { useState } from 'react';
+import { useIMLogin } from './hooks/useIMLogin';
+import LoginGuard from './components/LoginGuard';
+import ConversationListPage from './components/ConversationListPage';
+import ChatPage from './components/ChatPage';
+import type { MergedConversation } from './hooks/useConversationList';
+import './index.css';
+
+export type IMView = 'list' | 'chat';
 
 function IMPage() {
+  const [currentView, setCurrentView] = useState<IMView>('list');
+  const [activeConversation, setActiveConversation] = useState<MergedConversation | null>(null);
+  const { loginStatus, error, doLogin } = useIMLogin();
+
+  const handleConversationClick = (conversation: MergedConversation) => {
+    setActiveConversation(conversation);
+    setCurrentView('chat');
+  };
+
+  const handleBackToList = () => {
+    setActiveConversation(null);
+    setCurrentView('list');
+  };
+
   return (
     <div className="im-page">
-      <div className="im-placeholder">
-        <div className="im-placeholder-icon">
-          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#c0c4cc" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-            <line x1="9" y1="10" x2="15" y2="10" />
-            <line x1="12" y1="7" x2="12" y2="13" />
-          </svg>
-        </div>
-        <div className="im-placeholder-title">即时通讯</div>
-        <div className="im-placeholder-desc">IM 功能即将上线，敬请期待</div>
-      </div>
+      <LoginGuard loginStatus={loginStatus} error={error} onRetry={doLogin}>
+        {currentView === 'list' && (
+          <ConversationListPage
+            onConversationClick={handleConversationClick}
+          />
+        )}
+        {currentView === 'chat' && activeConversation && (
+          <ChatPage
+            conversation={activeConversation}
+            onBack={handleBackToList}
+          />
+        )}
+      </LoginGuard>
     </div>
-  )
+  );
 }
 
-export default IMPage
+export default IMPage;

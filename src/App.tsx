@@ -229,16 +229,18 @@ function App() {
 
   return (
     <div className="app-container">
-      {/* 左上角浮动头像按钮，点击弹出个人菜单 */}
-      <div className="profile-float-btn" onClick={() => setShowProfileMenu(true)}>
-        {userInfo?.avatar ? (
-          <img src={userInfo.avatar} alt="头像" className="profile-float-avatar-img" />
-        ) : (
-          <div className="profile-float-avatar-default">
-            {(userInfo?.name || userInfo?.username || '?')[0]}
-          </div>
-        )}
-      </div>
+      {/* 左上角浮动头像按钮，仅在首页显示 */}
+      {activeKey === 'home' && (
+        <div className="profile-float-btn" onClick={() => setShowProfileMenu(true)}>
+          {userInfo?.avatar ? (
+            <img src={userInfo.avatar} alt="头像" className="profile-float-avatar-img" />
+          ) : (
+            <div className="profile-float-avatar-default">
+              {(userInfo?.name || userInfo?.username || '?')[0]}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="app-content">
         {activeKey === 'home' && <Home />}
