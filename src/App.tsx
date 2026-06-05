@@ -85,7 +85,6 @@ function AIIcon({ active }: { active: boolean }) {
 
 export const apps = [
   { id: 1, name: '工作台', color: '#3CC2A3', type: 'grid' },
-  { id: 2, name: '飞书 aily', color: '#C9B6F8', type: 'avatar' },
   { id: 3, name: '视频会议', color: '#4A7CFF', type: 'video' },
   { id: 4, name: '知识库', color: '#4A7CFF', type: 'knowledge' },
   { id: 5, name: '多维表格', color: '#7B49F1', type: 'diamond' },
@@ -344,15 +343,13 @@ function PlaceholderPage({ title }: { title: string }) {
 
 function MoreDrawer({ onClose, onEdit, onSelectApp }: { onClose: () => void, onEdit: () => void, onSelectApp: (appKey: string) => void }) {
   const recentItems = [
-    { id: 1, title: '飞书 aily', icon: 'avatar' },
     { id: 2, title: '花三年时间整理出的向量数据库最佳实践', icon: 'chat' },
     { id: 3, title: '审批', icon: 'approve' },
-    { id: 4, title: '飞书妙搭｜轻量系统，AI搭建，现已支持 Open...', icon: 'build' },
+    { id: 4, title: '妙搭｜轻量系统，AI搭建，现已支持 Open...', icon: 'build' },
   ]
 
   const apps = [
     { id: 1, name: '工作台', color: '#3CC2A3', type: 'grid' },
-    { id: 2, name: '飞书 aily', color: '#C9B6F8', type: 'avatar' },
     { id: 3, name: '视频会议', color: '#4A7CFF', type: 'video' },
     { id: 4, name: '知识库', color: '#4A7CFF', type: 'knowledge' },
     { id: 5, name: '多维表格', color: '#7B49F1', type: 'diamond' },

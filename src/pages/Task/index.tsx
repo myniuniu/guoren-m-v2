@@ -25,7 +25,7 @@ const taskGroups: TaskGroup[] = [
     tasks: [
       { id: 't1', title: 'AI 课堂助手上线', dueDate: '昨天 截止', dueColor: '#FF5A5F', assignee: '张洪磊', assigneeColor: '#7d8cff', done: false },
       { id: 't2', title: '多维表格批量导入优化', dueDate: '6月1日 截止', dueColor: '#FF5A5F', assignee: 'jinlf', assigneeColor: '#ff8b8b', done: false },
-      { id: 't3', title: '飞书 aily 集成对接', dueDate: '6月3日 截止', dueColor: '#FF8A34', assignee: '我', assigneeColor: '#7d8cff', done: false },
+      { id: 't3', title: 'lucky 集成对接', dueDate: '6月3日 截止', dueColor: '#FF8A34', assignee: '我', assigneeColor: '#7d8cff', done: false },
     ],
   },
   {

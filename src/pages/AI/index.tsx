@@ -239,7 +239,7 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
       title: '导演日记',
       subtitle: 'director-diary-suite',
       description: '影视飓风同款项目管理工作流一站式帮聊聊说“记录一下”沉淀拍摄日志，说“复盘”整理回顾。',
-      tags: ['项目管理', '工作复盘', '飞书协作'],
+      tags: ['项目管理', '工作复盘', '协作'],
       color: '#111111',
       icon: 'record',
     },
@@ -299,8 +299,8 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
     },
     {
       id: 8,
-      title: 'aily 写作',
-      subtitle: 'aily-writer',
+      title: 'lucky 写作',
+      subtitle: 'lucky-writer',
       description: '根据用户意图自动路由到对应文档创作子技能，覆盖工作汇报、调研分析和方案策划。',
       tags: ['写作', '文档', '产品'],
       color: '#FF7A1A',
@@ -477,19 +477,19 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
   }
 
   const sidebarLibraryItems = [
-    { id: 1, name: 'rainbow-infographic-demo', source: '飞书 aily', type: 'unknown', starred: false },
+    { id: 1, name: 'rainbow-infographic-demo', source: 'lucky', type: 'unknown', starred: false },
     { id: 2, name: '功能清单', source: '建国', type: 'doc', starred: false },
     { id: 3, name: '功能清单', source: '建国', type: 'diamond', starred: false },
-    { id: 4, name: 'personal_analysis', source: '飞书 aily', type: 'unknown', starred: false },
-    { id: 5, name: '人生赛道规划.md', source: '飞书 aily', type: 'doc', starred: true },
-    { id: 6, name: '个人分析报告.md', source: '飞书 aily', type: 'doc', starred: true },
-    { id: 7, name: '个人信息图.html', source: '飞书 aily', type: 'html', starred: false },
-    { id: 8, name: '2026年3月29日-4月4日AI行业重点资...', source: '飞书 aily', type: 'doc', starred: false },
-    { id: 9, name: 'images', source: '飞书 aily', type: 'image', starred: false },
-    { id: 10, name: 'feishu_aily_presentation', source: '飞书 aily', type: 'lock', starred: false },
-    { id: 11, name: '水彩绘效率：飞书Aily助力技术研发工作...', source: '飞书 aily', type: 'ppt', starred: false },
+    { id: 4, name: 'personal_analysis', source: 'lucky', type: 'unknown', starred: false },
+    { id: 5, name: '人生赛道规划.md', source: 'lucky', type: 'doc', starred: true },
+    { id: 6, name: '个人分析报告.md', source: 'lucky', type: 'doc', starred: true },
+    { id: 7, name: '个人信息图.html', source: 'lucky', type: 'html', starred: false },
+    { id: 8, name: '2026年3月29日-4月4日AI行业重点资...', source: 'lucky', type: 'doc', starred: false },
+    { id: 9, name: 'images', source: 'lucky', type: 'image', starred: false },
+    { id: 10, name: 'lucky_presentation', source: 'lucky', type: 'lock', starred: false },
+    { id: 11, name: '水彩绘效率：Lucky助力技术研发工作...', source: 'lucky', type: 'ppt', starred: false },
     { id: 12, name: 'AI赋能职教事业部建设方案', source: '建国', type: 'doc', starred: false },
-    { id: 13, name: 'AI赋能职教技术架构.png', source: '飞书 aily', type: 'image', starred: false },
+    { id: 13, name: 'AI赋能职教技术架构.png', source: 'lucky', type: 'image', starred: false },
   ]
 
   function renderSidebarLibraryFileIcon(type: string) {
@@ -648,7 +648,7 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
             <div className="ai-drawer-body">
               <div className="ai-drawer-profile">
                 <div className="ai-drawer-profile-avatar">A</div>
-                <div className="ai-drawer-profile-name">飞书 aily</div>
+                <div className="ai-drawer-profile-name">lucky</div>
               </div>
 
               <div className="ai-drawer-menu">
@@ -885,7 +885,7 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
                 <div className="ai-skill-community-banner-title">
                   <span className="ai-skill-community-banner-highlight">你的技能</span>值得被更多人复用
                 </div>
-                <div className="ai-skill-community-banner-desc">将沉淀的的工作技能，直接发布到aily SkillHub，让好技能不被埋没</div>
+                <div className="ai-skill-community-banner-desc">将沉淀的的工作技能，直接发布到lucky SkillHub，让好技能不被埋没</div>
                 <div className="ai-skill-community-banner-link">了解详情 &gt;</div>
               </div>
               <div className="ai-skill-community-banner-img">
@@ -919,7 +919,7 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
                 {
                   id: 1,
                   title: '社群运营群聊分析',
-                  desc: '对指定飞书群聊进行周期性消息分析，提取主要观点、热门话题、活跃用户，生成包含数据分析的总结报告。Use...',
+                  desc: '对指定群聊进行周期性消息分析，提取主要观点、热门话题、活跃用户，生成包含数据分析的总结报告。Use...',
                   tags: ['运营', '数据分析', '写作'],
                   count: '5.2k 次添加',
                   color: '#FFB21A',
@@ -1013,7 +1013,7 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
                   {
                     id: 1,
                     title: 'AI生成技能',
-                    desc: '帮助用户创建和更新技能，扩展 aily 工作助手的...',
+                    desc: '帮助用户创建和更新技能，扩展 lucky 工作助手的...',
                     tags: ['工程研发', '编程'],
                     color: '#4CAF50',
                     icon: 'gear',
@@ -1021,7 +1021,7 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
                   {
                     id: 2,
                     title: '群聊内容摘要',
-                    desc: '基于飞书群聊的智能摘要与洞察生成能力。从指定...',
+                    desc: '基于群聊的智能摘要与洞察生成能力。从指定...',
                     tags: ['运营', '文档', '沟通'],
                     color: '#4A7CFF',
                     icon: 'chat',
@@ -1053,7 +1053,7 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
                   {
                     id: 6,
                     title: '工作周报',
-                    desc: '基于飞书生态的每周周报自动生成 Skill：从当周...',
+                    desc: '基于生态的每周周报自动生成 Skill：从当周...',
                     tags: ['运营', '文档', '自动化'],
                     color: '#4A7CFF',
                     icon: 'briefcase',
@@ -1433,7 +1433,7 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
               {
                 id: 1,
                 title: '导演日记',
-                desc: '影视飓风同款项目管理工作流 —— 在飞书群聊里说"记录一下"沉淀拍摄日志，说"复盘一下"自动生成阶段总结，让...',
+                desc: '影视飓风同款项目管理工作流 —— 在群聊里说"记录一下"沉淀拍摄日志，说"复盘一下"自动生成阶段总结，让...',
                 addedCount: 2,
                 color: '#111111',
                 icon: 'record',
