@@ -206,6 +206,7 @@ const lifeServices = [
 
 export default function Home({ onOpenAI }: HomeProps) {
   const [courseTab, setCourseTab] = useState<'hot' | 'system'>('hot')
+  const [langMode, setLangMode] = useState<'mandarin' | 'dialect'>('mandarin')
   const greeting = getGreeting()
   const greetingSuffix = getGreetingSuffix()
 
@@ -247,7 +248,7 @@ export default function Home({ onOpenAI }: HomeProps) {
         {/* 语音搜课按钮 */}
         <div className="voice-search-btn">
           <MicIcon />
-          <span>按住说话搜课程</span>
+          <span>{langMode === 'mandarin' ? '按住说话搜课程' : '方言语音搜课程'}</span>
         </div>
 
         {/* 温馨标语 */}
@@ -290,10 +291,10 @@ export default function Home({ onOpenAI }: HomeProps) {
         </div>
 
         <div className="ai-action-row">
-          <button className="ai-chat-btn" onClick={onOpenAI}>一键对话 AI 小助手</button>
+          <button className="ai-chat-btn" onClick={onOpenAI}>{langMode === 'mandarin' ? '一键对话 AI 小助手' : '方言对话 AI 小助手'}</button>
           <div className="lang-toggle">
-            <span className="lang-tag lang-tag-active">普通话</span>
-            <span className="lang-tag">方言</span>
+            <span className={`lang-tag ${langMode === 'mandarin' ? 'lang-tag-active' : ''}`} onClick={() => setLangMode('mandarin')}>普通话</span>
+            <span className={`lang-tag ${langMode === 'dialect' ? 'lang-tag-active' : ''}`} onClick={() => setLangMode('dialect')}>方言</span>
           </div>
         </div>
       </div>
