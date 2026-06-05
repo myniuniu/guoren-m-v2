@@ -47,13 +47,6 @@ function UserIcon() {
   )
 }
 
-function ChevronDownIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="6 9 12 15 18 9" />
-    </svg>
-  )
-}
 
 function AIAgentIcon() {
   return (
@@ -209,7 +202,6 @@ const lifeServices = [
 
 export default function Home() {
   const [courseTab, setCourseTab] = useState<'hot' | 'system'>('hot')
-  const [region, setRegion] = useState('北京')
   const greeting = getGreeting()
   const greetingSuffix = getGreetingSuffix()
 
@@ -238,11 +230,7 @@ export default function Home() {
       <div className="home-header">
         <div className="header-row">
           <div className="header-left">
-            <span className="header-logo">果仁学堂</span>
-            <div className="header-region" onClick={() => setRegion(region === '北京' ? '上海' : '北京')}>
-              <span>{region}老年学堂</span>
-              <ChevronDownIcon />
-            </div>
+            <span className="header-logo">老年社区</span>
           </div>
           <div className="header-right">
             <Badge content="3" style={{ '--right': '-4px', '--top': '-2px' }}>
