@@ -239,7 +239,7 @@ function App() {
   return (
     <div className="app-container">
       <div className="app-content">
-        {activeKey === 'home' && <Home />}
+        {activeKey === 'home' && <Home onOpenAI={() => setShowAI(true)} />}
         {activeKey === 'task' && <TaskPage />}
         {activeKey === 'calendar' && <CalendarPage />}
         {activeKey === 'space' && <SpacePage />}

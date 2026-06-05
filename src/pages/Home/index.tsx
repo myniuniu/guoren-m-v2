@@ -2,6 +2,10 @@ import { useState } from 'react'
 import { Badge } from 'antd-mobile'
 import './index.css'
 
+interface HomeProps {
+  onOpenAI: () => void
+}
+
 // 判断当前时间段
 function getGreeting() {
   const hour = new Date().getHours()
@@ -200,7 +204,7 @@ const lifeServices = [
   { id: 'l2', name: '医保科普', icon: '📋' },
 ]
 
-export default function Home() {
+export default function Home({ onOpenAI }: HomeProps) {
   const [courseTab, setCourseTab] = useState<'hot' | 'system'>('hot')
   const greeting = getGreeting()
   const greetingSuffix = getGreetingSuffix()
@@ -259,6 +263,7 @@ export default function Home() {
           <div
             key={item.id}
             className={`quick-item ${item.id === 'ai' ? 'quick-item-highlight' : ''}`}
+            onClick={item.id === 'ai' ? onOpenAI : undefined}
           >
             <div className="quick-icon">{renderQuickIcon(item.icon)}</div>
             <div className="quick-title">{item.title}</div>
@@ -271,12 +276,12 @@ export default function Home() {
       <div className="home-section">
         <div className="section-header">
           <span className="section-title">AI小助手 · 随身老年老师</span>
-          <span className="section-more">查看更多 <ArrowRightBlueIcon /></span>
+          <span className="section-more" onClick={onOpenAI}>查看更多 <ArrowRightBlueIcon /></span>
         </div>
 
         <div className="ai-scenarios">
           {aiScenarios.map((s) => (
-            <div key={s.id} className="scenario-card">
+            <div key={s.id} className="scenario-card" onClick={onOpenAI}>
               <div className="scenario-icon">{renderScenarioIcon(s.icon)}</div>
               <div className="scenario-title">{s.title}</div>
               <div className="scenario-desc">{s.desc}</div>
@@ -285,7 +290,7 @@ export default function Home() {
         </div>
 
         <div className="ai-action-row">
-          <button className="ai-chat-btn">一键对话 AI 小助手</button>
+          <button className="ai-chat-btn" onClick={onOpenAI}>一键对话 AI 小助手</button>
           <div className="lang-toggle">
             <span className="lang-tag lang-tag-active">普通话</span>
             <span className="lang-tag">方言</span>
