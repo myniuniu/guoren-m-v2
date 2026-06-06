@@ -249,212 +249,382 @@
 }
 
 /* ============================================================
-   Add Task Page — full-screen modal overlay
+   Add Task Composer — floating card overlay
    ============================================================ */
 .add-task-page {
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: #f5f6f8;
+  inset: 0;
   z-index: 2000;
-  display: flex;
-  flex-direction: column;
-  animation: slideUpTaskPage 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+  overflow: hidden;
+  animation: slideUpTaskPage 0.32s cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 @keyframes slideUpTaskPage {
-  from { transform: translateY(100%); }
-  to { transform: translateY(0); }
+  from {
+    transform: translateY(8%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 
-/* Top navigation bar */
-.add-task-nav {
+.add-task-page-backdrop {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(10, 14, 20, 0.08), rgba(10, 14, 20, 0.22));
+  backdrop-filter: blur(10px) saturate(120%);
+  -webkit-backdrop-filter: blur(10px) saturate(120%);
+}
+
+.add-task-sheet-shell {
+  position: relative;
+  height: 100%;
+  padding: calc(16px + env(safe-area-inset-top)) 12px 66px;
+}
+
+.add-task-sheet-shadow {
+  position: absolute;
+  top: calc(env(safe-area-inset-top) + 4px);
+  left: 24px;
+  right: 24px;
+  height: 58px;
+  border-radius: 18px 18px 16px 16px;
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: 0 14px 36px rgba(23, 29, 36, 0.08);
+}
+
+.add-task-sheet-card {
+  position: relative;
+  height: 100%;
   display: flex;
-  align-items: center;
-  padding: 14px 16px 10px;
-  background: #fff;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 18px 18px 0 0;
+  background: linear-gradient(180deg, #fcfcfd 0%, #fdfdfd 100%);
+  box-shadow: 0 22px 60px rgba(17, 23, 32, 0.16);
 }
 
-.add-task-nav-back {
-  width: 32px;
-  height: 32px;
-  border: none;
-  background: transparent;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  flex-shrink: 0;
-}
-
-.add-task-nav-title {
-  font-size: 17px;
-  font-weight: 700;
-  color: #222;
-}
-
-/* Group context header */
-.add-task-group-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
-  background: #f0f1f3;
-}
-
-.add-task-group-header-name {
-  font-size: 13px;
-  color: #555;
-  font-weight: 500;
-}
-
-/* Form body */
-.add-task-form {
+.add-task-sheet-scroll {
   flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
   overflow-y: auto;
-  background: #fff;
-  margin-top: 8px;
-  padding: 0 20px;
+  padding: 0 22px 18px;
 }
 
-.add-task-form::-webkit-scrollbar {
+.add-task-sheet-scroll::-webkit-scrollbar {
   display: none;
 }
 
-/* Input block */
-.add-task-input-block {
-  padding: 16px 0 12px;
+.add-task-sheet-topbar {
+  padding: 18px 0 8px;
+}
+
+.add-task-cancel-btn {
+  border: none;
+  background: transparent;
+  padding: 0;
+  font-size: 17px;
+  font-weight: 500;
+  color: #4d525a;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.add-task-title-area {
+  padding: 0 0 14px;
 }
 
 .add-task-title-input {
   width: 100%;
   border: none;
   background: transparent;
-  font-size: 16px;
-  color: #222;
   padding: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #262b33;
   outline: none;
-  caret-color: #4A7CFF;
+  caret-color: #2f6bff;
 }
 
 .add-task-title-input::placeholder {
-  color: #b0b5bd;
-  font-size: 16px;
+  color: #c0c5cd;
 }
 
-/* Field row */
-.add-task-field-row {
+.add-task-description-row {
   display: flex;
   align-items: center;
-  padding: 14px 0;
-  border-bottom: 1px solid #f0f1f3;
+  gap: 12px;
+  padding-bottom: 18px;
+}
+
+.add-task-inline-icon {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.add-task-description-text {
+  font-size: 16px;
+  color: #a2a8b1;
+  font-weight: 500;
+}
+
+.add-task-assignee-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 20px;
+}
+
+.add-task-assignee-group {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.add-task-assignee-chip {
+  min-width: 0;
+  max-width: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 10px 6px 8px;
+  border-radius: 12px;
+  background: #eceef3;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.72);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
 
-.add-task-field-row:last-child {
-  border-bottom: none;
-}
-
-.add-task-field-icon {
-  width: 24px;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  margin-right: 12px;
-}
-
-.add-task-field-label {
-  font-size: 15px;
-  color: #333;
-  font-weight: 500;
-  flex-shrink: 0;
-}
-
-.add-task-field-value {
-  flex: 1;
-  text-align: right;
-  font-size: 15px;
-  color: #222;
-  min-width: 0;
-}
-
-.add-task-field-arrow {
-  flex-shrink: 0;
-  margin-left: 8px;
-}
-
-/* Assignee specific */
-.add-task-field-assignee-wrap {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 6px;
-}
-
-.add-task-field-assignee-avatar {
-  width: 24px;
-  height: 24px;
+.add-task-assignee-chip-avatar,
+.add-task-picker-avatar {
+  width: 26px;
+  height: 26px;
   border-radius: 50%;
+  flex-shrink: 0;
+  object-fit: cover;
+}
+
+.add-task-assignee-chip-avatar {
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 11px;
   color: #fff;
   font-weight: 600;
+}
+
+.add-task-assignee-chip-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+  color: #31363e;
+  font-weight: 600;
+}
+
+.add-task-assignee-chip-clear {
+  width: 18px;
+  height: 18px;
+  border: none;
+  background: transparent;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
   flex-shrink: 0;
 }
 
-.add-task-field-assignee-name {
+.add-task-assignee-placeholder {
+  border: none;
+  background: transparent;
+  padding: 0;
   font-size: 15px;
-  color: #222;
+  color: #9da3ad;
+  cursor: pointer;
 }
 
-/* Bottom send button */
-.add-task-bottom {
-  padding: 12px 20px;
-  padding-bottom: calc(12px + env(safe-area-inset-bottom));
-  background: #fff;
+.add-task-group-trigger {
+  border: none;
+  background: transparent;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 15px;
+  color: #5b616a;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.add-task-date-row {
+  display: flex;
+  gap: 12px;
+  padding-bottom: 28px;
+}
+
+.add-task-date-pill {
+  min-width: 0;
+  border: none;
+  background: #f0f2f5;
+  border-radius: 12px;
+  padding: 11px 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  color: #30353c;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.72);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.add-task-date-pill.is-today {
+  background: #edf3ff;
+  color: #2f6bff;
+}
+
+.add-task-date-pill.is-tomorrow {
+  background: #eaf8f4;
+  color: #31b79d;
+}
+
+.add-task-date-pill.is-other {
+  background: #eef2f5;
+  color: #5a6270;
+}
+
+.add-task-option-list {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  padding-top: 2px;
+}
+
+.add-task-option-row {
+  border: none;
+  background: transparent;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  text-align: left;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button.add-task-option-row {
+  cursor: pointer;
+}
+
+.add-task-option-icon {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.add-task-option-text {
+  font-size: 16px;
+  color: #a3a8b1;
+  font-weight: 500;
+}
+
+.add-task-sheet-footer {
+  padding: 12px 22px 14px;
+  border-top: 1px solid #edf0f4;
+  background: #f6f6f8;
   display: flex;
   justify-content: flex-end;
 }
 
-.add-task-send-btn {
-  border: none;
-  padding: 10px 40px;
-  border-radius: 22px;
-  font-size: 16px;
+.add-task-create-btn {
+  min-width: 68px;
+  height: 40px;
+  border-radius: 10px;
+  border: 1px solid #d8dbe1;
+  background: #f8f8f9;
+  color: #c1c5cb;
+  font-size: 17px;
   font-weight: 600;
   cursor: pointer;
-  background: #4A7CFF;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.18s, border-color 0.18s, color 0.18s, box-shadow 0.18s;
+}
+
+.add-task-create-btn.is-active {
+  background: #2f6bff;
+  border-color: #2f6bff;
   color: #fff;
-  opacity: 0.35;
-  transition: opacity 0.2s, background 0.15s;
+  box-shadow: 0 8px 20px rgba(47, 107, 255, 0.2);
+}
+
+.add-task-keyboard-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: calc(52px + env(safe-area-inset-bottom));
+  padding: 0 16px env(safe-area-inset-bottom);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(247, 247, 249, 0.98);
+  border-top: 1px solid #d9dde3;
+}
+
+.add-task-keyboard-nav {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.add-task-keyboard-btn {
+  width: 30px;
+  height: 30px;
+  border: none;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
 
-.add-task-send-btn.is-active {
-  opacity: 1;
-}
-
-.add-task-send-btn.is-active:active {
-  background: #3a6ae8;
+.add-task-keyboard-done {
+  border: none;
+  background: transparent;
+  padding: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #1677ff;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* ============================================================
    Picker overlay — bottom sheet
    ============================================================ */
 .add-task-picker-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  position: absolute;
+  inset: 0;
   background: rgba(0, 0, 0, 0.4);
   z-index: 2100;
   display: flex;
@@ -534,16 +704,13 @@
 }
 
 .add-task-picker-avatar {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 11px;
   color: #fff;
   font-weight: 600;
-  flex-shrink: 0;
+  background: #c3c9d5;
 }
 
 /* ============================================================
