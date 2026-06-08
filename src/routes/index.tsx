@@ -1,21 +1,60 @@
-/**
- * 路由表定义
- *
- * 路由层级设计：
- * - /           → 重定向到 /home
- * - /home       → 首页
- * - /space      → 空间列表
- * - /space/:spaceId → 空间详情
- * - /library    → 资料库
- * - /im         → IM 聊天
- * - /ai         → AI 助手
- * - /login      → 登录页（无需鉴权）
- * - *           → 未匹配路由 → 重定向到 /home
- */
-
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import Loading from '../components/Loading'
+
+export const APP_ROUTE_PATHS = {
+  root: '/',
+  home: '/home',
+  space: '/space',
+  library: '/library',
+  im: '/im',
+  ai: '/ai',
+  login: '/login',
+} as const
+
+export function getPathByTabKey(tabKey: string): string {
+  switch (tabKey) {
+    case 'home':
+      return APP_ROUTE_PATHS.home
+    case 'space':
+      return APP_ROUTE_PATHS.space
+    case 'library':
+      return APP_ROUTE_PATHS.library
+    case 'im':
+      return APP_ROUTE_PATHS.im
+    case 'ai':
+      return APP_ROUTE_PATHS.ai
+    default:
+      return `/apps/${tabKey}`
+  }
+}
+
+export function getTabKeyByPathname(pathname: string): string {
+  if (pathname.startsWith(`${APP_ROUTE_PATHS.space}/`)) {
+    return 'space'
+  }
+
+  if (pathname.startsWith(APP_ROUTE_PATHS.space)) {
+    return 'space'
+  }
+
+  if (pathname.startsWith(APP_ROUTE_PATHS.library)) {
+    return 'library'
+  }
+
+  if (pathname.startsWith(APP_ROUTE_PATHS.im)) {
+    return 'im'
+  }
+
+  if (pathname.startsWith(APP_ROUTE_PATHS.ai)) {
+    return 'ai'
+  }
+
+  if (pathname.startsWith('/apps/')) {
+    return pathname.replace('/apps/', '').split('/')[0] || 'home'
+  }
+
+  return 'home'
+}
 
 /**
  * 鉴权守卫：未登录时自动跳转到登录页
@@ -40,7 +79,7 @@ export function LoginGuard() {
   const { isAuthenticated } = useAuth()
 
   if (isAuthenticated) {
-    return <Navigate to="/home" replace />
+    return <Navigate to={APP_ROUTE_PATHS.home} replace />
   }
 
   return <Outlet />

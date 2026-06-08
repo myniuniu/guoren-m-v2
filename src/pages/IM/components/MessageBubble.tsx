@@ -8,7 +8,6 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { UnifiedMessage } from '../hooks/useMessageList';
 import { openImagePreviewOverlay } from '../utils/imagePreview';
-import { resolveCustomMessageFallbackText } from '../utils/customMessageFallbackText';
 import SeminarInviteCard from './SeminarInviteCard';
 import CalendarNotificationCard from './CalendarNotificationCard';
 import ForwardMessageBubble from './ForwardMessageBubble';
@@ -20,7 +19,7 @@ interface MessageBubbleProps {
   onRevoke?: (message: UnifiedMessage) => void;
 }
 
-const MessageBubble: React.FC<MessageBubbleProps> = ({ message, onResend, onRevoke }) => {
+const MessageBubble: React.FC<MessageBubbleProps> = ({ message, onResend, onRevoke: _onRevoke }) => {
   const { category, fromMe, isRecalled } = message;
 
   // 撤回消息

@@ -4,14 +4,13 @@
  * 底层通过 useSyncExternalStore 订阅 store 版本号变化
  */
 
-import { useMemo, useEffect, useCallback, useSyncExternalStore } from 'react';
+import { useEffect, useCallback, useSyncExternalStore } from 'react';
 import {
   getDisplayNameStoreVersion,
   subscribeDisplayNameStore,
   getDisplayNameStoreServerSnapshot,
   getDisplayNameSync,
   ensureDisplayNamesLoaded,
-  shouldSkipDisplayNameLookup,
 } from './displayNameStore';
 
 // ----------------------------------------

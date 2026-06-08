@@ -3,8 +3,7 @@
  * 双通道拉取：SDK + 镜像 API，merge 去重后展示
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
-import type { ConversationItem } from '../api/messagingApi';
+import { useState, useEffect, useCallback } from 'react';
 import { fetchConversations } from '../api/messagingApi';
 import { getChatInstance } from './useIMLogin';
 import TencentCloudChat from '@tencentcloud/lite-chat';
@@ -34,7 +33,6 @@ export function useConversationList() {
   const [error, setError] = useState<string | null>(null);
   const [searchKeyword, setSearchKeyword] = useState('');
   const [refreshing, setRefreshing] = useState(false);
-  const chatRef = useRef<TencentCloudChat.ChatSDK | null>(null);
 
   // 从 SDK 获取会话列表
   const getSDKConversations = useCallback(async (): Promise<MergedConversation[]> => {

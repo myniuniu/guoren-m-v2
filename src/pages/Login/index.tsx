@@ -6,11 +6,15 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import './index.css';
 
 export default function LoginPage() {
   const { login, getCaptcha } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const fromPath = typeof location.state?.from === 'string' ? location.state.from : '/home';
 
   // 表单状态
   const [username, setUsername] = useState('');
@@ -81,8 +85,8 @@ export default function LoginPage() {
     setLoading(true);
     try {
       await login(username.trim(), password, captcha.trim(), checkKey);
-      // 登录成功后由 AuthContext 更新 isAuthenticated，
-      // App.tsx 自动重新渲染显示正常页面，无需手动跳转
+      // 登录成功后按来源路由回跳，避免固定回首页。
+      navigate(fromPath, { replace: true });
     } catch (err) {
       const message = err instanceof Error ? err.message : '网络异常，请稍后重试';
       setError(message);

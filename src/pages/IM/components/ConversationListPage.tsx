@@ -3,7 +3,7 @@
  * 搜索栏 + 置顶区/普通区 + 下拉刷新 + 空状态
  */
 
-import React, { useState } from 'react';
+import React from 'react';
 import { SearchBar, PullToRefresh, Empty, SwipeAction, SpinLoading } from 'antd-mobile';
 import { SearchOutline } from 'antd-mobile-icons';
 import { useConversationList } from '../hooks/useConversationList';
@@ -20,21 +20,12 @@ const ConversationListPage: React.FC<ConversationListPageProps> = ({ onConversat
     normalConversations,
     status,
     error,
-    refreshing,
     searchKeyword,
     setSearchKeyword,
     refresh,
     pinConversation,
     removeConversation,
   } = useConversationList();
-
-  const [actionKey, setActionKey] = useState<string | null>(null);
-
-  // 计算总未读数
-  const totalUnread = [...pinnedConversations, ...normalConversations].reduce(
-    (sum, item) => sum + (item.unread_count || 0),
-    0
-  );
 
   // 渲染会话项，带左滑操作
   const renderConversationItem = (conversation: MergedConversation) => {
@@ -43,12 +34,6 @@ const ConversationListPage: React.FC<ConversationListPageProps> = ({ onConversat
     return (
       <SwipeAction
         key={conversation.conversation_id}
-        ref={(ref) => {
-          // 当打开一个时关闭其他
-          if (actionKey === conversation.conversation_id && ref) {
-            // 自动关闭逻辑在 onAction 中处理
-          }
-        }}
         rightActions={[
           {
             key: 'pin',
@@ -56,7 +41,6 @@ const ConversationListPage: React.FC<ConversationListPageProps> = ({ onConversat
             color: '#4A7CFF',
             onClick: () => {
               pinConversation(conversation.conversation_id, !isPinned);
-              setActionKey(null);
             },
           },
           {
@@ -65,12 +49,9 @@ const ConversationListPage: React.FC<ConversationListPageProps> = ({ onConversat
             color: '#ff4d4f',
             onClick: () => {
               removeConversation(conversation.conversation_id);
-              setActionKey(null);
             },
           },
         ]}
-        onActionsOpen={() => setActionKey(conversation.conversation_id)}
-        onActionsClose={() => setActionKey(null)}
       >
         <ConversationItem
           conversation={conversation}

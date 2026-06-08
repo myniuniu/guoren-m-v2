@@ -26,3 +26,5 @@ package-lock.json
 package.json
 CLAUDE.md
 doc/
+docs/
+scripts/

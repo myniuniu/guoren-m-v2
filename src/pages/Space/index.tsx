@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
 import './index.css'
 import SpaceDetail from './SpaceDetail'
 
@@ -93,7 +94,8 @@ function NewSpaceIcon() {
 }
 
 export default function SpacePage() {
-  const [selectedSpaceId, setSelectedSpaceId] = useState<string | null>(null)
+  const navigate = useNavigate()
+  const { spaceId } = useParams()
   const [tempNewSpace, setTempNewSpace] = useState<SpaceItem | null>(null)
   const [showFilter, setShowFilter] = useState(false)
   const [showActionMenu, setShowActionMenu] = useState(false) // 列表项更多操作菜单
@@ -110,12 +112,22 @@ export default function SpacePage() {
     }
   }, [])
 
-  const activeSpace = tempNewSpace || (selectedSpaceId ? spaces.find(s => s.id.toString() === selectedSpaceId) : null)
+  const activeSpace = useMemo(() => {
+    if (tempNewSpace) {
+      return tempNewSpace
+    }
+
+    if (!spaceId) {
+      return null
+    }
+
+    return spaces.find((item) => item.id.toString() === spaceId) ?? null
+  }, [spaceId, tempNewSpace])
 
   if (activeSpace) {
     return <SpaceDetail space={activeSpace} onBack={() => {
-      setSelectedSpaceId(null)
       setTempNewSpace(null)
+      navigate('/space')
     }} />
   }
 
@@ -162,7 +174,7 @@ export default function SpacePage() {
       {/* 空间列表 */}
       <div className={`space-list ${isListScrolling ? 'is-scrolling' : ''}`} onScroll={handleListScroll}>
         {spaces.map((item) => (
-          <div key={item.id} className="space-item" onClick={() => setSelectedSpaceId(item.id.toString())}>
+          <div key={item.id} className="space-item" onClick={() => navigate(`/space/${item.id}`)}>
             <CoverImage item={item} />
             <div className="space-info">
               <div className="space-name">{item.name}</div>

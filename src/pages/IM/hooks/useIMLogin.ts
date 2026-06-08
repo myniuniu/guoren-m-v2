@@ -14,9 +14,10 @@ const SDKAPPID = 1600139526;
 
 // 登录链路状态
 export type LoginStatus = 'idle' | 'loading' | 'success' | 'error';
+type ChatInstance = ReturnType<typeof TencentCloudChat.create>;
 
 // SDK 实例引用（模块级，全局唯一）
-let globalChatInstance: TencentCloudChat.ChatSDK | null = null;
+let globalChatInstance: ChatInstance | null = null;
 
 /**
  * 获取 userSig（从后端签发）
@@ -54,7 +55,7 @@ export function useIMLogin() {
   const { token, userInfo, isAuthenticated } = useAuth();
   const [loginStatus, setLoginStatus] = useState<LoginStatus>('idle');
   const [error, setError] = useState<string | null>(null);
-  const chatRef = useRef<TencentCloudChat.ChatSDK | null>(null);
+  const chatRef = useRef<ChatInstance | null>(null);
 
   /**
    * 初始化并登录 SDK
@@ -161,6 +162,6 @@ export function useIMLogin() {
 /**
  * 获取全局 SDK 实例（供外部调用）
  */
-export function getChatInstance(): TencentCloudChat.ChatSDK | null {
+export function getChatInstance(): ChatInstance | null {
   return globalChatInstance;
 }

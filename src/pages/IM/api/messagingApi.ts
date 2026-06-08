@@ -29,6 +29,7 @@ export interface ConversationItem {
   pinned_at: string | null;
   muted: boolean;
   order_seq: number;
+  unread_count?: number;
   last_read_msg_time: string | null;
 }
 

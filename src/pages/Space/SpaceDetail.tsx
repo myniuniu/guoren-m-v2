@@ -36,50 +36,6 @@ const contentItems: ContentItem[] = [
   { id: 9, name: '技术部+航标技术岗AI赋能报告', type: 'pdf' },
 ]
 
-// 返回图标
-function BackIcon() {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="15 18 9 12 15 6" />
-    </svg>
-  )
-}
-
-// 成员图标
-function MembersIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-      <circle cx="9" cy="7" r="4" />
-      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-      <text x="19" y="8" fontSize="7" fill="#333" fontWeight="bold">6</text>
-    </svg>
-  )
-}
-
-// 分享图标
-function ShareIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
-      <polyline points="16 6 12 2 8 6" />
-      <line x1="12" y1="2" x2="12" y2="15" />
-    </svg>
-  )
-}
-
-// 菜单图标
-function MenuIcon() {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round">
-      <line x1="3" y1="6" x2="21" y2="6" />
-      <line x1="3" y1="12" x2="21" y2="12" />
-      <line x1="3" y1="18" x2="21" y2="18" />
-    </svg>
-  )
-}
-
 // 搜索图标
 function SearchIcon2() {
   return (
@@ -494,9 +450,6 @@ function DirectoryDetail({ dir, onBack, onFileClick }: { dir: any, onBack: () =>
 export default function SpaceDetail({ space, onBack }: SpaceDetailProps) {
   const name = space.name
   const contentCount = space.contentCount
-  const isNew = space.contentCount === 0 // 简化判断
-  const [activeTab, setActiveTab] = useState('list') // list, result
-  const [showMenu, setShowMenu] = useState(false)
   const [showAddPanel, setShowAddPanel] = useState(false)
   const [showAIPanel, setShowAIPanel] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
@@ -549,7 +502,7 @@ export default function SpaceDetail({ space, onBack }: SpaceDetailProps) {
               <line x1="12" y1="2" x2="12" y2="15" />
             </svg>
           </button>
-          <button className="icon-btn" onClick={() => setShowMenu(true)}>
+          <button className="icon-btn">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <line x1="3" y1="12" x2="21" y2="12" />
               <line x1="3" y1="6" x2="21" y2="6" />

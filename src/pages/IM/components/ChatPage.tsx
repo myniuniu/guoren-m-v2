@@ -5,7 +5,7 @@
 
 import React, { useEffect, useRef } from 'react';
 import { NavBar, SpinLoading, Empty } from 'antd-mobile';
-import { useMessageList, type UnifiedMessage } from '../hooks/useMessageList';
+import { useMessageList } from '../hooks/useMessageList';
 import MessageBubble from './MessageBubble';
 import Avatar from './Avatar';
 import MessageInputBar from './MessageInputBar';

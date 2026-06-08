@@ -15,6 +15,7 @@ import { parseSkillOutputMessage, type SkillOutputMessageParseResult } from '../
 import { parseForwardMessage } from '../utils/forwardMessageParser';
 import { parseSeminarInvite } from '../utils/seminarInviteParser';
 import { resolveCustomMessageFallbackText } from '../utils/customMessageFallbackText';
+import { uploadImAssetToOss } from '../utils/imOssUpload';
 
 /** 消息类型枚举 */
 export type MessageCategory =
@@ -65,10 +66,22 @@ export interface UnifiedMessage {
 
 export type MessageListStatus = 'idle' | 'loading' | 'success' | 'error';
 
+function normalizeSdkUserID(userID: unknown): string {
+  if (typeof userID === 'string') {
+    return userID;
+  }
+
+  if (userID == null) {
+    return '';
+  }
+
+  return String(userID);
+}
+
 /** 从 SDK 消息对象解析为统一消息 */
 function parseSDKMessage(msg: any, currentUserID: string): UnifiedMessage {
   // 撤回消息
-  if (msg.isRevoked || msg.type === TencentCloudChat.TYPES.MSG_REVOKED) {
+  if (msg.isRevoked) {
     return {
       id: msg.ID || '',
       category: 'recalled',
@@ -367,7 +380,7 @@ export function useMessageList(options: UseMessageListOptions) {
 
   const getCurrentUserID = useCallback(() => {
     const chat = getChatInstance();
-    return chat?.getLoginUser?.() || '';
+    return normalizeSdkUserID(chat?.getLoginUser?.());
   }, []);
 
   /** 从 localStorage 获取当前用户头像 */
@@ -401,9 +414,8 @@ export function useMessageList(options: UseMessageListOptions) {
       }
 
       // 使用 SDK 拉取消息
-      const sdkResult = await chat.getMessageListHopping({
+      const sdkResult = await chat.getMessageList({
         conversationID,
-        count: 15,
         nextReqMessageID: nextReqMessageIDRef.current || undefined,
       });
 
@@ -420,7 +432,7 @@ export function useMessageList(options: UseMessageListOptions) {
         setMessages(parsed);
       }
 
-      setHasMore(sdkList.length >= 15);
+      setHasMore(Boolean(nextReqMessageIDRef.current));
       setStatus('success');
     } catch (err) {
       setError(err instanceof Error ? err.message : '加载消息失败');
@@ -640,7 +652,7 @@ export function useMessageList(options: UseMessageListOptions) {
     const chat = getChatInstance();
     if (!chat) return;
 
-    const currentUserID = chat.getLoginUser?.() || '';
+    const currentUserID = normalizeSdkUserID(chat.getLoginUser?.());
 
     const handleNewMessage = (event: any) => {
       const newMsgs = event?.data || [];

@@ -1,4 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
+import {
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+} from 'react-router-dom'
 import Home from './pages/Home'
 import SpacePage from './pages/Space'
 import AIPage from './pages/AI'
@@ -6,6 +13,13 @@ import LibraryPage from './pages/Library'
 import IMPage from './pages/IM'
 import LoginPage from './pages/Login'
 import { useAuth, type UserInfo } from './contexts/AuthContext'
+import {
+  APP_ROUTE_PATHS,
+  AuthGuard,
+  LoginGuard,
+  getPathByTabKey,
+  getTabKeyByPathname,
+} from './routes'
 import './App.css'
 
 // 底部导航图标
@@ -188,49 +202,46 @@ const editableAppTabs: TabItem[] = apps.map((app) => ({
 
 const allEditableTabs: TabItem[] = [...defaultMainTabs, ...editableAppTabs]
 
-function App() {
-  const { isAuthenticated, userInfo, logout } = useAuth()
+function AuthenticatedApp() {
+  const { userInfo, logout } = useAuth()
+  const location = useLocation()
+  const navigate = useNavigate()
 
-  const [activeKey, setActiveKey] = useState('home')
-  const [showAI, setShowAI] = useState(false)
   const [showMoreDrawer, setShowMoreDrawer] = useState(false)
   const [showMoreEdit, setShowMoreEdit] = useState(false)
   const [showProfileMenu, setShowProfileMenu] = useState(false)
   const [mainTabs, setMainTabs] = useState(defaultMainTabs)
+
+  const activeKey = useMemo(
+    () => getTabKeyByPathname(location.pathname),
+    [location.pathname]
+  )
 
   const handleTabChange = (key: string) => {
     if (key === 'more') {
       setShowMoreDrawer(true)
       return
     }
-    setActiveKey(key)
-    if (key === 'ai') {
-      setShowAI(true)
-    }
+    navigate(getPathByTabKey(key))
   }
 
   useEffect(() => {
     if (activeKey === 'ai' || activeKey === 'more') return
     if (!mainTabs.some((tab) => tab.key === activeKey) && mainTabs.length > 0) {
-      setActiveKey(mainTabs[0].key)
+      navigate(getPathByTabKey(mainTabs[0].key), { replace: true })
     }
-  }, [activeKey, mainTabs])
+  }, [activeKey, mainTabs, navigate])
 
   const activeCustomTab = useMemo(
     () => mainTabs.find((tab) => tab.key === activeKey && tab.source === 'app'),
     [activeKey, mainTabs]
   )
-
-  // 鉴权守卫：未登录时全屏渲染登录页，不渲染任何 app 内容
-  // 使用条件渲染而非早期返回，确保所有 hooks 始终按相同顺序调用
-  if (!isAuthenticated) {
-    return <LoginPage />
-  }
+  const isAiRoute = activeKey === 'ai'
 
   return (
     <div className="app-container">
       {/* 左上角浮动头像按钮，仅在首页显示 */}
-      {activeKey === 'home' && (
+      {activeKey === 'home' && !isAiRoute && (
         <div className="profile-float-btn" onClick={() => setShowProfileMenu(true)}>
           {userInfo?.avatar ? (
             <img src={userInfo.avatar} alt="头像" className="profile-float-avatar-img" />
@@ -243,59 +254,64 @@ function App() {
       )}
 
       <div className="app-content">
-        {activeKey === 'home' && <Home />}
-        {activeKey === 'space' && <SpacePage />}
-        {activeKey === 'im' && <IMPage />}
-        {activeKey === 'library' && <LibraryPage />}
-        {activeKey === 'ai' && <PlaceholderPage title="AI" />}
-        {activeCustomTab && <PlaceholderPage title={activeCustomTab.label} />}
+        <Routes>
+          <Route path={APP_ROUTE_PATHS.root} element={<Navigate to={APP_ROUTE_PATHS.home} replace />} />
+          <Route path={APP_ROUTE_PATHS.home} element={<Home />} />
+          <Route path={APP_ROUTE_PATHS.space} element={<SpacePage />} />
+          <Route path={`${APP_ROUTE_PATHS.space}/:spaceId`} element={<SpacePage />} />
+          <Route path={APP_ROUTE_PATHS.im} element={<IMPage />} />
+          <Route path={APP_ROUTE_PATHS.library} element={<LibraryPage />} />
+          <Route
+            path={APP_ROUTE_PATHS.ai}
+            element={<AIPage onClose={() => navigate(APP_ROUTE_PATHS.home, { replace: true })} />}
+          />
+          <Route
+            path="/apps/:tabKey"
+            element={<CustomAppPage title={activeCustomTab?.label ?? '应用'} />}
+          />
+          <Route path="*" element={<Navigate to={APP_ROUTE_PATHS.home} replace />} />
+        </Routes>
       </div>
-      <div className="app-bottom">
-        <div className="bottom-tabs">
-          <div className="tabs-group">
-            {/* 滑动背景指示器 */}
-            <div
-              className="tab-slider"
-              style={{
-                width: `calc((100% - 8px) / ${mainTabs.length})`,
-                transform: `translateX(${mainTabs.findIndex(t => t.key === activeKey) >= 0 ? mainTabs.findIndex(t => t.key === activeKey) * 100 : 0}%)`,
-                opacity: mainTabs.findIndex(t => t.key === activeKey) >= 0 ? 1 : 0,
-              }}
-            />
-            {mainTabs.map((tab) => {
-              const isActive = activeKey === tab.key
-              const Icon = tab.icon
-              return (
-                <div
-                  key={tab.key}
-                  className={`bottom-tab-item ${isActive ? 'active' : ''}`}
-                  onClick={() => handleTabChange(tab.key)}
-                >
-                  <div className="tab-icon-wrap">
-                    {Icon ? <Icon active={isActive} /> : (
-                      <div className="more-page-app-icon" style={{ background: tab.appType === 'discover' ? '#fff' : `${tab.color}18`, width: 22, height: 22, transform: 'scale(0.85)' }}>
-                        {renderAppGlyph(tab.appType!)}
-                      </div>
-                    )}
+      {!isAiRoute && (
+        <div className="app-bottom">
+          <div className="bottom-tabs">
+            <div className="tabs-group">
+              {/* 滑动背景指示器 */}
+              <div
+                className="tab-slider"
+                style={{
+                  width: `calc((100% - 8px) / ${mainTabs.length})`,
+                  transform: `translateX(${mainTabs.findIndex(t => t.key === activeKey) >= 0 ? mainTabs.findIndex(t => t.key === activeKey) * 100 : 0}%)`,
+                  opacity: mainTabs.findIndex(t => t.key === activeKey) >= 0 ? 1 : 0,
+                }}
+              />
+              {mainTabs.map((tab) => {
+                const isActive = activeKey === tab.key
+                const Icon = tab.icon
+                return (
+                  <div
+                    key={tab.key}
+                    className={`bottom-tab-item ${isActive ? 'active' : ''}`}
+                    onClick={() => handleTabChange(tab.key)}
+                  >
+                    <div className="tab-icon-wrap">
+                      {Icon ? <Icon active={isActive} /> : (
+                        <div className="more-page-app-icon" style={{ background: tab.appType === 'discover' ? '#fff' : `${tab.color}18`, width: 22, height: 22, transform: 'scale(0.85)' }}>
+                          {renderAppGlyph(tab.appType!)}
+                        </div>
+                      )}
+                    </div>
+                    <span className={`tab-label ${isActive ? 'tab-label-active' : ''}`}>{tab.label}</span>
                   </div>
-                  <span className={`tab-label ${isActive ? 'tab-label-active' : ''}`}>{tab.label}</span>
-                </div>
-              )
-            })}
-          </div>
-          <div className={`ai-tab ${activeKey === 'ai' ? 'ai-tab-active' : ''}`} onClick={() => handleTabChange('ai')}>
-            <AIIcon active={activeKey === 'ai'} />
-            <span className="tab-label">AI</span>
+                )
+              })}
+            </div>
+            <div className={`ai-tab ${activeKey === 'ai' ? 'ai-tab-active' : ''}`} onClick={() => handleTabChange('ai')}>
+              <AIIcon active={activeKey === 'ai'} />
+              <span className="tab-label">AI</span>
+            </div>
           </div>
         </div>
-      </div>
-
-      {/* AI全屏页面 */}
-      {showAI && (
-        <AIPage onClose={() => {
-          setShowAI(false)
-          setActiveKey('home')
-        }} />
       )}
 
       {/* 更多抽屉 */}
@@ -324,6 +340,23 @@ function App() {
         />
       )}
     </div>
+  )
+}
+
+function CustomAppPage({ title }: { title: string }) {
+  return <PlaceholderPage title={title} />
+}
+
+export default function App() {
+  return (
+    <Routes>
+      <Route element={<LoginGuard />}>
+        <Route path={APP_ROUTE_PATHS.login} element={<LoginPage />} />
+      </Route>
+      <Route element={<AuthGuard />}>
+        <Route path="/*" element={<AuthenticatedApp />} />
+      </Route>
+    </Routes>
   )
 }
 
@@ -645,5 +678,3 @@ function MoreEditPage({ onClose, mainTabs, setMainTabs }: { onClose: () => void,
     </div>
   )
 }
-
-export default App

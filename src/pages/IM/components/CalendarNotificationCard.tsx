@@ -6,7 +6,6 @@ import React, { useState } from 'react';
 import { Popup } from 'antd-mobile';
 import {
   buildCalendarNotificationViewModel,
-  parseCalendarNotificationCustomMessage,
   type CalendarNotificationCustomData,
 } from '../utils/calendarNotificationCustomMessage';
 import { useDisplayName } from '../utils/displayNameHooks';
