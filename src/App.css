@@ -737,12 +737,6 @@
   cursor: grab;
 }
 
-.bottom-tab-item.preview:dragover {
-  background: rgba(0, 0, 0, 0.05);
-  border: 1px dashed #ccc;
-  border-radius: 12px;
-}
-
 .more-edit-menu-item.dragging {
   opacity: 0.45;
 }

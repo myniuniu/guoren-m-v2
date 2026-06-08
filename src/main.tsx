@@ -5,7 +5,7 @@ import App from './App.tsx'
 
 import { registerSW } from 'virtual:pwa-register'
 
-const updateSW = registerSW({
+void registerSW({
   onNeedRefresh() {
     // 可以在这里提示用户有新版本
   },

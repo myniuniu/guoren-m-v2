@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import Home from './pages/Home'
+import MessagePage from './pages/Message'
 import SpacePage from './pages/Space'
 import AIPage from './pages/AI'
 import LibraryPage from './pages/Library'
@@ -17,11 +18,16 @@ function HomeIcon({ active }: { active: boolean }) {
   )
 }
 
-function LibraryIcon({ active }: { active: boolean }) {
+function MessageIcon({ active }: { active: boolean }) {
+  const stroke = active ? '#2f6bff' : '#999'
+  const fill = active ? '#edf3ff' : '#fff'
+
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? '#333' : '#999'} strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M4.5 7.5c0-1.1.9-2 2-2h3.1c.54 0 1.05.26 1.36.69l1.03 1.42c.3.42.8.67 1.31.67h4.19c1.1 0 2 .9 2 2v6.22c0 1.1-.9 2-2 2H6.5c-1.1 0-2-.9-2-2z" />
-      <path d="M4.5 9.5h15" />
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+      <path d="M5 6.5a3.5 3.5 0 0 1 3.5-3.5h7A3.5 3.5 0 0 1 19 6.5v5A3.5 3.5 0 0 1 15.5 15H11l-4.1 3.3c-.58.47-1.43.06-1.43-.68V15.9A3.5 3.5 0 0 1 2 12.5v-6Z" fill={fill} stroke={stroke} strokeWidth="1.8" strokeLinejoin="round" />
+      <circle cx="8.5" cy="9" r="1" fill={stroke} />
+      <circle cx="12" cy="9" r="1" fill={stroke} />
+      <circle cx="15.5" cy="9" r="1" fill={stroke} />
     </svg>
   )
 }
@@ -34,21 +40,6 @@ function TaskIcon({ active }: { active: boolean }) {
       <path d="M9 11l3 3L22 4" />
       <path d="M21 12c0 7.18-5.82 12-12 12S0 16.18 0 9 4.82 0 9 0c2.05 0 3.95.65 5.5 1.75" stroke={stroke} strokeWidth="1.9" />
       <circle cx="12" cy="12" r="10" fill={fill} fillOpacity={active ? 0.08 : 0} stroke={stroke} strokeWidth="1.9" />
-    </svg>
-  )
-}
-
-function CalendarIcon({ active }: { active: boolean }) {
-  const stroke = active ? '#333' : '#999'
-  const fill = active ? '#4A7CFF' : 'none'
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="4" width="18" height="18" rx="2" />
-      <line x1="3" y1="10" x2="21" y2="10" />
-      <line x1="8" y1="2" x2="8" y2="6" />
-      <line x1="16" y1="2" x2="16" y2="6" />
-      <rect x="7" y="13" width="3" height="3" rx="0.5" fill={fill} stroke={stroke} />
-      <rect x="14" y="13" width="3" height="3" rx="0.5" fill={fill} stroke={stroke} />
     </svg>
   )
 }
@@ -197,9 +188,13 @@ type TabItem = {
 
 const defaultMainTabs: TabItem[] = [
   { key: 'home', label: '首页', icon: HomeIcon, source: 'system' },
-  { key: 'task', label: '任务', icon: TaskIcon, source: 'system' },
+  { key: 'message', label: '消息', icon: MessageIcon, source: 'system' },
   { key: 'app-10', label: '资料库', appType: 'library', color: '#4A7CFF', source: 'app' },
   { key: 'more', label: '更多', icon: MoreIcon, source: 'system' },
+]
+
+const optionalSystemTabs: TabItem[] = [
+  { key: 'task', label: '任务', icon: TaskIcon, source: 'system' },
 ]
 
 const editableAppTabs: TabItem[] = apps.map((app) => ({
@@ -210,10 +205,10 @@ const editableAppTabs: TabItem[] = apps.map((app) => ({
   source: 'app',
 }))
 
-const allEditableTabs: TabItem[] = [...defaultMainTabs, ...editableAppTabs]
+const allEditableTabs: TabItem[] = [...defaultMainTabs, ...optionalSystemTabs, ...editableAppTabs]
 
 function App() {
-  const [activeKey, setActiveKey] = useState('home')
+  const [activeKey, setActiveKey] = useState('message')
   const [showAI, setShowAI] = useState(false)
   const [showMoreDrawer, setShowMoreDrawer] = useState(false)
   const [showMoreEdit, setShowMoreEdit] = useState(false)
@@ -239,7 +234,7 @@ function App() {
   }
 
   useEffect(() => {
-    if (activeKey === 'ai' || activeKey === 'more' || activeKey.startsWith('app-')) return
+    if (activeKey === 'ai' || activeKey === 'more' || activeKey === 'task' || activeKey.startsWith('app-')) return
     if (!mainTabs.some((tab) => tab.key === activeKey) && mainTabs.length > 0) {
       setActiveKey(mainTabs[0].key)
     }
@@ -250,10 +245,13 @@ function App() {
     [activeKey, mainTabs]
   )
 
+  const isMoreContextKey = activeKey === 'task' || activeKey.startsWith('app-')
+
   return (
     <div className={`app-container ${elderMode ? 'elder-mode' : ''}`}>
       <div className="app-content">
         {activeKey === 'home' && <Home onOpenAI={() => setShowAI(true)} elderMode={elderMode} onToggleElderMode={() => setElderMode(!elderMode)} />}
+        {activeKey === 'message' && <MessagePage />}
         {activeKey === 'task' && <TaskPage />}
         {activeKey === 'calendar' && <CalendarPage />}
         {activeKey === 'space' && <SpacePage />}
@@ -274,18 +272,17 @@ function App() {
                 transform: `translateX(${(() => {
                   const idx = mainTabs.findIndex(t => t.key === activeKey)
                   if (idx >= 0) return idx * 100
-                  // 更多子页面（app- 开头）时，滑块移到"更多"位置
-                  if (activeKey.startsWith('app-')) {
+                  if (isMoreContextKey) {
                     const moreIdx = mainTabs.findIndex(t => t.key === 'more')
                     return moreIdx >= 0 ? moreIdx * 100 : 0
                   }
                   return 0
                 })()}%)`,
-                opacity: mainTabs.findIndex(t => t.key === activeKey) >= 0 || activeKey.startsWith('app-') ? 1 : 0,
+                opacity: mainTabs.findIndex(t => t.key === activeKey) >= 0 || isMoreContextKey ? 1 : 0,
               }}
             />
             {mainTabs.map((tab) => {
-              const isActive = activeKey === tab.key || (tab.key === 'more' && activeKey.startsWith('app-'))
+              const isActive = activeKey === tab.key || (tab.key === 'more' && isMoreContextKey)
               const Icon = tab.icon
               const isFixed = tab.key === 'home'
               return (
@@ -373,11 +370,12 @@ function PlaceholderPage({ title }: { title: string }) {
   )
 }
 
-// ===== 更多抽屉：只显示应用网格 + 设置入口 =====
+// ===== 更多抽屉：任务 + 应用快捷入口 =====
 function MoreDrawer({ onClose, onEdit, onOpenSettings, onSelectApp }: { onClose: () => void, onEdit: () => void, onOpenSettings: () => void, onSelectApp: (appKey: string) => void }) {
-  const apps = [
-    { id: 3, name: '日历', color: '#4A7CFF', type: 'calendar' },
-    { id: 11, name: '空间', color: '#87CEEB', type: 'space' },
+  const shortcuts: Array<{ key: string; name: string; icon?: React.FC<{ active: boolean }>; color?: string; type?: string }> = [
+    { key: 'task', name: '任务', icon: TaskIcon },
+    { key: 'app-3', name: '日历', color: '#4A7CFF', type: 'calendar' },
+    { key: 'app-11', name: '空间', color: '#87CEEB', type: 'space' },
   ]
 
   const renderAppGlyph = (type: string) => {
@@ -427,12 +425,12 @@ function MoreDrawer({ onClose, onEdit, onOpenSettings, onSelectApp }: { onClose:
 
           {/* 应用网格 */}
           <div className="more-page-app-grid">
-            {apps.map((app) => (
-              <div className="more-page-app-item" key={app.id} onClick={() => onSelectApp(`app-${app.id}`)}>
-                <div className="more-page-app-icon" style={{ background: `${app.color}18` }}>
-                  {renderAppGlyph(app.type)}
+            {shortcuts.map((item) => (
+              <div className="more-page-app-item" key={item.key} onClick={() => onSelectApp(item.key)}>
+                <div className="more-page-app-icon" style={{ background: item.icon ? '#eef2ff' : `${item.color}18` }}>
+                  {item.icon ? <item.icon active={true} /> : renderAppGlyph(item.type!)}
                 </div>
-                <div className="more-page-app-name">{app.name}</div>
+                <div className="more-page-app-name">{item.name}</div>
               </div>
             ))}
           </div>
