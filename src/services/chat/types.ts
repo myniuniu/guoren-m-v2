@@ -11,6 +11,7 @@ export interface ChatAttachment {
   kind: ChatAttachmentKind
   name: string
   status: ChatAttachmentStatus
+  objectKey?: string
   resourceId?: string
   url?: string
 }
@@ -115,7 +116,7 @@ export interface ChatStreamStartPayload {
   uploadedFiles?: Array<{
     resource_id: string
     file_name: string
-    url: string
+    url?: string
   }>
   resourceIds?: string[]
 }

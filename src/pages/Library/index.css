@@ -199,6 +199,7 @@
 
 .library-item {
   width: 100%;
+  border: none;
   background: transparent;
   border-radius: 0;
   padding: 14px 4px;
@@ -476,6 +477,17 @@
   text-overflow: ellipsis;
 }
 
+.library-preview-session-btn {
+  border: none;
+  border-radius: 999px;
+  background: #111827;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 8px 12px;
+  flex-shrink: 0;
+}
+
 .library-file-preview-stage {
   height: 100%;
   overflow-y: auto;
@@ -520,6 +532,9 @@
 
 .library-file-preview-paper-body {
   margin-top: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
 .library-file-preview-paper-block + .library-file-preview-paper-block {
@@ -555,4 +570,105 @@
   width: 38px;
   height: 46px;
   font-size: 12px;
+}
+
+.library-preview-image-wrap {
+  width: 100%;
+  border-radius: 18px;
+  overflow: hidden;
+  background: #f3f4f6;
+}
+
+.library-preview-image {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.library-preview-text {
+  margin: 0;
+  padding: 16px;
+  border-radius: 18px;
+  background: #f8fafc;
+  color: #1f2937;
+  font-size: 13px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow: auto;
+}
+
+.library-preview-frame {
+  width: 100%;
+  min-height: 62vh;
+  border: none;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: inset 0 0 0 1px #e5e7eb;
+}
+
+.library-preview-status-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px 18px;
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: inset 0 0 0 1px #e5e7eb;
+}
+
+.library-preview-status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.library-preview-status-badge.is-ready {
+  background: rgba(34, 197, 94, 0.12);
+  color: #15803d;
+}
+
+.library-preview-status-badge.is-pending {
+  background: rgba(59, 130, 246, 0.12);
+  color: #1d4ed8;
+}
+
+.library-preview-status-badge.is-error {
+  background: rgba(239, 68, 68, 0.12);
+  color: #b91c1c;
+}
+
+.library-preview-status-desc {
+  font-size: 14px;
+  line-height: 1.7;
+  color: #374151;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.library-preview-open-btn {
+  width: fit-content;
+  border: none;
+  border-radius: 12px;
+  background: #111827;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 10px 14px;
+}
+
+.library-org-save-options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.library-org-save-options .library-sheet-option {
+  width: 100%;
+  justify-content: space-between;
 }

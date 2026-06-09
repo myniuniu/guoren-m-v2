@@ -50,6 +50,17 @@ function normalizeHeaders(headersInit?: HeadersInit): Record<string, string> {
   return normalized;
 }
 
+function mergeRequestHeaders(
+  defaultHeaders: HeadersInit,
+  customHeaders?: HeadersInit,
+): Record<string, string> {
+  // 先统一成浏览器标准化后的 key，再合并，避免 Accept / Content-Type 被拼成逗号串。
+  return {
+    ...normalizeHeaders(defaultHeaders),
+    ...normalizeHeaders(customHeaders),
+  };
+}
+
 function buildAuthHeaders(): Record<string, string> {
   const auth = readStoredAuthInfo();
 
@@ -151,12 +162,13 @@ export async function signedFetch(
 
   // 获取 HMAC 签名头
   const hmacHeaders = await buildHmacAuthHeaders(finalUrl, method);
-  const optionHeaders = normalizeHeaders(options.headers);
+  const optionHeaders = mergeRequestHeaders({
+    'Content-Type': 'application/json',
+    Accept: 'application/json',
+  }, options.headers);
 
   // 合并请求头
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    'Accept': 'application/json',
     ...optionHeaders,
     ...hmacHeaders,
   };
@@ -234,11 +246,10 @@ export async function authorizedFetch(
 ): Promise<Response> {
   const method = (options.method || 'GET').toUpperCase();
   const { finalUrl, body } = resolveRequestUrl(url, options);
-  const headers = await buildAuthorizedHeaders(finalUrl, method, {
+  const headers = await buildAuthorizedHeaders(finalUrl, method, mergeRequestHeaders({
     'Content-Type': 'application/json',
     Accept: 'application/json',
-    ...normalizeHeaders(options.headers),
-  });
+  }, options.headers));
 
   return fetch(finalUrl, {
     ...options,

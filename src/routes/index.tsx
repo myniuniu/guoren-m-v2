@@ -8,6 +8,7 @@ export const APP_ROUTE_PATHS = {
   library: '/library',
   im: '/im',
   ai: '/ai',
+  partner: '/partner',
   login: '/login',
 } as const
 
@@ -43,6 +44,10 @@ export function getTabKeyByPathname(pathname: string): string {
 
   if (pathname.startsWith(APP_ROUTE_PATHS.im)) {
     return 'im'
+  }
+
+  if (pathname.startsWith(APP_ROUTE_PATHS.partner)) {
+    return 'ai'
   }
 
   if (pathname.startsWith(APP_ROUTE_PATHS.ai)) {

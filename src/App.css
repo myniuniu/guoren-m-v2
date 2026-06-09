@@ -1,7 +1,12 @@
 .app-container {
   width: 100vw;
+  min-height: 100vh;
+  min-height: 100dvh;
+  min-height: var(--app-viewport-height, 100dvh);
   height: 100vh;
   height: 100dvh;
+  height: var(--app-viewport-height, 100dvh);
+  max-height: var(--app-viewport-height, 100dvh);
   background-color: #f5f6f8; /* 将底色设为灰色，避免白色缝隙 */
   max-width: 430px;
   margin: 0 auto;
@@ -20,6 +25,32 @@
   min-height: 0;
   position: relative;
   background-color: transparent; /* 让子页面的背景色透过来 */
+}
+
+.app-route-loading {
+  width: 100vw;
+  min-height: 100vh;
+  min-height: 100dvh;
+  min-height: var(--app-viewport-height, 100dvh);
+  background: linear-gradient(180deg, #f5f6f8 0%, #eceff3 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.app-route-loading-card {
+  min-width: 164px;
+  padding: 16px 20px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #374151;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.08);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 }
 
 .app-container.im-chat-view .app-bottom {

@@ -7,6 +7,43 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes('node_modules')) {
+            return undefined
+          }
+
+          if (id.includes('react-router')) {
+            return 'vendor-router'
+          }
+
+          if (
+            id.includes('react-markdown')
+            || id.includes('remark-gfm')
+            || id.includes('micromark')
+            || id.includes('mdast')
+            || id.includes('hast')
+            || id.includes('unified')
+            || id.includes('unist')
+          ) {
+            return 'vendor-markdown'
+          }
+
+          if (
+            id.includes('/react/')
+            || id.includes('/react-dom/')
+            || id.includes('/scheduler/')
+          ) {
+            return 'vendor-react'
+          }
+
+          return 'vendor'
+        },
+      },
+    },
+  },
   plugins: [
     react(),
     VitePWA({

@@ -1,93 +1,19 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import {
+  fetchKnowledgeSpaces,
+  fetchLibraryPreviewContent,
+  fetchLibraryTreeNodes,
+  type KnowledgeSpaceOption,
+  type LibraryTreeNode,
+} from '../../services/library'
 import './index.css'
 
 type LibraryScope = 'personal' | 'org'
-type LibraryEntryType = 'folder' | 'pdf' | 'doc' | 'ppt' | 'sheet' | 'image'
-type SidebarFilter = 'all' | 'recent' | 'folder' | 'starred' | 'shared' | 'tag:AI' | 'tag:课程' | 'tag:教研'
+type LibraryDisplayType = 'folder' | 'document' | 'image' | 'video' | 'audio' | 'other'
 
-interface LibraryEntry {
-  id: string
-  name: string
-  type: LibraryEntryType
-  scope: LibraryScope
-  orgSpace?: string
-  parentId: string | null
-  updatedAt: string
-  owner: string
-  size?: string
-  starred?: boolean
-  shared?: boolean
-  tags: string[]
-}
-
-const libraryEntries: LibraryEntry[] = [
-  { id: 'p-folder-1', name: '教育信息化资料库', type: 'folder', scope: 'personal', parentId: null, updatedAt: '今天 09:18', owner: '我', starred: true, shared: false, tags: ['课程', '教研'] },
-  { id: 'p-folder-2', name: '人工智能-教育', type: 'folder', scope: 'personal', parentId: null, updatedAt: '昨天 17:36', owner: '我', starred: true, shared: true, tags: ['AI', '课程'] },
-  { id: 'p-folder-3', name: '模板作品集', type: 'folder', scope: 'personal', parentId: null, updatedAt: '06-01 12:08', owner: '我', starred: false, shared: false, tags: ['教研'] },
-  { id: 'p-file-1', name: 'AI 自动化案例清单.pdf', type: 'pdf', scope: 'personal', parentId: null, updatedAt: '05-31 19:24', owner: '我', size: '2.3 MB', starred: true, shared: true, tags: ['AI'] },
-  { id: 'p-file-2', name: '课堂评价指标库.xlsx', type: 'sheet', scope: 'personal', parentId: null, updatedAt: '05-30 15:10', owner: '我', size: '348 KB', starred: false, shared: false, tags: ['课程', '教研'] },
-  { id: 'p-file-3', name: '果仁产品介绍.pptx', type: 'ppt', scope: 'personal', parentId: null, updatedAt: '05-28 09:05', owner: '我', size: '5.1 MB', starred: false, shared: true, tags: ['AI'] },
-  { id: 'p-folder-1-file-1', name: '智慧教室建设方案.docx', type: 'doc', scope: 'personal', parentId: 'p-folder-1', updatedAt: '今天 10:02', owner: '我', size: '1.1 MB', starred: true, shared: false, tags: ['课程'] },
-  { id: 'p-folder-1-file-2', name: '职业教育改革图谱.png', type: 'image', scope: 'personal', parentId: 'p-folder-1', updatedAt: '今天 09:46', owner: '我', size: '860 KB', starred: false, shared: false, tags: ['教研'] },
-  { id: 'p-folder-2-file-1', name: '课程智能体能力框架.pdf', type: 'pdf', scope: 'personal', parentId: 'p-folder-2', updatedAt: '昨天 16:21', owner: '我', size: '3.6 MB', starred: true, shared: true, tags: ['AI', '课程'] },
-  { id: 'o-folder-1', name: '课堂评价', type: 'folder', scope: 'org', orgSpace: '果仁集团', parentId: null, updatedAt: '今天 11:15', owner: '组织', starred: true, shared: true, tags: ['课程'] },
-  { id: 'o-folder-2', name: '人工智能通识课', type: 'folder', scope: 'org', orgSpace: '果仁集团', parentId: null, updatedAt: '昨天 14:06', owner: '组织', starred: true, shared: true, tags: ['AI', '课程'] },
-  { id: 'o-folder-3', name: '教研-数学', type: 'folder', scope: 'org', orgSpace: '教育研究院', parentId: null, updatedAt: '05-29 18:31', owner: '组织', starred: false, shared: true, tags: ['教研'] },
-  { id: 'o-file-1', name: '组织资料库接入规范.pdf', type: 'pdf', scope: 'org', orgSpace: '果仁集团', parentId: null, updatedAt: '05-29 09:12', owner: '组织', size: '4.7 MB', starred: true, shared: true, tags: ['AI'] },
-  { id: 'o-file-2', name: '空间协作流程说明.docx', type: 'doc', scope: 'org', orgSpace: '教务中心', parentId: null, updatedAt: '05-27 17:42', owner: '组织', size: '690 KB', starred: false, shared: true, tags: ['教研'] },
-  { id: 'o-folder-1-file-1', name: '动物王国开大会.pptx', type: 'ppt', scope: 'org', orgSpace: '果仁集团', parentId: 'o-folder-1', updatedAt: '今天 08:42', owner: 'jinlf', size: '8.2 MB', starred: false, shared: true, tags: ['课程'] },
-  { id: 'o-folder-1-file-2', name: '评课指标.pdf', type: 'pdf', scope: 'org', orgSpace: '果仁集团', parentId: 'o-folder-1', updatedAt: '今天 08:16', owner: 'jinlf', size: '2.8 MB', starred: true, shared: true, tags: ['课程', '教研'] },
-  { id: 'o-folder-2-file-1', name: '课程资源清单.xlsx', type: 'sheet', scope: 'org', orgSpace: '果仁集团', parentId: 'o-folder-2', updatedAt: '昨天 13:28', owner: 'guoren-team', size: '412 KB', starred: false, shared: true, tags: ['AI', '课程'] },
-  { id: 'o-folder-3-file-1', name: '沈阳故宫介绍.docx', type: 'doc', scope: 'org', orgSpace: '教育研究院', parentId: 'o-folder-3', updatedAt: '05-29 11:36', owner: 'jinlf', size: '1.7 MB', starred: false, shared: false, tags: ['教研'] },
-]
-
-const orgSpaces = ['果仁集团', '教育研究院', '教务中心']
-
-const quickFilters: Array<{ key: SidebarFilter; label: string }> = [
-  { key: 'all', label: '全部' },
-  { key: 'recent', label: '最近' },
-  { key: 'folder', label: '文件夹' },
-]
-
-const filterSheetSections: Array<{
-  title: string
-  items: Array<{ key: SidebarFilter; label: string; dot?: string }>
-}> = [
-  {
-    title: '收藏',
-    items: [
-      { key: 'starred', label: '已收藏', dot: '#ff5a5f' },
-      { key: 'shared', label: '共享', dot: '#ffb020' },
-    ],
-  },
-  {
-    title: '标签',
-    items: [
-      { key: 'tag:AI', label: 'AI', dot: '#6a7dff' },
-      { key: 'tag:课程', label: '课程', dot: '#4fb97a' },
-      { key: 'tag:教研', label: '教研', dot: '#b073ff' },
-    ],
-  },
-]
-
-const filterLabelMap: Record<SidebarFilter, string> = {
-  all: '全部',
-  recent: '最近',
-  folder: '文件夹',
-  starred: '已收藏',
-  shared: '共享',
-  'tag:AI': 'AI',
-  'tag:课程': '课程',
-  'tag:教研': '教研',
-}
-
-function SearchIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="11" cy="11" r="7" />
-      <line x1="20" y1="20" x2="16.65" y2="16.65" />
-    </svg>
-  )
+type LibraryTreeListItem = LibraryTreeNode & {
+  depth: number
+  isFolder: boolean
 }
 
 function BackIcon() {
@@ -98,49 +24,44 @@ function BackIcon() {
   )
 }
 
-function FilterIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M4 6h16" />
-      <path d="M7 12h10" />
-      <path d="M10 18h4" />
-    </svg>
-  )
+function isFolderNode(node: Pick<LibraryTreeNode, 'nodeType' | 'children'>): boolean {
+  return node.nodeType === 20 || node.children.length > 0
 }
 
-function ChevronDownIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="6 9 12 15 18 9" />
-    </svg>
-  )
-}
-
-function MoreIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="#b0b5bd">
-      <circle cx="12" cy="5" r="1.6" />
-      <circle cx="12" cy="12" r="1.6" />
-      <circle cx="12" cy="19" r="1.6" />
-    </svg>
-  )
-}
-
-function FileTypeIcon({ type }: { type: LibraryEntryType }) {
-  if (type === 'folder') {
-    return (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-        <path d="M3 7.5C3 6.12 4.12 5 5.5 5H9l1.8 2H18.5C19.88 7 21 8.12 21 9.5v7A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5z" fill="#5A9BFF" />
-      </svg>
-    )
+function inferLibraryDisplayType(node: LibraryTreeListItem): LibraryDisplayType {
+  if (node.isFolder) {
+    return 'folder'
   }
 
-  const config: Record<Exclude<LibraryEntryType, 'folder'>, { bg: string; label: string }> = {
-    pdf: { bg: '#FF5A5F', label: 'PDF' },
-    doc: { bg: '#4A7CFF', label: 'DOC' },
-    ppt: { bg: '#FF8A34', label: 'PPT' },
-    sheet: { bg: '#25B864', label: 'XLS' },
-    image: { bg: '#8D5BFF', label: 'IMG' },
+  const ext = node.fileExt.toLowerCase() || node.fileName.split('.').pop()?.toLowerCase() || ''
+
+  if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(ext)) {
+    return 'image'
+  }
+
+  if (['mp4', 'mov', 'avi', 'mkv', 'webm', 'flv', 'm4v'].includes(ext)) {
+    return 'video'
+  }
+
+  if (['mp3', 'wav', 'm4a', 'aac', 'flac', 'ogg'].includes(ext)) {
+    return 'audio'
+  }
+
+  if (['pdf', 'doc', 'docx', 'txt', 'md', 'markdown', 'json', 'csv', 'html', 'htm', 'ppt', 'pptx', 'xls', 'xlsx'].includes(ext)) {
+    return 'document'
+  }
+
+  return 'other'
+}
+
+function FileTypeIcon({ type }: { type: LibraryDisplayType }) {
+  const config: Record<LibraryDisplayType, { bg: string; label: string }> = {
+    folder: { bg: '#F59E0B', label: 'DIR' },
+    document: { bg: '#4A7CFF', label: 'DOC' },
+    image: { bg: '#FF8A34', label: 'IMG' },
+    video: { bg: '#8D5BFF', label: 'VID' },
+    audio: { bg: '#25B864', label: 'AUD' },
+    other: { bg: '#8c8f96', label: 'FILE' },
   }
 
   const { bg, label } = config[type]
@@ -152,46 +73,162 @@ function FileTypeIcon({ type }: { type: LibraryEntryType }) {
   )
 }
 
-function LibraryFilePreview({ file, onBack }: { file: LibraryEntry; onBack: () => void }) {
+function formatDateTime(value: string): string {
+  if (!value) {
+    return '时间未知'
+  }
+
+  const date = new Date(value)
+
+  if (Number.isNaN(date.getTime())) {
+    return value
+  }
+
+  return new Intl.DateTimeFormat('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  })
+    .format(date)
+    .replace(/\//g, '-')
+}
+
+function formatFileSize(sizeBytes: number | null): string {
+  if (!sizeBytes || sizeBytes <= 0) {
+    return '未知大小'
+  }
+
+  if (sizeBytes >= 1024 * 1024) {
+    return `${(sizeBytes / (1024 * 1024)).toFixed(1)} MB`
+  }
+
+  if (sizeBytes >= 1024) {
+    return `${Math.round(sizeBytes / 1024)} KB`
+  }
+
+  return `${sizeBytes} B`
+}
+
+function flattenTreeNodes(nodes: LibraryTreeNode[], depth = 0): LibraryTreeListItem[] {
+  return nodes.flatMap((node) => {
+    const current: LibraryTreeListItem = {
+      ...node,
+      depth,
+      isFolder: isFolderNode(node),
+    }
+
+    return [current, ...flattenTreeNodes(node.children, depth + 1)]
+  })
+}
+
+function isImageNode(node: LibraryTreeListItem): boolean {
+  return inferLibraryDisplayType(node) === 'image'
+}
+
+function isTextPreviewNode(node: LibraryTreeListItem): boolean {
+  const ext = node.fileExt.toLowerCase() || node.fileName.split('.').pop()?.toLowerCase() || ''
+  return ['md', 'markdown', 'json', 'txt', 'csv', 'html', 'htm'].includes(ext)
+}
+
+function canPreviewNode(node: LibraryTreeListItem): boolean {
+  return !node.isFolder && Boolean(node.playUrl.trim())
+}
+
+function buildNodeTitle(node: LibraryTreeListItem): string {
+  return node.fileName || node.title || '未命名节点'
+}
+
+function buildNodeMeta(node: LibraryTreeListItem): string {
+  const pieces = [
+    node.createBy || '未知来源',
+    formatDateTime(node.createTime),
+    `解析状态 ${node.aiParseState ?? '-'}`,
+  ]
+
+  if (!node.isFolder) {
+    pieces.push(formatFileSize(node.fileSize))
+  }
+
+  return pieces.join(' · ')
+}
+
+function LibraryNodePreview({
+  node,
+  content,
+  error,
+  loading,
+  onBack,
+}: {
+  node: LibraryTreeListItem | null
+  content: string
+  error: string
+  loading: boolean
+  onBack: () => void
+}) {
+  const nodeType = node ? inferLibraryDisplayType(node) : 'other'
+
   return (
     <div className="library-file-preview-page">
       <div className="library-file-preview-topbar">
         <button className="library-icon-btn" type="button" onClick={onBack}>
           <BackIcon />
         </button>
-        <div className="library-file-preview-topbar-title">{file.name}</div>
+        <div className="library-file-preview-topbar-title">{node ? buildNodeTitle(node) : '资料预览'}</div>
         <div className="library-icon-placeholder" />
       </div>
 
       <div className="library-file-preview-stage">
         <div className="library-file-preview-paper">
-          <div className="library-file-preview-paper-header">
-            <FileTypeIcon type={file.type} />
-            <div className="library-file-preview-paper-title-wrap">
-              <div className="library-file-preview-paper-title">{file.name}</div>
-              <div className="library-file-preview-paper-meta">{file.owner} · {file.updatedAt} · {file.size ?? '文件'}</div>
-            </div>
-          </div>
+          {loading && !node ? <div className="library-empty">资料详情加载中...</div> : null}
+          {error ? <div className="library-empty">{error}</div> : null}
+          {node ? (
+            <>
+              <div className="library-file-preview-paper-header">
+                <div className="library-file-preview-badge">
+                  <FileTypeIcon type={nodeType} />
+                </div>
+                <div className="library-file-preview-paper-title-wrap">
+                  <div className="library-file-preview-paper-title">{buildNodeTitle(node)}</div>
+                  <div className="library-file-preview-paper-meta">{buildNodeMeta(node)}</div>
+                </div>
+              </div>
 
-          <div className="library-file-preview-paper-body">
-            <div className="library-file-preview-paper-block">
-              <div className="library-file-preview-paper-block-title">预览内容</div>
-              <p>这里展示资料正文的预览内容，进入页面后直接沉浸式阅读，不再出现资料详情卡片。</p>
-              <p>当前文件来自资料库，可继续按不同文件类型扩展更细的预览模板，例如 PDF、PPT、图片和表格。</p>
-            </div>
-
-            <div className="library-file-preview-paper-block">
-              <div className="library-file-preview-paper-block-title">文件信息</div>
-              <p>文件类型：{file.type.toUpperCase()}</p>
-              <p>标签：{file.tags.join('、')}</p>
-              <p>更新时间：{file.updatedAt}</p>
-            </div>
-
-            <div className="library-file-preview-paper-block">
-              <div className="library-file-preview-paper-block-title">扩展说明</div>
-              <p>如果后续接真实文件源，这里可以直接替换成对应的 PDF 画布、PPT 预览图集或图片查看器。</p>
-            </div>
-          </div>
+              <div className="library-file-preview-paper-body">
+                {loading ? <div className="library-empty">预览内容加载中...</div> : null}
+                {!loading && node.isFolder ? (
+                  <div className="library-empty">
+                    <div className="library-empty-title">当前节点是目录</div>
+                    <div className="library-empty-desc">这里已经改成直接展示个人 / 组织资料库接口返回的原始节点，不再额外过滤。</div>
+                  </div>
+                ) : null}
+                {!loading && !node.isFolder && !node.playUrl.trim() ? (
+                  <div className="library-empty">
+                    <div className="library-empty-title">当前节点暂无可预览内容</div>
+                    <div className="library-empty-desc">接口没有返回可直接预览的文件地址。</div>
+                  </div>
+                ) : null}
+                {!loading && canPreviewNode(node) && isImageNode(node) ? (
+                  <div className="library-preview-image-wrap">
+                    <img
+                      alt={buildNodeTitle(node)}
+                      className="library-preview-image"
+                      decoding="async"
+                      loading="lazy"
+                      src={node.playUrl}
+                    />
+                  </div>
+                ) : null}
+                {!loading && canPreviewNode(node) && !isImageNode(node) && isTextPreviewNode(node) ? (
+                  <pre className="library-preview-text">{content || '当前文件暂时没有可展示的文本预览。'}</pre>
+                ) : null}
+                {!loading && canPreviewNode(node) && !isImageNode(node) && !isTextPreviewNode(node) ? (
+                  <iframe className="library-preview-frame" src={node.playUrl} title={buildNodeTitle(node)} />
+                ) : null}
+              </div>
+            </>
+          ) : null}
         </div>
       </div>
     </div>
@@ -199,284 +236,276 @@ function LibraryFilePreview({ file, onBack }: { file: LibraryEntry; onBack: () =
 }
 
 export default function LibraryPage() {
-  const [scope, setScope] = useState<LibraryScope>('personal')
-  const [currentFolderId, setCurrentFolderId] = useState<string | null>(null)
-  const [selectedFilter, setSelectedFilter] = useState<SidebarFilter>('all')
-  const [selectedOrgSpace, setSelectedOrgSpace] = useState('果仁集团')
-  const [keyword, setKeyword] = useState('')
-  const [showFilterSheet, setShowFilterSheet] = useState(false)
-  const [showOrgSpaceSheet, setShowOrgSpaceSheet] = useState(false)
-  const [previewFile, setPreviewFile] = useState<LibraryEntry | null>(null)
-  const [actionTarget, setActionTarget] = useState<LibraryEntry | null>(null)
+  const [activeScope, setActiveScope] = useState<LibraryScope>('personal')
+  const [knowledgeSpaces, setKnowledgeSpaces] = useState<KnowledgeSpaceOption[]>([])
+  const [knowledgeSpacesLoading, setKnowledgeSpacesLoading] = useState(false)
+  const [knowledgeSpacesError, setKnowledgeSpacesError] = useState('')
+  const [selectedKnowledgeSpaceId, setSelectedKnowledgeSpaceId] = useState('')
+  const [items, setItems] = useState<LibraryTreeListItem[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [previewNode, setPreviewNode] = useState<LibraryTreeListItem | null>(null)
+  const [previewContent, setPreviewContent] = useState('')
+  const [previewLoading, setPreviewLoading] = useState(false)
+  const [previewError, setPreviewError] = useState('')
+  const [showOrgSpacePicker, setShowOrgSpacePicker] = useState(false)
 
-  const currentFolder = useMemo(
-    () => libraryEntries.find((item) => item.id === currentFolderId) ?? null,
-    [currentFolderId]
-  )
+  const selectedKnowledgeSpaceName = useMemo(() => {
+    return knowledgeSpaces.find((item) => item.id === selectedKnowledgeSpaceId)?.name ?? ''
+  }, [knowledgeSpaces, selectedKnowledgeSpaceId])
 
-  const visibleItems = useMemo(
-    () =>
-      libraryEntries.filter((item) => {
-        if (item.scope !== scope) return false
-        if (scope === 'org' && item.orgSpace !== selectedOrgSpace) return false
-        if (item.parentId !== currentFolderId) return false
-        if (selectedFilter === 'recent' && !item.updatedAt.includes('今天') && !item.updatedAt.includes('昨天')) return false
-        if (selectedFilter === 'folder' && item.type !== 'folder') return false
-        if (selectedFilter === 'starred' && !item.starred) return false
-        if (selectedFilter === 'shared' && !item.shared) return false
-        if (selectedFilter.startsWith('tag:') && !item.tags.includes(selectedFilter.replace('tag:', ''))) return false
-        if (!keyword.trim()) return true
-        return item.name.toLowerCase().includes(keyword.trim().toLowerCase())
-      }),
-    [scope, currentFolderId, keyword, selectedFilter, selectedOrgSpace]
-  )
+  useEffect(() => {
+    const controller = new AbortController()
 
-  const currentTitle = currentFolder ? currentFolder.name : scope === 'personal' ? '个人资料库' : '组织资料库'
-  const isQuickFilter = quickFilters.some((item) => item.key === selectedFilter)
+    void (async () => {
+      setKnowledgeSpacesLoading(true)
+      setKnowledgeSpacesError('')
 
-  if (previewFile) {
-    return <LibraryFilePreview file={previewFile} onBack={() => setPreviewFile(null)} />
-  }
+      try {
+        const nextSpaces = await fetchKnowledgeSpaces(controller.signal)
 
-  const handleScopeChange = (nextScope: LibraryScope) => {
-    setScope(nextScope)
-    setCurrentFolderId(null)
-    setSelectedFilter('all')
-    setKeyword('')
-    setShowFilterSheet(false)
-    setShowOrgSpaceSheet(false)
-    setPreviewFile(null)
-  }
+        if (controller.signal.aborted) {
+          return
+        }
 
-  const handleItemClick = (item: LibraryEntry) => {
-    if (item.type === 'folder') {
-      setCurrentFolderId(item.id)
+        setKnowledgeSpaces(nextSpaces)
+        setSelectedKnowledgeSpaceId((current) => {
+          if (nextSpaces.some((space) => space.id === current)) {
+            return current
+          }
+
+          return nextSpaces[0]?.id ?? ''
+        })
+      } catch (loadError) {
+        if (!controller.signal.aborted) {
+          setKnowledgeSpacesError(loadError instanceof Error ? loadError.message : '知识空间加载失败')
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setKnowledgeSpacesLoading(false)
+        }
+      }
+    })()
+
+    return () => {
+      controller.abort()
+    }
+  }, [])
+
+  useEffect(() => {
+    if (activeScope === 'org' && !selectedKnowledgeSpaceId) {
+      setItems([])
       return
     }
 
-    setPreviewFile(item)
-  }
+    const controller = new AbortController()
 
-  const handleFilterChange = (filter: SidebarFilter, closeSheet = false) => {
-    setSelectedFilter(filter)
-    if (closeSheet) {
-      setShowFilterSheet(false)
+    void (async () => {
+      setLoading(true)
+      setError('')
+
+      try {
+        const nextTree = await fetchLibraryTreeNodes({
+          scope: activeScope,
+          knowledgeSpaceOwnerId: activeScope === 'org' ? selectedKnowledgeSpaceId : undefined,
+          signal: controller.signal,
+        })
+
+        if (controller.signal.aborted) {
+          return
+        }
+
+        setItems(flattenTreeNodes(nextTree))
+      } catch (loadError) {
+        if (!controller.signal.aborted) {
+          setItems([])
+          setError(loadError instanceof Error ? loadError.message : '资料库加载失败')
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setLoading(false)
+        }
+      }
+    })()
+
+    return () => {
+      controller.abort()
     }
+  }, [activeScope, selectedKnowledgeSpaceId])
+
+  useEffect(() => {
+    if (!previewNode) {
+      setPreviewLoading(false)
+      setPreviewError('')
+      setPreviewContent('')
+      return
+    }
+
+    setPreviewError('')
+    setPreviewContent('')
+
+    if (!canPreviewNode(previewNode) || !isTextPreviewNode(previewNode)) {
+      setPreviewLoading(false)
+      return
+    }
+
+    const controller = new AbortController()
+
+    void (async () => {
+      setPreviewLoading(true)
+
+      try {
+        const nextContent = await fetchLibraryPreviewContent(previewNode.playUrl, controller.signal)
+
+        if (!controller.signal.aborted) {
+          setPreviewContent(nextContent)
+        }
+      } catch (loadError) {
+        if (!controller.signal.aborted) {
+          setPreviewError(loadError instanceof Error ? loadError.message : '资料预览加载失败')
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setPreviewLoading(false)
+        }
+      }
+    })()
+
+    return () => {
+      controller.abort()
+    }
+  }, [previewNode])
+
+  if (previewNode) {
+    return (
+      <>
+        <LibraryNodePreview
+          content={previewContent}
+          error={previewError}
+          loading={previewLoading}
+          node={previewNode}
+          onBack={() => {
+            setPreviewNode(null)
+          }}
+        />
+      </>
+    )
   }
 
   return (
     <div className="library-page">
       <div className="library-header">
         <div className="library-nav">
-          {currentFolder ? (
-            <button
-              className="library-icon-btn"
-              type="button"
-              onClick={() => {
-                setCurrentFolderId(null)
-              }}
-            >
-              <BackIcon />
-            </button>
-          ) : (
-            <div className="library-icon-placeholder" />
-          )}
+          <div className="library-icon-placeholder" />
           <div className="library-title-wrap">
-            <div className="library-title">{currentTitle}</div>
-            <div className="library-subtitle">{visibleItems.length} 项内容</div>
+            <div className="library-title">资料库</div>
+            <div className="library-subtitle">这里直接复用会话里的个人 / 组织资料库接口，不再额外做前端筛选。</div>
           </div>
-          <button className="library-icon-btn" type="button" onClick={() => setShowFilterSheet(true)}>
-            <FilterIcon />
-          </button>
+          <div className="library-icon-placeholder" />
         </div>
 
         <div className="library-scope-switch">
           <button
-            className={`library-scope-btn ${scope === 'personal' ? 'is-active' : ''}`}
+            className={`library-scope-btn ${activeScope === 'personal' ? 'is-active' : ''}`}
             type="button"
-            onClick={() => handleScopeChange('personal')}
+            onClick={() => setActiveScope('personal')}
           >
             个人资料库
           </button>
           <button
-            className={`library-scope-btn ${scope === 'org' ? 'is-active' : ''}`}
+            className={`library-scope-btn ${activeScope === 'org' ? 'is-active' : ''}`}
             type="button"
-            onClick={() => handleScopeChange('org')}
+            onClick={() => setActiveScope('org')}
           >
             组织资料库
           </button>
         </div>
 
-        {scope === 'org' && (
-          <button className="library-org-space-trigger" type="button" onClick={() => setShowOrgSpaceSheet(true)}>
-            <span className="library-org-space-value">{selectedOrgSpace}</span>
-            <ChevronDownIcon />
-          </button>
-        )}
-
-        <div className="library-search">
-          <SearchIcon />
-          <input
-            value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
-            placeholder="搜索资料名称"
-          />
-        </div>
-
-        <div className="library-filter-row">
-          {quickFilters.map((item) => (
-            <button
-              key={item.key}
-              className={`library-filter-chip ${selectedFilter === item.key ? 'is-active' : ''}`}
-              type="button"
-              onClick={() => handleFilterChange(item.key)}
-            >
-              {item.label}
-            </button>
-          ))}
+        {activeScope === 'org' ? (
           <button
-            className={`library-filter-chip library-filter-more ${!isQuickFilter ? 'is-active' : ''}`}
+            className="library-org-space-trigger"
+            disabled={knowledgeSpacesLoading}
             type="button"
-            onClick={() => setShowFilterSheet(true)}
+            onClick={() => setShowOrgSpacePicker(true)}
           >
-            收藏/标签
+            <span>知识空间</span>
+            <span className="library-org-space-value">
+              {knowledgeSpacesLoading ? '加载中...' : selectedKnowledgeSpaceName || '暂无知识空间'}
+            </span>
           </button>
-        </div>
-
-        {!isQuickFilter && (
-          <div className="library-active-filter">
-            <span className="library-active-filter-pill">{filterLabelMap[selectedFilter]}</span>
-            <button className="library-active-filter-clear" type="button" onClick={() => handleFilterChange('all')}>
-              清除
-            </button>
-          </div>
-        )}
+        ) : null}
       </div>
 
       <div className="library-content">
         <div className="library-list">
-          {visibleItems.length > 0 ? (
-            visibleItems.map((item) => {
-              const isFolder = item.type === 'folder'
+          {knowledgeSpacesError && activeScope === 'org' ? <div className="library-empty">{knowledgeSpacesError}</div> : null}
+          {loading ? <div className="library-empty">资料库加载中...</div> : null}
+          {!loading && error ? <div className="library-empty">{error}</div> : null}
+          {!loading && !error && items.length === 0 ? (
+            <div className="library-empty">
+              <div className="library-empty-title">当前没有资料节点</div>
+              <div className="library-empty-desc">页面现在直接展示接口返回的数据，如果这里为空，就说明接口当前确实没有返回内容。</div>
+            </div>
+          ) : null}
+          {!loading && !error && items.map((item) => {
+            const displayType = inferLibraryDisplayType(item)
 
-              return (
-                <div
-                  key={item.id}
-                  className="library-item"
-                  onClick={() => handleItemClick(item)}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault()
-                      handleItemClick(item)
-                    }
-                  }}
-                >
-                  <div className="library-item-main">
-                    <FileTypeIcon type={item.type} />
-                    <div className="library-item-body">
-                      <div className="library-item-name">{item.name}</div>
-                      <div className="library-item-meta">
-                        {item.owner} · {item.updatedAt}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="library-item-side">
-                    <span className="library-item-side-text">{isFolder ? '文件夹' : item.size ?? item.type.toUpperCase()}</span>
-                    <button
-                      className="library-item-more"
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        setActionTarget(item)
-                      }}
-                    >
-                      <MoreIcon />
-                    </button>
+            return (
+              <button
+                className="library-item"
+                key={`${item.nodeId}-${item.depth}`}
+                type="button"
+                onClick={() => {
+                  setPreviewNode(item)
+                  setPreviewError('')
+                  setPreviewContent('')
+                }}
+              >
+                <div className="library-item-main" style={{ paddingLeft: `${item.depth * 18}px` }}>
+                  <FileTypeIcon type={displayType} />
+                  <div className="library-item-body">
+                    <div className="library-item-name">{buildNodeTitle(item)}</div>
+                    <div className="library-item-meta">{buildNodeMeta(item)}</div>
                   </div>
                 </div>
-              )
-            })
-          ) : (
-            <div className="library-empty">
-              <div className="library-empty-title">没有找到相关资料</div>
-              <div className="library-empty-desc">试试更换关键字、切换资料库或筛选条件</div>
-            </div>
-          )}
+                <div className="library-item-side">
+                  <span className="library-item-side-text">{item.isFolder ? '目录' : displayType}</span>
+                </div>
+              </button>
+            )
+          })}
         </div>
       </div>
 
-      {showFilterSheet && (
-        <div className="library-filter-sheet-overlay" onClick={() => setShowFilterSheet(false)}>
-          <div className="library-filter-sheet" onClick={(e) => e.stopPropagation()}>
+      {activeScope === 'org' && showOrgSpacePicker ? (
+        <div className="library-filter-sheet-overlay" onClick={() => setShowOrgSpacePicker(false)}>
+          <div className="library-filter-sheet" onClick={(event) => event.stopPropagation()}>
             <div className="library-filter-sheet-handle" />
-            <div className="library-filter-sheet-title">收藏与标签</div>
-            {filterSheetSections.map((section) => (
-              <div className="library-filter-section" key={section.title}>
-                <div className="library-filter-section-title">{section.title}</div>
-                <div className="library-filter-section-options">
-                  {section.items.map((item) => (
-                    <button
-                      key={item.key}
-                      className={`library-sheet-option ${selectedFilter === item.key ? 'is-active' : ''}`}
-                      type="button"
-                      onClick={() => handleFilterChange(item.key, true)}
-                    >
-                      {item.dot ? <span className="library-sheet-option-dot" style={{ background: item.dot }} /> : null}
-                      <span>{item.label}</span>
-                    </button>
-                  ))}
-                </div>
+            <div className="library-filter-sheet-title">选择知识空间</div>
+            {knowledgeSpacesLoading ? <div className="library-empty">知识空间加载中...</div> : null}
+            {!knowledgeSpacesLoading && knowledgeSpacesError ? <div className="library-empty">{knowledgeSpacesError}</div> : null}
+            {!knowledgeSpacesLoading && !knowledgeSpacesError ? (
+              <div className="library-org-save-options">
+                {knowledgeSpaces.map((space) => (
+                  <button
+                    className={`library-sheet-option ${selectedKnowledgeSpaceId === space.id ? 'is-active' : ''}`}
+                    key={space.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedKnowledgeSpaceId(space.id)
+                      setShowOrgSpacePicker(false)
+                    }}
+                  >
+                    <span>{space.name}</span>
+                    {selectedKnowledgeSpaceId === space.id ? <span>已选</span> : null}
+                  </button>
+                ))}
+                {knowledgeSpaces.length === 0 ? <div className="library-empty">当前没有可用知识空间。</div> : null}
               </div>
-            ))}
-            <button className="library-filter-reset" type="button" onClick={() => handleFilterChange('all', true)}>
-              重置筛选
-            </button>
+            ) : null}
           </div>
         </div>
-      )}
-
-      {showOrgSpaceSheet && (
-        <div className="library-filter-sheet-overlay" onClick={() => setShowOrgSpaceSheet(false)}>
-          <div className="library-filter-sheet" onClick={(e) => e.stopPropagation()}>
-            <div className="library-filter-sheet-handle" />
-            <div className="library-filter-sheet-title">选择组织空间</div>
-            <div className="library-filter-section-options">
-              {orgSpaces.map((space) => (
-                <button
-                  key={space}
-                  className={`library-sheet-option ${selectedOrgSpace === space ? 'is-active' : ''}`}
-                  type="button"
-                  onClick={() => {
-                    setSelectedOrgSpace(space)
-                    setCurrentFolderId(null)
-                    setPreviewFile(null)
-                    setShowOrgSpaceSheet(false)
-                  }}
-                >
-                  <span>{space}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {actionTarget && (
-        <div className="library-action-sheet-overlay" onClick={() => setActionTarget(null)}>
-          <div className="library-action-sheet" onClick={(e) => e.stopPropagation()}>
-            <button className="library-action-sheet-item" type="button" onClick={() => setActionTarget(null)}>分享</button>
-            <button className="library-action-sheet-item" type="button" onClick={() => setActionTarget(null)}>重命名</button>
-            <button className="library-action-sheet-item" type="button" onClick={() => setActionTarget(null)}>下载</button>
-            <button className="library-action-sheet-item" type="button" onClick={() => setActionTarget(null)}>收藏</button>
-            <button className="library-action-sheet-item" type="button" onClick={() => setActionTarget(null)}>更多操作</button>
-            <button className="library-action-sheet-item danger" type="button" onClick={() => setActionTarget(null)}>删除</button>
-            <div className="library-action-sheet-gap" />
-            <button className="library-action-sheet-item cancel" type="button" onClick={() => setActionTarget(null)}>取消</button>
-          </div>
-        </div>
-      )}
+      ) : null}
     </div>
   )
 }

@@ -1,10 +1,33 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { fetchCommands, mapCommandsToPromptItems, type CommandPromptItem } from '../../services/commands'
 import { ensureAgentUsageLog, groupVisibleAgents, listVisibleAgents, type AgentCategoryKey, type DiscoverAgentItem } from '../../services/agents'
+import { fetchClassroomGenerateStatus, resolveClassroomPreviewState, type ClassroomPreviewState } from '../../services/classroom'
+import {
+  ALLOWED_CHAT_UPLOAD_EXTENSIONS,
+  createPendingChatAttachment,
+  isAllowedChatUploadFile,
+  uploadPendingChatFile,
+} from '../../services/chat/upload'
 import type { ChatAttachment } from '../../services/chat/types'
 import { getChatUserId } from '../../services/chat/api'
+import {
+  AI_COURSE_REVIEW_SKILL_NAME,
+  fetchCourseReviewResult,
+  parseCourseReviewTaskId,
+  resolveCourseReviewPreviewPayload,
+  type CourseReviewPreviewPayload,
+} from '../../services/courseReview'
 import { fetchKnowledgeSpaces, fetchLibraryFiles, type KnowledgeSpaceOption, type LibraryResourceFile } from '../../services/library'
 import {
+  fetchPartnerConfig,
+  uploadPartnerAvatar,
+  updatePartnerConfig,
+  type PartnerConfig,
+  type PartnerConfigUpdateField,
+} from '../../services/partner'
+import {
+  buildSkillDisplayName,
   buildSkillInitialPrompt,
   fetchAddedSkills,
   fetchClawhubSkills,
@@ -14,16 +37,20 @@ import {
   type SkillSummaryItem,
 } from '../../services/skills'
 import { AiConversationThread } from './components/AiConversationThread'
+import AiSidebarLibraryPage from './components/AiSidebarLibraryPage'
 import { resolveArtifactPreviewUrl, useAiChatRuntime, type ActiveAgentContext } from './hooks/useAiChatRuntime'
 import { useDisplayNamePrefetch } from '../IM/utils/displayNameHooks'
 import DisplayName from '../../components/DisplayName'
+import { APP_ROUTE_PATHS } from '../../routes'
 import './index.css'
 
 const LUCKY_AVATAR_URL = 'https://guoren-skills-hb-test.oss-cn-beijing.aliyuncs.com/system/images/avatar/73799dbfdc2c495c8c0e1d86ffd2bf23.png'
 const BRAND_NAME = 'lucky'
+const MAX_CHAT_UPLOAD_FILES = 5
 
 const fallbackFeatureCards: CommandPromptItem[] = [
   {
+    id: 'fallback-1',
     icon: '🎁',
     title: '领取新人免费体验',
     summary: '礼包',
@@ -262,6 +289,34 @@ function isImageFile(url: string, filename: string): boolean {
   return ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'].some((suffix) => target.includes(suffix))
 }
 
+type PartnerSettingsPage = 'menu' | 'basic' | 'workspace'
+type PartnerWorkspaceFileKey = 'SOUL.md' | 'USER.md' | 'IDENTITY.md'
+
+function isCourseReviewPreviewArtifact(artifact: { type: string; skill_name?: string; url: string }): boolean {
+  return artifact.type === 'review' || artifact.skill_name === AI_COURSE_REVIEW_SKILL_NAME || Boolean(parseCourseReviewTaskId(artifact.url))
+}
+
+function getPartnerWorkspaceField(fileKey: PartnerWorkspaceFileKey): keyof PartnerConfig {
+  switch (fileKey) {
+    case 'SOUL.md':
+      return 'soulContent'
+    case 'USER.md':
+      return 'userContent'
+    case 'IDENTITY.md':
+      return 'identityContent'
+    default:
+      return 'soulContent'
+  }
+}
+
+function getPartnerWorkspaceValue(config: PartnerConfig | null, fileKey: PartnerWorkspaceFileKey): string {
+  if (!config) {
+    return ''
+  }
+
+  return config[getPartnerWorkspaceField(fileKey)] ?? ''
+}
+
 function renderDrawerIcon(type: string) {
   switch (type) {
     case 'new':
@@ -299,6 +354,9 @@ function renderDrawerIcon(type: string) {
 }
 
 export default function AIPage({ onClose }: { onClose: () => void }) {
+  const location = useLocation()
+  const navigate = useNavigate()
+  const isPartnerRoute = location.pathname === APP_ROUTE_PATHS.partner
   const [showDrawer, setShowDrawer] = useState(false)
   const [showMore, setShowMore] = useState(false)
   const [showPlusSheet, setShowPlusSheet] = useState(false)
@@ -306,7 +364,6 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
   const [showFileMenu, setShowFileMenu] = useState(false)
   const [showLibraryPage, setShowLibraryPage] = useState(false)
   const [showSidebarLibrary, setShowSidebarLibrary] = useState(false)
-  const [sidebarLibraryTab, setSidebarLibraryTab] = useState<'all' | 'starred'>('all')
   const [showDiscoverPage, setShowDiscoverPage] = useState(false)
   const [showMySkillsPage, setShowMySkillsPage] = useState(false)
   const [mySkillsTab, setMySkillsTab] = useState<'added' | 'created'>('added')
@@ -337,9 +394,26 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
   const [libraryFiles, setLibraryFiles] = useState<LibraryResourceFile[]>([])
   const [libraryLoading, setLibraryLoading] = useState(false)
   const [libraryError, setLibraryError] = useState('')
+  const [localBannerMessage, setLocalBannerMessage] = useState('')
+  const [filePickerMode, setFilePickerMode] = useState<'all' | 'image' | 'camera'>('all')
+  const [showPartnerSettings, setShowPartnerSettings] = useState(false)
+  const [partnerSettingsPage, setPartnerSettingsPage] = useState<PartnerSettingsPage>('menu')
+  const [partnerWorkspaceFileKey, setPartnerWorkspaceFileKey] = useState<PartnerWorkspaceFileKey>('SOUL.md')
+  const [partnerConfig, setPartnerConfig] = useState<PartnerConfig | null>(null)
+  const [partnerDraft, setPartnerDraft] = useState<PartnerConfig | null>(null)
+  const [partnerLoading, setPartnerLoading] = useState(false)
+  const [partnerError, setPartnerError] = useState('')
+  const [partnerSaving, setPartnerSaving] = useState(false)
+  const [partnerAvatarUploading, setPartnerAvatarUploading] = useState(false)
+  const [selectedSkillName, setSelectedSkillName] = useState<string | null>(null)
+  const [artifactPreviewLoading, setArtifactPreviewLoading] = useState(false)
+  const [artifactPreviewError, setArtifactPreviewError] = useState('')
+  const [artifactClassroomPreview, setArtifactClassroomPreview] = useState<ClassroomPreviewState | null>(null)
+  const [artifactReviewPreview, setArtifactReviewPreview] = useState<CourseReviewPreviewPayload | null>(null)
 
   const {
     activeAgent,
+    activeToolType,
     canSend,
     draftAttachments,
     inputValue,
@@ -368,6 +442,9 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
   const displayName = useMemo(() => getDisplayName(), [])
   const currentUserId = useMemo(() => getChatUserId(), [])
   const scrollerRef = useRef<HTMLDivElement | null>(null)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const partnerAvatarInputRef = useRef<HTMLInputElement | null>(null)
+  const uploadAbortControllersRef = useRef<Map<string, AbortController>>(new Map())
   const hasConversation = messages.length > 0 || Boolean(routeSessionId)
 
   const menuItems = [
@@ -377,7 +454,17 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
     { key: 'discover', label: '发现' },
   ]
 
-  const builtInAgent = { id: 'partner', name: '建国', avatar: '建', color: '#E8734A' }
+  const builtInAgent = useMemo(() => {
+    const agentName = partnerConfig?.agentName?.trim() || '建国'
+
+    return {
+      id: 'partner',
+      name: agentName,
+      avatar: agentName[0] || '建',
+      avatarUrl: partnerConfig?.avatarUrl?.trim() || '',
+      color: '#E8734A',
+    }
+  }, [partnerConfig])
   const groupedDiscoverAgents = useMemo(() => groupVisibleAgents(visibleAgents, currentUserId), [currentUserId, visibleAgents])
   const customAgents = groupedDiscoverAgents.mine
   const visibleCustomAgents = showMore ? customAgents : customAgents.slice(0, 6)
@@ -411,6 +498,208 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
     setShowLibraryPage(true)
   }
 
+  const openSidebarLibraryPage = () => {
+    setShowDrawer(false)
+    setShowDiscoverPage(false)
+    setShowSkillsPage(false)
+    setShowMySkillsPage(false)
+    setShowSidebarLibrary(true)
+  }
+
+  const openPartnerPage = () => {
+    setShowDrawer(false)
+    setShowDiscoverPage(false)
+    setShowSkillsPage(false)
+    setShowSidebarLibrary(false)
+    clearActiveAgent()
+    startNewChat()
+    navigate(APP_ROUTE_PATHS.partner)
+  }
+
+  const openLocalFilePicker = (mode: 'all' | 'image' | 'camera') => {
+    setShowFileMenu(false)
+    setShowPlusSheet(false)
+    setFilePickerMode(mode)
+    fileInputRef.current?.click()
+  }
+
+  const handleRemoveDraftAttachment = (attachmentId: string) => {
+    const controller = uploadAbortControllersRef.current.get(attachmentId)
+
+    if (controller) {
+      controller.abort()
+      uploadAbortControllersRef.current.delete(attachmentId)
+    }
+
+    removeDraftAttachment(attachmentId)
+  }
+
+  const handleLocalFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const selectedFiles = Array.from(event.target.files ?? [])
+    event.target.value = ''
+
+    if (selectedFiles.length === 0) {
+      return
+    }
+
+    const validFiles = selectedFiles.filter((file) => {
+      if (isAllowedChatUploadFile(file.name)) {
+        return true
+      }
+
+      setLocalBannerMessage(`不支持 ${file.name}，当前只允许 ${ALLOWED_CHAT_UPLOAD_EXTENSIONS.join('、')}。`)
+      return false
+    })
+
+    const availableSlots = Math.max(0, MAX_CHAT_UPLOAD_FILES - draftAttachments.length)
+
+    if (availableSlots <= 0) {
+      setLocalBannerMessage(`单次对话最多上传 ${MAX_CHAT_UPLOAD_FILES} 个文件，请先移除已有附件。`)
+      return
+    }
+
+    const filesToUpload = validFiles.slice(0, availableSlots)
+
+    if (filesToUpload.length < validFiles.length) {
+      setLocalBannerMessage(`单次对话最多上传 ${MAX_CHAT_UPLOAD_FILES} 个文件，超出的文件已忽略。`)
+    } else {
+      setLocalBannerMessage('')
+    }
+
+    await Promise.all(filesToUpload.map(async (file) => {
+      const pendingAttachment = createPendingChatAttachment(file)
+      const controller = new AbortController()
+
+      uploadAbortControllersRef.current.set(pendingAttachment.id, controller)
+      setDraftAttachments((current) => [...current, pendingAttachment])
+
+      try {
+        const uploadedAttachment = await uploadPendingChatFile(pendingAttachment, file, {
+          signal: controller.signal,
+          onStatusChange(nextAttachment) {
+            setDraftAttachments((current) => current.map((item) => item.id === nextAttachment.id ? nextAttachment : item))
+          },
+        })
+
+        setDraftAttachments((current) => current.map((item) => item.id === pendingAttachment.id ? uploadedAttachment : item))
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          setLocalBannerMessage(error instanceof Error ? error.message : `${file.name} 上传失败`)
+        }
+
+        setDraftAttachments((current) => current.filter((item) => item.id !== pendingAttachment.id))
+      } finally {
+        uploadAbortControllersRef.current.delete(pendingAttachment.id)
+      }
+    }))
+  }
+
+  const updatePartnerDraftField = (field: keyof PartnerConfig, value: string) => {
+    setPartnerDraft((current) => {
+      const base = current ?? {
+        agentName: builtInAgent.name,
+        avatarUrl: builtInAgent.avatarUrl,
+        soulContent: '',
+        userContent: '',
+        identityContent: '',
+      }
+
+      return {
+        ...base,
+        [field]: value,
+      }
+    })
+  }
+
+  const openPartnerSettings = () => {
+    setPartnerSettingsPage('menu')
+    setPartnerWorkspaceFileKey('SOUL.md')
+    setShowPartnerSettings(true)
+  }
+
+  const closePartnerSettings = () => {
+    if (partnerSaving || partnerAvatarUploading) {
+      return
+    }
+
+    setShowPartnerSettings(false)
+    setPartnerSettingsPage('menu')
+    setPartnerWorkspaceFileKey('SOUL.md')
+  }
+
+  const handlePartnerAvatarFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+
+    event.target.value = ''
+
+    if (!file) {
+      return
+    }
+
+    setPartnerAvatarUploading(true)
+    setPartnerError('')
+
+    try {
+      const uploadedUrl = await uploadPartnerAvatar(file)
+      updatePartnerDraftField('avatarUrl', uploadedUrl)
+      setLocalBannerMessage('伙伴头像已上传，记得保存配置。')
+    } catch (error) {
+      setPartnerError(error instanceof Error ? error.message : '伙伴头像上传失败')
+    } finally {
+      setPartnerAvatarUploading(false)
+    }
+  }
+
+  const savePartnerSettings = async () => {
+    if (!partnerDraft || !partnerConfig) {
+      return
+    }
+
+    const fieldsToUpdate: Array<{ field: PartnerConfigUpdateField; value: string }> = []
+
+    if (partnerDraft.agentName.trim() !== partnerConfig.agentName.trim()) {
+      fieldsToUpdate.push({ field: 'agent_name', value: partnerDraft.agentName.trim() })
+    }
+
+    if (partnerDraft.soulContent !== partnerConfig.soulContent) {
+      fieldsToUpdate.push({ field: 'SOUL.md', value: partnerDraft.soulContent })
+    }
+
+    if (partnerDraft.userContent !== partnerConfig.userContent) {
+      fieldsToUpdate.push({ field: 'USER.md', value: partnerDraft.userContent })
+    }
+
+    if (partnerDraft.identityContent !== partnerConfig.identityContent) {
+      fieldsToUpdate.push({ field: 'IDENTITY.md', value: partnerDraft.identityContent })
+    }
+
+    if (partnerDraft.avatarUrl.trim() !== partnerConfig.avatarUrl.trim()) {
+      fieldsToUpdate.push({ field: 'avatar_url', value: partnerDraft.avatarUrl.trim() })
+    }
+
+    if (fieldsToUpdate.length === 0) {
+      setShowPartnerSettings(false)
+      return
+    }
+
+    setPartnerSaving(true)
+    setPartnerError('')
+
+    try {
+      for (const item of fieldsToUpdate) {
+        await updatePartnerConfig(item.field, item.value)
+      }
+
+      setPartnerConfig(partnerDraft)
+      setShowPartnerSettings(false)
+      setLocalBannerMessage('智能伙伴配置已更新。')
+    } catch (error) {
+      setPartnerError(error instanceof Error ? error.message : '智能伙伴配置更新失败')
+    } finally {
+      setPartnerSaving(false)
+    }
+  }
+
   const featuredSkills = useMemo(() => filterSkillItems(officialSkills, skillSearchValue).slice(0, 3), [officialSkills, skillSearchValue])
   const visibleCommunitySkills = useMemo(() => {
     const filteredOfficial = filterSkillItems(officialSkills, skillSearchValue)
@@ -432,6 +721,147 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
   ]), [groupedDiscoverAgents])
   const selectedOrgSpaceName = useMemo(() => resolveLibrarySpaceName(knowledgeSpaces, selectedOrgSpaceId), [knowledgeSpaces, selectedOrgSpaceId])
   const visibleLibraryItems = libraryFiles
+  const draftResourceIds = useMemo(() => new Set(
+    draftAttachments.flatMap((attachment) => attachment.resourceId ? [attachment.resourceId] : []),
+  ), [draftAttachments])
+  const fileInputAccept = filePickerMode === 'all'
+    ? ALLOWED_CHAT_UPLOAD_EXTENSIONS.map((extension) => `.${extension}`).join(',')
+    : 'image/*'
+
+  useEffect(() => {
+    if (!isPartnerRoute || !activeAgent) {
+      return
+    }
+
+    clearActiveAgent()
+  }, [activeAgent, clearActiveAgent, isPartnerRoute])
+
+  const loadPartnerConfig = useCallback(async (signal?: AbortSignal) => {
+    setPartnerLoading(true)
+    setPartnerError('')
+
+    try {
+      const nextPartnerConfig = await fetchPartnerConfig(signal)
+
+      if (signal?.aborted) {
+        return
+      }
+
+      setPartnerConfig(nextPartnerConfig)
+      setPartnerDraft(nextPartnerConfig)
+    } catch (error) {
+      if (!signal?.aborted) {
+        setPartnerError(error instanceof Error ? error.message : '智能伙伴配置加载失败')
+      }
+    } finally {
+      if (!signal?.aborted) {
+        setPartnerLoading(false)
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    const controller = new AbortController()
+
+    void loadPartnerConfig(controller.signal)
+
+    return () => {
+      controller.abort()
+    }
+  }, [loadPartnerConfig])
+
+  useEffect(() => {
+    return () => {
+      uploadAbortControllersRef.current.forEach((controller) => controller.abort())
+      uploadAbortControllersRef.current.clear()
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!selectedSkillName) {
+      return
+    }
+
+    if (inputValue.includes(buildSkillDisplayName(selectedSkillName))) {
+      return
+    }
+
+    setSelectedSkillName(null)
+    setActiveToolType(null)
+  }, [inputValue, selectedSkillName, setActiveToolType])
+
+  useEffect(() => {
+    if (activeToolType) {
+      return
+    }
+
+    setSelectedSkillName(null)
+  }, [activeToolType])
+
+  useEffect(() => {
+    if (!selectedArtifact) {
+      setArtifactPreviewLoading(false)
+      setArtifactPreviewError('')
+      setArtifactClassroomPreview(null)
+      setArtifactReviewPreview(null)
+      return
+    }
+
+    const { artifact } = selectedArtifact
+    const isClassroomArtifact = artifact.type === 'classroom'
+    const isReviewArtifact = isCourseReviewPreviewArtifact(artifact)
+
+    setArtifactPreviewError('')
+    setArtifactClassroomPreview(null)
+    setArtifactReviewPreview(null)
+
+    if (!isClassroomArtifact && !isReviewArtifact) {
+      setArtifactPreviewLoading(false)
+      return
+    }
+
+    const controller = new AbortController()
+
+    void (async () => {
+      setArtifactPreviewLoading(true)
+
+      try {
+        if (isClassroomArtifact) {
+          const result = await fetchClassroomGenerateStatus(artifact.url, controller.signal)
+
+          if (!controller.signal.aborted) {
+            setArtifactClassroomPreview(resolveClassroomPreviewState(result))
+          }
+
+          return
+        }
+
+        const taskId = parseCourseReviewTaskId(artifact.url)
+
+        if (!taskId) {
+          throw new Error('缺少评课任务 ID')
+        }
+
+        const result = await fetchCourseReviewResult(taskId, controller.signal)
+
+        if (!controller.signal.aborted) {
+          setArtifactReviewPreview(resolveCourseReviewPreviewPayload(result))
+        }
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          setArtifactPreviewError(error instanceof Error ? error.message : '结果预览加载失败')
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setArtifactPreviewLoading(false)
+        }
+      }
+    })()
+
+    return () => {
+      controller.abort()
+    }
+  }, [selectedArtifact])
 
   useEffect(() => {
     let cancelled = false
@@ -651,12 +1081,14 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
   const applyFeatureCard = (card: CommandPromptItem) => {
     setInputValue(card.template)
     setActiveToolType(card.skillName)
+    setSelectedSkillName(null)
     setDraftAttachments(card.attachments)
   }
 
   const applySkillItem = (skill: SkillSummaryItem) => {
     setInputValue(buildSkillInitialPrompt(skill))
     setActiveToolType(skill.skillName || null)
+    setSelectedSkillName(skill.skillName || null)
     setShowPlusSheet(false)
     setShowSkillsPage(false)
     setShowMySkillsPage(false)
@@ -773,93 +1205,6 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
     }
   }
 
-  const sidebarLibraryItems = [
-    { id: 1, name: 'rainbow-infographic-demo', source: '飞书 aily', type: 'unknown', starred: false },
-    { id: 2, name: '功能清单', source: '建国', type: 'doc', starred: false },
-    { id: 3, name: '功能清单', source: '建国', type: 'diamond', starred: false },
-    { id: 4, name: 'personal_analysis', source: '飞书 aily', type: 'unknown', starred: false },
-    { id: 5, name: '人生赛道规划.md', source: '飞书 aily', type: 'doc', starred: true },
-    { id: 6, name: '个人分析报告.md', source: '飞书 aily', type: 'doc', starred: true },
-    { id: 7, name: '个人信息图.html', source: '飞书 aily', type: 'html', starred: false },
-    { id: 8, name: '2026年3月29日-4月4日AI行业重点资...', source: '飞书 aily', type: 'doc', starred: false },
-    { id: 9, name: 'images', source: '飞书 aily', type: 'image', starred: false },
-    { id: 10, name: 'feishu_aily_presentation', source: '飞书 aily', type: 'lock', starred: false },
-    { id: 11, name: '水彩绘效率：飞书Aily助力技术研发工作...', source: '飞书 aily', type: 'ppt', starred: false },
-    { id: 12, name: 'AI赋能职教事业部建设方案', source: '建国', type: 'doc', starred: false },
-    { id: 13, name: 'AI赋能职教技术架构.png', source: '飞书 aily', type: 'image', starred: false },
-  ]
-
-  function renderSidebarLibraryFileIcon(type: string) {
-    switch (type) {
-      case 'doc':
-        return (
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M7 3.5h6l4 4v13A1.5 1.5 0 0 1 15.5 22h-8A1.5 1.5 0 0 1 6 20.5V5A1.5 1.5 0 0 1 7.5 3.5z" />
-            <polyline points="13 3.5 13 8 17 8" />
-            <line x1="9" y1="12" x2="15" y2="12" />
-            <line x1="9" y1="15.5" x2="15" y2="15.5" />
-          </svg>
-        )
-      case 'html':
-        return (
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-            <path d="m9.5 13-2-2 2-2" />
-            <path d="m14.5 9 2 2-2 2" />
-            <line x1="12" y1="15" x2="12" y2="9" />
-          </svg>
-        )
-      case 'ppt':
-        return (
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="4.5" y="6" width="15" height="12" />
-            <path d="M8 18v2" />
-            <path d="M16 18v2" />
-            <path d="M8.5 9.5h4v5H8.5z" />
-          </svg>
-        )
-      case 'image':
-        return (
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="3" y="5" width="18" height="14" rx="2" />
-            <circle cx="9" cy="10" r="1.5" />
-            <path d="m21 15-4.5-4.5L9 18" />
-          </svg>
-        )
-      case 'diamond':
-        return (
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 2.5l8.5 8.5-8.5 8.5L3.5 11z" />
-          </svg>
-        )
-      case 'lock':
-        return (
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="5" y="11" width="14" height="10" rx="1.5" />
-            <path d="M8 11V7a4 4 0 0 1 8 0v4" />
-          </svg>
-        )
-      case 'unknown':
-      default:
-        return (
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" />
-          </svg>
-        )
-    }
-  }
-
-  function getSidebarFileIconBg(type: string) {
-    switch (type) {
-      case 'doc': return '#4A7CFF'
-      case 'html': return '#8c8f96'
-      case 'ppt': return '#FF8A34'
-      case 'image': return '#FF8A34'
-      case 'diamond': return '#7B49F1'
-      case 'lock': return '#8c8f96'
-      default: return '#c4c7cc'
-    }
-  }
-
   return (
     <div className="ai-page">
       {/* 背景 */}
@@ -874,10 +1219,21 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
             <line x1="3" y1="18" x2="21" y2="18" />
           </svg>
         </div>
+        {isPartnerRoute ? <div className="ai-page-header-title">{builtInAgent.name}</div> : <div className="ai-page-header-spacer" />}
         <div className="ai-page-header-right">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round">
-            <circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /><circle cx="5" cy="12" r="1" />
-          </svg>
+          <button
+            className="ai-page-header-action"
+            type="button"
+            onClick={() => {
+              if (isPartnerRoute) {
+                openPartnerSettings()
+              }
+            }}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round">
+              <circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /><circle cx="5" cy="12" r="1" />
+            </svg>
+          </button>
           <div className="ai-page-close" onClick={onClose}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round">
               <line x1="18" y1="6" x2="6" y2="18" />
@@ -890,26 +1246,57 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
       {!hasConversation ? (
         <>
           <div className="ai-page-welcome">
-            <h1>Hi <DisplayName userId={currentUserId} fallback={displayName} />，有什么可以帮你的？</h1>
-            <div className="ai-page-practice-header">
-              <span className="ai-page-practice-title">全部最佳实践</span>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="9 18 15 12 9 6" />
-              </svg>
-            </div>
+            {isPartnerRoute ? (
+              <>
+                <h1>{builtInAgent.name} 已经准备好了</h1>
+                <div className="ai-page-partner-intro">
+                  <div className="ai-page-partner-avatar">
+                    {builtInAgent.avatarUrl ? (
+                      <img
+                        alt={builtInAgent.name}
+                        decoding="async"
+                        loading="lazy"
+                        src={builtInAgent.avatarUrl}
+                      />
+                    ) : (
+                      builtInAgent.avatar
+                    )}
+                  </div>
+                  <div className="ai-page-partner-copy">
+                    <div className="ai-page-partner-title">伙伴聊天和普通会话共用同一套流式链路</div>
+                    <div className="ai-page-partner-desc">右上角可以改伙伴名称和人设文档，底部可以直接上传本地文件后发起对话。</div>
+                  </div>
+                </div>
+                <button className="ai-page-partner-settings-entry" type="button" onClick={openPartnerSettings}>
+                  打开伙伴设置
+                </button>
+              </>
+            ) : (
+              <>
+                <h1>Hi <DisplayName userId={currentUserId} fallback={displayName} />，有什么可以帮你的？</h1>
+                <div className="ai-page-practice-header">
+                  <span className="ai-page-practice-title">全部最佳实践</span>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="9 18 15 12 9 6" />
+                  </svg>
+                </div>
+              </>
+            )}
           </div>
 
-          <div className="ai-page-cards">
-            {featureCards.map((card, index) => (
-              <button className="ai-card" key={card.id} type="button" onClick={() => applyFeatureCard(card)}>
-                <div className="ai-card-icon" style={{ background: getFeatureCardColor(index) }}>{card.icon}</div>
-                <div className="ai-card-text">
-                  <span className="ai-card-label1">{card.title}</span>
-                  <span className="ai-card-label2">{card.summary}</span>
-                </div>
-              </button>
-            ))}
-          </div>
+          {!isPartnerRoute ? (
+            <div className="ai-page-cards">
+              {featureCards.map((card, index) => (
+                <button className="ai-card" key={card.id} type="button" onClick={() => applyFeatureCard(card)}>
+                  <div className="ai-card-icon" style={{ background: getFeatureCardColor(index) }}>{card.icon}</div>
+                  <div className="ai-card-text">
+                    <span className="ai-card-label1">{card.title}</span>
+                    <span className="ai-card-label2">{card.summary}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          ) : null}
         </>
       ) : (
         <AiConversationThread
@@ -922,8 +1309,8 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
 
       {/* 底部输入区 */}
       <div className="ai-page-bottom">
-        {requestError && (
-          <div className="ai-page-error-banner">{requestError}</div>
+        {(requestError || localBannerMessage) && (
+          <div className="ai-page-error-banner">{requestError || localBannerMessage}</div>
         )}
         {activeAgent && (
           <button className="ai-page-active-agent-chip" type="button" onClick={clearActiveAgent}>
@@ -939,11 +1326,17 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
                 className="ai-page-draft-chip"
                 key={attachment.id}
                 type="button"
-                onClick={() => removeDraftAttachment(attachment.id)}
+                onClick={() => handleRemoveDraftAttachment(attachment.id)}
               >
                 <span className="ai-page-draft-chip-name">{attachment.name}</span>
                 <span className="ai-page-draft-chip-status">
-                  {attachment.kind === 'resource' ? '资料库' : attachment.status}
+                  {attachment.kind === 'resource'
+                    ? '资料库'
+                    : attachment.status === 'uploading'
+                      ? '上传中'
+                      : attachment.status === 'parsing'
+                        ? '解析中'
+                        : '已就绪'}
                 </span>
               </button>
             ))}
@@ -1008,8 +1401,158 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
             )}
           </button>
         </div>
+        <input
+          accept={fileInputAccept}
+          capture={filePickerMode === 'camera' ? 'environment' : undefined}
+          className="ai-hidden-file-input"
+          multiple={filePickerMode !== 'camera'}
+          onChange={handleLocalFileChange}
+          ref={fileInputRef}
+          type="file"
+        />
         <p className="ai-page-disclaimer">使用国内合规模型并严格遵循权限隔离，保障企业数据安全</p>
       </div>
+
+      {showPartnerSettings && (
+        <div className="ai-partner-settings-overlay" onClick={closePartnerSettings}>
+          <div className="ai-partner-settings-sheet" onClick={(event) => event.stopPropagation()}>
+            <div className="ai-partner-settings-handle" />
+            <div className="ai-partner-settings-head">
+              <div className="ai-partner-settings-head-left">
+                {partnerSettingsPage !== 'menu' ? (
+                  <button
+                    className="ai-partner-settings-back"
+                    disabled={partnerSaving || partnerAvatarUploading}
+                    type="button"
+                    onClick={() => setPartnerSettingsPage('menu')}
+                  >
+                    返回
+                  </button>
+                ) : null}
+                <div>
+                  <div className="ai-partner-settings-title">
+                    {partnerSettingsPage === 'basic' ? '基础信息' : partnerSettingsPage === 'workspace' ? '工作区' : '伙伴设置'}
+                  </div>
+                  <div className="ai-partner-settings-subtitle">
+                    {partnerSettingsPage === 'basic'
+                      ? '这里更新伙伴名称、头像和基础展示信息。'
+                      : partnerSettingsPage === 'workspace'
+                        ? '这里维护三份人设文档，聊天会直接复用这些配置。'
+                        : '伙伴聊天和普通会话共用一套流式链路，设置拆到单独子页。'}
+                  </div>
+                </div>
+              </div>
+              <button className="ai-partner-settings-close" disabled={partnerSaving || partnerAvatarUploading} type="button" onClick={closePartnerSettings}>
+                关闭
+              </button>
+            </div>
+
+            {partnerLoading ? <div className="ai-partner-settings-status">配置加载中...</div> : null}
+            {partnerError ? <div className="ai-partner-settings-status is-error">{partnerError}</div> : null}
+
+            {partnerSettingsPage === 'menu' ? (
+              <div className="ai-partner-settings-menu">
+                <button className="ai-partner-settings-menu-item" type="button" onClick={() => setPartnerSettingsPage('basic')}>
+                  <span className="ai-partner-settings-menu-title">基础信息</span>
+                  <span className="ai-partner-settings-menu-desc">名称、头像和展示信息</span>
+                </button>
+                <button className="ai-partner-settings-menu-item" type="button" onClick={() => setPartnerSettingsPage('workspace')}>
+                  <span className="ai-partner-settings-menu-title">工作区</span>
+                  <span className="ai-partner-settings-menu-desc">SOUL.md / USER.md / IDENTITY.md</span>
+                </button>
+              </div>
+            ) : null}
+
+            {partnerSettingsPage === 'basic' ? (
+              <div className="ai-partner-settings-body">
+                <div className="ai-partner-settings-avatar-card">
+                  <div className="ai-partner-settings-avatar-preview">
+                    {partnerDraft?.avatarUrl ? (
+                      <img alt={partnerDraft.agentName || builtInAgent.name} src={partnerDraft.avatarUrl} />
+                    ) : (
+                      <span>{(partnerDraft?.agentName || builtInAgent.name || '建')[0]}</span>
+                    )}
+                  </div>
+                  <div className="ai-partner-settings-avatar-meta">
+                    <div className="ai-partner-settings-avatar-title">伙伴头像</div>
+                    <div className="ai-partner-settings-avatar-desc">支持直接上传图片，也可以继续手动填地址。</div>
+                  </div>
+                  <button
+                    className="ai-partner-settings-upload-btn"
+                    disabled={partnerSaving || partnerAvatarUploading}
+                    type="button"
+                    onClick={() => partnerAvatarInputRef.current?.click()}
+                  >
+                    {partnerAvatarUploading ? '上传中...' : '上传头像'}
+                  </button>
+                </div>
+                <label className="ai-partner-settings-field">
+                  <span>伙伴名称</span>
+                  <input
+                    className="ai-partner-settings-input"
+                    disabled={partnerSaving || partnerAvatarUploading}
+                    type="text"
+                    value={partnerDraft?.agentName ?? builtInAgent.name}
+                    onChange={(event) => updatePartnerDraftField('agentName', event.target.value)}
+                  />
+                </label>
+                <label className="ai-partner-settings-field">
+                  <span>头像地址</span>
+                  <input
+                    className="ai-partner-settings-input"
+                    disabled={partnerSaving || partnerAvatarUploading}
+                    type="text"
+                    value={partnerDraft?.avatarUrl ?? builtInAgent.avatarUrl}
+                    onChange={(event) => updatePartnerDraftField('avatarUrl', event.target.value)}
+                  />
+                </label>
+              </div>
+            ) : null}
+
+            {partnerSettingsPage === 'workspace' ? (
+              <div className="ai-partner-settings-body">
+                <div className="ai-partner-settings-doc-tabs">
+                  {(['SOUL.md', 'USER.md', 'IDENTITY.md'] as PartnerWorkspaceFileKey[]).map((fileKey) => (
+                    <button
+                      className={`ai-partner-settings-doc-tab ${partnerWorkspaceFileKey === fileKey ? 'is-active' : ''}`}
+                      key={fileKey}
+                      type="button"
+                      onClick={() => setPartnerWorkspaceFileKey(fileKey)}
+                    >
+                      {fileKey}
+                    </button>
+                  ))}
+                </div>
+                <label className="ai-partner-settings-field">
+                  <span>{partnerWorkspaceFileKey}</span>
+                  <textarea
+                    className="ai-partner-settings-textarea"
+                    disabled={partnerSaving}
+                    value={getPartnerWorkspaceValue(partnerDraft, partnerWorkspaceFileKey)}
+                    onChange={(event) => updatePartnerDraftField(getPartnerWorkspaceField(partnerWorkspaceFileKey), event.target.value)}
+                  />
+                </label>
+              </div>
+            ) : null}
+
+            <div className="ai-partner-settings-actions">
+              <button className="ai-partner-settings-btn" disabled={partnerSaving || partnerAvatarUploading} type="button" onClick={closePartnerSettings}>
+                {partnerSettingsPage === 'menu' ? '关闭' : '取消'}
+              </button>
+              <button className="ai-partner-settings-btn is-primary" disabled={partnerSaving || partnerLoading || partnerAvatarUploading} type="button" onClick={() => { void savePartnerSettings() }}>
+                {partnerSaving ? '保存中...' : '保存'}
+              </button>
+            </div>
+            <input
+              accept="image/*"
+              className="ai-hidden-file-input"
+              onChange={handlePartnerAvatarFileChange}
+              ref={partnerAvatarInputRef}
+              type="file"
+            />
+          </div>
+        </div>
+      )}
 
       {showDrawer && (
         <div className="ai-drawer-overlay" onClick={() => setShowDrawer(false)}>
@@ -1020,6 +1563,8 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
                 <img
                   alt={BRAND_NAME}
                   className="ai-drawer-profile-avatar"
+                  decoding="async"
+                  loading="lazy"
                   src={LUCKY_AVATAR_URL}
                 />
                 <div className="ai-drawer-profile-name">{BRAND_NAME}</div>
@@ -1029,10 +1574,7 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
                 {menuItems.map((item) => (
                   <div className={`ai-drawer-menu-item ${(item.key === 'library' && showSidebarLibrary) || (item.key === 'new' && !showSidebarLibrary && !showDiscoverPage && !showSkillsPage) || (item.key === 'discover' && showDiscoverPage) || (item.key === 'skills' && showSkillsPage) ? 'is-highlighted' : ''}`} key={item.key} onClick={() => {
                     if (item.key === 'library') {
-                      setShowSidebarLibrary(true)
-                      setShowDiscoverPage(false)
-                      setShowSkillsPage(false)
-                      setShowDrawer(false)
+                      openSidebarLibraryPage()
                     }
                     if (item.key === 'new') {
                       startNewChat()
@@ -1062,12 +1604,20 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
 
               <div className="ai-drawer-section">
                 <div className="ai-drawer-section-title">智能伙伴</div>
-                <div className="ai-drawer-agent-item">
-                  <div className="ai-drawer-agent-avatar" style={{ background: builtInAgent.color }}>
-                    {builtInAgent.avatar}
+                <button className="ai-drawer-agent-item" type="button" onClick={openPartnerPage}>
+                  <div
+                    className="ai-drawer-agent-avatar"
+                    style={builtInAgent.avatarUrl ? {
+                      backgroundImage: `url(${builtInAgent.avatarUrl})`,
+                      backgroundSize: 'cover',
+                      backgroundPosition: 'center',
+                      backgroundColor: 'transparent',
+                    } : { background: builtInAgent.color }}
+                  >
+                    {!builtInAgent.avatarUrl && builtInAgent.avatar}
                   </div>
                   <span className="ai-drawer-agent-name">{builtInAgent.name}</span>
-                </div>
+                </button>
               </div>
 
               <div className="ai-drawer-section">
@@ -1169,7 +1719,24 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
               {showFileMenu && (
                 <div className="ai-file-menu">
                   {fileMenuItems.map((item) => (
-                    <button className="ai-file-menu-item" key={item.key} type="button">
+                    <button
+                      className="ai-file-menu-item"
+                      key={item.key}
+                      type="button"
+                      onClick={() => {
+                        if (item.key === 'album') {
+                          openLocalFilePicker('image')
+                          return
+                        }
+
+                        if (item.key === 'camera') {
+                          openLocalFilePicker('camera')
+                          return
+                        }
+
+                        openLocalFilePicker('all')
+                      }}
+                    >
                       <span className="ai-file-menu-label">{item.label}</span>
                       <span className="ai-file-menu-icon">{renderFileMenuIcon(item.icon)}</span>
                     </button>
@@ -1480,8 +2047,19 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
             {!libraryLoading && !libraryError && visibleLibraryItems.length === 0 ? <div className="ai-data-status">暂无可引用文件</div> : null}
             {visibleLibraryItems.map((item) => {
               const checked = selectedLibraryIds.includes(item.nodeId)
+              const isAlreadyAttached = draftResourceIds.has(item.resourceId)
               return (
-                <button className="ai-library-item" key={item.nodeId} type="button" onClick={() => toggleLibraryItem(item.nodeId)}>
+                <button
+                  className={`ai-library-item ${isAlreadyAttached ? 'is-disabled' : ''}`}
+                  disabled={isAlreadyAttached}
+                  key={item.nodeId}
+                  type="button"
+                  onClick={() => {
+                    if (!isAlreadyAttached) {
+                      toggleLibraryItem(item.nodeId)
+                    }
+                  }}
+                >
                   <span className={`ai-library-checkbox ${checked ? 'is-checked' : ''}`}>
                     {checked && (
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
@@ -1493,7 +2071,7 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
                   <span className="ai-library-item-content">
                     <span className="ai-library-item-name">{item.fileName}</span>
                     <span className="ai-library-item-meta">
-                      <span>{item.createBy || '未知来源'}</span>
+                      <span>{isAlreadyAttached ? '已添加到当前会话' : item.createBy || '未知来源'}</span>
                       <span>{item.createTime || '-'}</span>
                     </span>
                   </span>
@@ -1546,65 +2124,14 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
       )}
       {/* 侧边栏库全屏页 */}
       {showSidebarLibrary && (
-        <div className="ai-sidebar-library-page">
-          <div className="ai-sidebar-library-header">
-            <div className="ai-sidebar-library-menu" onClick={() => setShowDrawer(true)}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round">
-                <line x1="3" y1="6" x2="21" y2="6" />
-                <line x1="3" y1="12" x2="21" y2="12" />
-                <line x1="3" y1="18" x2="21" y2="18" />
-              </svg>
-            </div>
-            <div className="ai-sidebar-library-tabs">
-              <button
-                className={`ai-sidebar-library-tab ${sidebarLibraryTab === 'all' ? 'is-active' : ''}`}
-                type="button"
-                onClick={() => setSidebarLibraryTab('all')}
-              >
-                全部产物
-              </button>
-              <button
-                className={`ai-sidebar-library-tab ${sidebarLibraryTab === 'starred' ? 'is-active' : ''}`}
-                type="button"
-                onClick={() => setSidebarLibraryTab('starred')}
-              >
-                收藏夹
-              </button>
-            </div>
-            <div className="ai-sidebar-library-search">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round">
-                <circle cx="11" cy="11" r="7" />
-                <line x1="20" y1="20" x2="16.65" y2="16.65" />
-              </svg>
-            </div>
-          </div>
-
-          <div className="ai-sidebar-library-list">
-            {sidebarLibraryItems
-              .filter((item) => (sidebarLibraryTab === 'starred' ? item.starred : true))
-              .map((item) => (
-                <div className="ai-sidebar-library-item" key={item.id}>
-                  <div
-                    className="ai-sidebar-library-item-icon"
-                    style={{ background: getSidebarFileIconBg(item.type) }}
-                  >
-                    {renderSidebarLibraryFileIcon(item.type)}
-                  </div>
-                  <div className="ai-sidebar-library-item-body">
-                    <div className="ai-sidebar-library-item-name">{item.name}</div>
-                    <div className="ai-sidebar-library-item-source">{item.source}</div>
-                  </div>
-                  <div className="ai-sidebar-library-item-more">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="#999">
-                      <circle cx="12" cy="5" r="1.8" />
-                      <circle cx="12" cy="12" r="1.8" />
-                      <circle cx="12" cy="19" r="1.8" />
-                    </svg>
-                  </div>
-                </div>
-              ))}
-          </div>
-        </div>
+        <AiSidebarLibraryPage
+          onClose={() => setShowSidebarLibrary(false)}
+          onOpenDrawer={() => setShowDrawer(true)}
+          onOpenSession={(sessionId) => {
+            setShowSidebarLibrary(false)
+            openSession(sessionId)
+          }}
+        />
       )}
 
       {/* 发现全屏页 */}
@@ -1807,10 +2334,48 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
             </div>
 
             <div className="ai-artifact-panel-body">
-              {isImageFile(selectedArtifact.artifact.url, selectedArtifact.artifact.filename) ? (
+              {artifactPreviewLoading ? (
+                <div className="ai-artifact-result-state">结果预览加载中...</div>
+              ) : artifactPreviewError ? (
+                <div className="ai-artifact-result-state is-error">{artifactPreviewError}</div>
+              ) : artifactClassroomPreview ? (
+                <div className="ai-artifact-result-card">
+                  <div className={`ai-artifact-result-badge is-${artifactClassroomPreview.tone}`}>{artifactClassroomPreview.statusLabel}</div>
+                  <div className="ai-artifact-result-desc">{artifactClassroomPreview.detail}</div>
+                  {artifactClassroomPreview.classroomUrl ? (
+                    <button
+                      className="ai-artifact-result-action"
+                      type="button"
+                      onClick={() => window.open(artifactClassroomPreview.classroomUrl, '_blank', 'noopener,noreferrer')}
+                    >
+                      打开课堂结果
+                    </button>
+                  ) : null}
+                </div>
+              ) : artifactReviewPreview ? (
+                artifactReviewPreview.pendingMessage ? (
+                  <div className="ai-artifact-result-state">{artifactReviewPreview.pendingMessage}</div>
+                ) : artifactReviewPreview.externalUrl ? (
+                  <iframe
+                    className="ai-artifact-frame"
+                    src={artifactReviewPreview.externalUrl}
+                    title={selectedArtifact.artifact.filename}
+                  />
+                ) : artifactReviewPreview.language === 'html' ? (
+                  <iframe
+                    className="ai-artifact-frame"
+                    srcDoc={artifactReviewPreview.content}
+                    title={selectedArtifact.artifact.filename}
+                  />
+                ) : (
+                  <pre className="ai-artifact-result-text">{artifactReviewPreview.content}</pre>
+                )
+              ) : isImageFile(selectedArtifact.artifact.url, selectedArtifact.artifact.filename) ? (
                 <img
                   alt={selectedArtifact.artifact.filename}
                   className="ai-artifact-image"
+                  decoding="async"
+                  loading="lazy"
                   src={resolveArtifactPreviewUrl(selectedArtifact.sessionId, selectedArtifact.artifact)}
                 />
               ) : (

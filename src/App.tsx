@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Suspense, lazy, useEffect, useMemo, useState } from 'react'
 import {
   Navigate,
   Route,
@@ -6,12 +6,6 @@ import {
   useLocation,
   useNavigate,
 } from 'react-router-dom'
-import Home from './pages/Home'
-import SpacePage from './pages/Space'
-import AIPage from './pages/AI'
-import LibraryPage from './pages/Library'
-import IMPage from './pages/IM'
-import LoginPage from './pages/Login'
 import { useAuth, type UserInfo } from './contexts/AuthContext'
 import {
   APP_ROUTE_PATHS,
@@ -20,7 +14,15 @@ import {
   getPathByTabKey,
   getTabKeyByPathname,
 } from './routes'
+import { useMobileViewport } from './hooks/useMobileViewport'
 import './App.css'
+
+const Home = lazy(() => import('./pages/Home'))
+const SpacePage = lazy(() => import('./pages/Space'))
+const AIPage = lazy(() => import('./pages/AI'))
+const LibraryPage = lazy(() => import('./pages/Library'))
+const IMPage = lazy(() => import('./pages/IM'))
+const LoginPage = lazy(() => import('./pages/Login'))
 
 // 底部导航图标
 function HomeIcon({ active }: { active: boolean }) {
@@ -266,6 +268,10 @@ function AuthenticatedApp() {
             element={<AIPage onClose={() => navigate(APP_ROUTE_PATHS.home, { replace: true })} />}
           />
           <Route
+            path={APP_ROUTE_PATHS.partner}
+            element={<AIPage onClose={() => navigate(APP_ROUTE_PATHS.ai, { replace: true })} />}
+          />
+          <Route
             path="/apps/:tabKey"
             element={<CustomAppPage title={activeCustomTab?.label ?? '应用'} />}
           />
@@ -348,15 +354,19 @@ function CustomAppPage({ title }: { title: string }) {
 }
 
 export default function App() {
+  useMobileViewport()
+
   return (
-    <Routes>
-      <Route element={<LoginGuard />}>
-        <Route path={APP_ROUTE_PATHS.login} element={<LoginPage />} />
-      </Route>
-      <Route element={<AuthGuard />}>
-        <Route path="/*" element={<AuthenticatedApp />} />
-      </Route>
-    </Routes>
+    <Suspense fallback={<RouteLoadingPage />}>
+      <Routes>
+        <Route element={<LoginGuard />}>
+          <Route path={APP_ROUTE_PATHS.login} element={<LoginPage />} />
+        </Route>
+        <Route element={<AuthGuard />}>
+          <Route path="/*" element={<AuthenticatedApp />} />
+        </Route>
+      </Routes>
+    </Suspense>
   )
 }
 
@@ -364,6 +374,14 @@ function PlaceholderPage({ title }: { title: string }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', color: '#999', fontSize: 18 }}>
       {title}
+    </div>
+  )
+}
+
+function RouteLoadingPage() {
+  return (
+    <div className="app-route-loading">
+      <div className="app-route-loading-card">页面加载中...</div>
     </div>
   )
 }
