@@ -1853,8 +1853,7 @@
   cursor: pointer;
 }
 
-.ai-skill-community-settings,
-.ai-skill-community-close {
+.ai-skill-community-settings {
   width: 28px;
   height: 28px;
   border: none;
@@ -1867,8 +1866,7 @@
   cursor: pointer;
 }
 
-.ai-skill-community-settings svg,
-.ai-skill-community-close svg {
+.ai-skill-community-settings svg {
   display: block;
 }
 
@@ -2138,18 +2136,6 @@
   font-size: 18px;
   font-weight: 700;
   color: #222;
-}
-
-.ai-chat-skill-picker-close {
-  width: 40px;
-  height: 40px;
-  border: none;
-  background: transparent;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  flex-shrink: 0;
-  cursor: pointer;
 }
 
 .ai-chat-skill-picker-search {

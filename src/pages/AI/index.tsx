@@ -2159,12 +2159,6 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
               <button className="ai-skill-community-settings" type="button" onClick={() => setShowMySkillsPage(true)}>
                 <SetOutline aria-hidden="true" style={{ fontSize: 20 }} />
               </button>
-              <button className="ai-skill-community-close" type="button" onClick={() => setShowSkillsPage(false)}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round">
-                  <line x1="18" y1="6" x2="6" y2="18" />
-                  <line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
-              </button>
             </div>
           </div>
 
@@ -2449,7 +2443,6 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
       {/* 侧边栏库全屏页 */}
       {showSidebarLibrary && (
         <AiSidebarLibraryPage
-          onClose={() => setShowSidebarLibrary(false)}
           onOpenDrawer={() => setShowDrawer(true)}
           onOpenSession={(sessionId) => {
             setShowSidebarLibrary(false)
@@ -2466,7 +2459,7 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
           discoverSections={discoverSections}
           onOpenAgentChat={openAgentChat}
           onOpenDrawer={() => setShowDrawer(true)}
-          onClose={() => setShowDiscoverPage(false)}
+          onClose={onClose}
         />
       )}
 
@@ -2475,12 +2468,7 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
           <div className="ai-chat-skill-picker-header">
             <div className="ai-chat-skill-picker-header-spacer" />
             <div className="ai-chat-skill-picker-title">技能</div>
-            <button className="ai-chat-skill-picker-close" type="button" onClick={() => setShowSkillSelectorPage(false)}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round">
-                <line x1="18" y1="6" x2="6" y2="18" />
-                <line x1="6" y1="6" x2="18" y2="18" />
-              </svg>
-            </button>
+            <div className="ai-chat-skill-picker-header-spacer" />
           </div>
 
           <div className="ai-chat-skill-picker-search">
