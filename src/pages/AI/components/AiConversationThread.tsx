@@ -716,23 +716,24 @@ function AssistantOutputMessage({
 function UserMessage({ message }: { message: ChatMessage }) {
   return (
     <div className="ai-chat-row is-user">
-      <div className="ai-chat-bubble is-user">
-        {message.attachments.length > 0 && (
-          <div className="ai-chat-attachment-list">
-            {message.attachments.map((attachment) => (
-              <div className="ai-chat-attachment-chip" key={attachment.id}>
-                <span className="ai-chat-attachment-name">{attachment.name}</span>
-                <span className="ai-chat-attachment-status">
-                  {attachment.kind === 'resource' ? '资料库' : '文件'}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
+      <div className="ai-chat-user-stack">
+        <div className="ai-chat-bubble is-user">
+          {message.attachments.length > 0 && (
+            <div className="ai-chat-attachment-list">
+              {message.attachments.map((attachment) => (
+                <div className="ai-chat-attachment-chip" key={attachment.id}>
+                  <span className="ai-chat-attachment-name">{attachment.name}</span>
+                  <span className="ai-chat-attachment-status">
+                    {attachment.kind === 'resource' ? '资料库' : '文件'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
 
-        {message.content ? <div className="ai-chat-user-text">{message.content}</div> : null}
-
-        <div className="ai-chat-message-meta is-user">
+          {message.content ? <div className="ai-chat-user-text">{message.content}</div> : null}
+        </div>
+        <div className="ai-chat-message-meta is-user is-outside">
           <span>{formatMessageTime(message.createdAt)}</span>
         </div>
       </div>

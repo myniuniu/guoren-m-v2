@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import { SetOutline } from 'antd-mobile-icons'
 import { fetchCommands, mapCommandsToPromptItems, type CommandPromptItem } from '../../services/commands'
 import { ensureAgentUsageLog, groupVisibleAgents, listVisibleAgents, type AgentCategoryKey, type DiscoverAgentItem } from '../../services/agents'
 import { fetchClassroomGenerateStatus, resolveClassroomPreviewState, type ClassroomPreviewState } from '../../services/classroom'
@@ -32,6 +33,8 @@ import {
   fetchAddedSkills,
   fetchClawhubSkills,
   fetchCreatedSkills,
+  fetchUserSkills,
+  mergeSkillSummaryItems,
   fetchOfficialSkills,
   searchClawhubSkills,
   type SkillSummaryItem,
@@ -40,6 +43,7 @@ import { AiConversationThread } from './components/AiConversationThread'
 import AiSidebarLibraryPage from './components/AiSidebarLibraryPage'
 import { resolveArtifactPreviewUrl, useAiChatRuntime, type ActiveAgentContext } from './hooks/useAiChatRuntime'
 import { useDisplayNamePrefetch } from '../IM/utils/displayNameHooks'
+import AppComposerInput from '../../components/AppComposerInput'
 import DisplayName from '../../components/DisplayName'
 import { APP_ROUTE_PATHS } from '../../routes'
 import './index.css'
@@ -99,20 +103,6 @@ function filterSkillItems(items: SkillSummaryItem[], keyword: string): SkillSumm
       item.tags.some((tag) => tag.toLowerCase().includes(normalizedKeyword))
     )
   })
-}
-
-function mergeSkillItems(...lists: SkillSummaryItem[][]): SkillSummaryItem[] {
-  const record = new Map<string, SkillSummaryItem>()
-
-  lists.flat().forEach((item) => {
-    const key = item.skillName || item.id
-
-    if (!record.has(key)) {
-      record.set(key, item)
-    }
-  })
-
-  return [...record.values()]
 }
 
 function getSkillCardTags(skill: SkillSummaryItem): string[] {
@@ -361,6 +351,7 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
   const [showMore, setShowMore] = useState(false)
   const [showPlusSheet, setShowPlusSheet] = useState(false)
   const [showSkillsPage, setShowSkillsPage] = useState(false)
+  const [showSkillSelectorPage, setShowSkillSelectorPage] = useState(false)
   const [showFileMenu, setShowFileMenu] = useState(false)
   const [showLibraryPage, setShowLibraryPage] = useState(false)
   const [showSidebarLibrary, setShowSidebarLibrary] = useState(false)
@@ -375,6 +366,7 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
   const [showOrgSpacePicker, setShowOrgSpacePicker] = useState(false)
   const [featureCards, setFeatureCards] = useState<CommandPromptItem[]>(fallbackFeatureCards)
   const [skillSearchValue, setSkillSearchValue] = useState('')
+  const [skillSelectorSearchValue, setSkillSelectorSearchValue] = useState('')
   const [debouncedSkillSearchValue, setDebouncedSkillSearchValue] = useState('')
   const [mySkillSearchValue, setMySkillSearchValue] = useState('')
   const [officialSkills, setOfficialSkills] = useState<SkillSummaryItem[]>([])
@@ -385,6 +377,9 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
   const [skillsError, setSkillsError] = useState('')
   const [mySkillsLoading, setMySkillsLoading] = useState(false)
   const [mySkillsError, setMySkillsError] = useState('')
+  const [userSkills, setUserSkills] = useState<SkillSummaryItem[]>([])
+  const [userSkillsLoading, setUserSkillsLoading] = useState(false)
+  const [userSkillsError, setUserSkillsError] = useState('')
   const [visibleAgents, setVisibleAgents] = useState<DiscoverAgentItem[]>([])
   const [discoverLoading, setDiscoverLoading] = useState(false)
   const [discoverError, setDiscoverError] = useState('')
@@ -486,7 +481,19 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
     setShowPlusSheet(false)
     setShowFileMenu(false)
     setSkillSearchValue('')
+    setShowSidebarLibrary(false)
+    setShowDiscoverPage(false)
+    setShowMySkillsPage(false)
+    setShowSkillSelectorPage(false)
+    setShowDrawer(false)
     setShowSkillsPage(true)
+  }
+
+  const openSkillSelectorPage = () => {
+    setShowPlusSheet(false)
+    setShowFileMenu(false)
+    setSkillSelectorSearchValue('')
+    setShowSkillSelectorPage(true)
   }
 
   const openLibraryPage = () => {
@@ -703,12 +710,15 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
   const featuredSkills = useMemo(() => filterSkillItems(officialSkills, skillSearchValue).slice(0, 3), [officialSkills, skillSearchValue])
   const visibleCommunitySkills = useMemo(() => {
     const filteredOfficial = filterSkillItems(officialSkills, skillSearchValue)
-    return mergeSkillItems(filteredOfficial, communitySkills)
+    return mergeSkillSummaryItems(filteredOfficial, communitySkills)
   }, [communitySkills, officialSkills, skillSearchValue])
   const visibleManageSkills = useMemo(() => {
     const sourceList = mySkillsTab === 'added' ? addedSkills : createdSkills
     return filterSkillItems(sourceList, mySkillSearchValue)
   }, [addedSkills, createdSkills, mySkillSearchValue, mySkillsTab])
+  const visibleSelectableSkills = useMemo(() => {
+    return filterSkillItems(userSkills, skillSelectorSearchValue)
+  }, [skillSelectorSearchValue, userSkills])
   const discoverSections = useMemo<Array<{
     key: AgentCategoryKey
     title: string
@@ -986,6 +996,36 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
   }, [showMySkillsPage])
 
   useEffect(() => {
+    if (!showSkillSelectorPage) {
+      return
+    }
+
+    const controller = new AbortController()
+
+    void (async () => {
+      setUserSkillsLoading(true)
+      setUserSkillsError('')
+
+      try {
+        setUserSkills(await fetchUserSkills(controller.signal))
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          setUserSkills([])
+          setUserSkillsError(error instanceof Error ? error.message : '技能列表加载失败')
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setUserSkillsLoading(false)
+        }
+      }
+    })()
+
+    return () => {
+      controller.abort()
+    }
+  }, [showSkillSelectorPage])
+
+  useEffect(() => {
     const controller = new AbortController()
 
     void (async () => {
@@ -1086,12 +1126,18 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
   }
 
   const applySkillItem = (skill: SkillSummaryItem) => {
-    setInputValue(buildSkillInitialPrompt(skill))
-    setActiveToolType(skill.skillName || null)
-    setSelectedSkillName(skill.skillName || null)
+    const resolvedSkillName = skill.skillName || skill.id
+
+    setInputValue(buildSkillInitialPrompt({
+      ...skill,
+      skillName: resolvedSkillName,
+    }))
+    setActiveToolType(resolvedSkillName || null)
+    setSelectedSkillName(resolvedSkillName || null)
     setShowPlusSheet(false)
     setShowSkillsPage(false)
     setShowMySkillsPage(false)
+    setShowSkillSelectorPage(false)
   }
 
   const openAgentChat = async (agent: DiscoverAgentItem) => {
@@ -1342,65 +1388,25 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
             ))}
           </div>
         )}
-        <div className="ai-input-bar">
-          <div className="ai-input-plus" onClick={() => { setShowFileMenu(false); setShowPlusSheet(true) }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round">
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
-          </div>
-          <input
-            className="ai-input-field"
-            placeholder="提个问题，或让我创作、分析任意内容"
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' && !event.shiftKey) {
-                event.preventDefault()
-
-                if (isResponding) {
-                  void stopResponding()
-                } else if (canSend) {
-                  void submitPrompt()
-                }
-              }
-            }}
-          />
-          <button
-            className="ai-input-mic"
-            type="button"
-            disabled={Boolean((!canSend && !isResponding) || isStopping)}
-            onClick={() => {
-              if (isResponding) {
-                void stopResponding()
-                return
-              }
-
-              if (canSend) {
-                void submitPrompt()
-              }
-            }}
-          >
-            {isResponding ? (
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="7" y="7" width="10" height="10" rx="1.5" />
-              </svg>
-            ) : inputValue.trim() ? (
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="12" y1="5" x2="12" y2="19" />
-                <line x1="5" y1="12" x2="12" y2="5" />
-                <line x1="12" y1="5" x2="19" y2="12" />
-              </svg>
-            ) : (
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
-                <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-                <line x1="12" y1="19" x2="12" y2="23" />
-                <line x1="8" y1="23" x2="16" y2="23" />
-              </svg>
-            )}
-          </button>
-        </div>
+        <AppComposerInput
+          actionAriaLabel="发送消息"
+          canSubmit={canSend}
+          className="ai-page-composer-input"
+          inputAriaLabel="提问输入框"
+          isResponding={isResponding}
+          isStopping={isStopping}
+          note="使用国内合规模型并严格遵循权限隔离，保障企业数据安全"
+          placeholder="提个问题，或让我创作、分析任意内容"
+          plusAriaLabel="打开更多操作"
+          value={inputValue}
+          onChange={setInputValue}
+          onPlusClick={() => {
+            setShowFileMenu(false)
+            setShowPlusSheet(true)
+          }}
+          onStop={() => stopResponding()}
+          onSubmit={() => submitPrompt()}
+        />
         <input
           accept={fileInputAccept}
           capture={filePickerMode === 'camera' ? 'environment' : undefined}
@@ -1410,7 +1416,6 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
           ref={fileInputRef}
           type="file"
         />
-        <p className="ai-page-disclaimer">使用国内合规模型并严格遵循权限隔离，保障企业数据安全</p>
       </div>
 
       {showPartnerSettings && (
@@ -1590,10 +1595,7 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
                       setShowDrawer(false)
                     }
                     if (item.key === 'skills') {
-                      setShowSkillsPage(true)
-                      setShowSidebarLibrary(false)
-                      setShowDiscoverPage(false)
-                      setShowDrawer(false)
+                      openSkillsPage()
                     }
                   }}>
                     <span className="ai-drawer-menu-icon">{renderDrawerIcon(item.key)}</span>
@@ -1782,7 +1784,7 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
                   className="ai-plus-sheet-row"
                   key={item.key}
                   type="button"
-                  onClick={item.key === 'skills' ? openSkillsPage : () => setShowFileMenu(false)}
+                  onClick={item.key === 'skills' ? openSkillSelectorPage : () => setShowFileMenu(false)}
                 >
                   <span className="ai-plus-sheet-row-left">
                     <span className="ai-plus-sheet-row-icon">
@@ -1834,10 +1836,15 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
                 <line x1="12" y1="5" x2="12" y2="19" />
                 <line x1="5" y1="12" x2="19" y2="12" />
               </svg>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" onClick={() => setShowMySkillsPage(true)} style={{ cursor: 'pointer' }}>
-                <circle cx="12" cy="12" r="3" />
-                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.54 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.54 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.54a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 15 4.54a1.65 1.65 0 0 0 1 1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
-              </svg>
+              <button className="ai-skill-community-settings" type="button" onClick={() => setShowMySkillsPage(true)}>
+                <SetOutline aria-hidden="true" style={{ fontSize: 20 }} />
+              </button>
+              <button className="ai-skill-community-close" type="button" onClick={() => setShowSkillsPage(false)}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
             </div>
           </div>
 
@@ -1853,19 +1860,6 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
                 value={skillSearchValue}
                 onChange={(event) => setSkillSearchValue(event.target.value)}
               />
-            </div>
-
-            <div className="ai-skill-community-banner">
-              <div className="ai-skill-community-banner-content">
-                <div className="ai-skill-community-banner-title">
-                  <span className="ai-skill-community-banner-highlight">你的技能</span>值得被更多人复用
-                </div>
-                <div className="ai-skill-community-banner-desc">将沉淀的的工作技能，直接发布到aily SkillHub，让好技能不被埋没</div>
-                <div className="ai-skill-community-banner-link">了解详情 &gt;</div>
-              </div>
-              <div className="ai-skill-community-banner-img">
-                <div className="ai-skill-community-banner-card">Skill</div>
-              </div>
             </div>
 
             <div className="ai-skill-community-section-header">
@@ -2146,6 +2140,77 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
         />
       )}
 
+      {showSkillSelectorPage && (
+        <div className="ai-chat-skill-picker-page">
+          <div className="ai-chat-skill-picker-header">
+            <div className="ai-chat-skill-picker-header-spacer" />
+            <div className="ai-chat-skill-picker-title">技能</div>
+            <button className="ai-chat-skill-picker-close" type="button" onClick={() => setShowSkillSelectorPage(false)}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </div>
+
+          <div className="ai-chat-skill-picker-search">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="2" strokeLinecap="round">
+              <circle cx="11" cy="11" r="7" />
+              <line x1="20" y1="20" x2="16.65" y2="16.65" />
+            </svg>
+            <input
+              className="ai-inline-search-input"
+              placeholder="搜索"
+              value={skillSelectorSearchValue}
+              onChange={(event) => setSkillSelectorSearchValue(event.target.value)}
+            />
+          </div>
+
+          <div className="ai-chat-skill-picker-list">
+            {userSkillsLoading ? <div className="ai-data-status">技能加载中…</div> : null}
+            {!userSkillsLoading && userSkillsError ? <div className="ai-data-status">{userSkillsError}</div> : null}
+            {!userSkillsLoading && !userSkillsError && visibleSelectableSkills.length === 0 ? <div className="ai-data-status">暂无可用技能</div> : null}
+            {!userSkillsLoading && !userSkillsError && visibleSelectableSkills.map((skill, index) => {
+              const resolvedSkillName = skill.skillName || skill.id
+              const tags = getSkillCardTags(skill)
+              const isActive = selectedSkillName === resolvedSkillName
+
+              return (
+                <button
+                  className={`ai-chat-skill-picker-item ${isActive ? 'is-active' : ''}`}
+                  key={skill.id}
+                  type="button"
+                  onClick={() => applySkillItem(skill)}
+                >
+                  <div className="ai-chat-skill-picker-item-icon" style={{ background: getFeatureCardColor(index) }}>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M14.5 4.5a3 3 0 0 1 4.24 4.24l-1.42 1.42-4.24-4.24z" />
+                      <path d="M13.09 5.91 5.3 13.7a2 2 0 0 0 0 2.83l2.17 2.17a2 2 0 0 0 2.83 0l7.79-7.79" />
+                      <path d="m8.5 11.5 4 4" />
+                    </svg>
+                  </div>
+
+                  <div className="ai-chat-skill-picker-item-body">
+                    <div className="ai-chat-skill-picker-item-top">
+                      <span className="ai-chat-skill-picker-item-title">{skill.title}</span>
+                      {tags.length > 0 ? (
+                        <div className="ai-chat-skill-picker-item-tags">
+                          {tags.map((tag) => (
+                            <span className="ai-chat-skill-picker-item-tag" key={`${skill.id}-${tag}`}>{tag}</span>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                    <div className="ai-chat-skill-picker-item-name">{resolvedSkillName}</div>
+                    <div className="ai-chat-skill-picker-item-desc">{skill.description || '暂无描述'}</div>
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       {/* 我的技能页 */}
       {showMySkillsPage && (
         <div className="ai-my-skills-page">
@@ -2175,10 +2240,7 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M22 3H2l8 9.46V19l4 2v-8.46z" />
               </svg>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="3" />
-                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.54 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.54 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.54a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 15 4.54a1.65 1.65 0 0 0 1 1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
-              </svg>
+              <SetOutline aria-hidden="true" className="ai-my-skills-settings" style={{ fontSize: 20 }} />
             </div>
           </div>
 

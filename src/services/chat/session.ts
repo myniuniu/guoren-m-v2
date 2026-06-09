@@ -9,6 +9,27 @@ type ChatSessionsResponse = {
   total?: number
 }
 
+function getSessionUpdatedTimestamp(session: Pick<ChatSession, 'updated_at'>): number {
+  const timestamp = new Date(session.updated_at).getTime()
+  return Number.isFinite(timestamp) ? timestamp : 0
+}
+
+// 后端偶发会返回重复 session_id，会直接把侧边栏“最近对话”的 React key 撞重复。
+// 这里统一在服务层去重，只保留更新时间更新的一条，避免 UI 侧到处重复兜底。
+export function dedupeChatSessions(sessions: ChatSession[]): ChatSession[] {
+  const sessionMap = new Map<string, ChatSession>()
+
+  sessions.forEach((session) => {
+    const current = sessionMap.get(session.session_id)
+
+    if (!current || getSessionUpdatedTimestamp(session) >= getSessionUpdatedTimestamp(current)) {
+      sessionMap.set(session.session_id, session)
+    }
+  })
+
+  return Array.from(sessionMap.values())
+}
+
 export async function fetchChatSessions(signal?: AbortSignal): Promise<ChatSession[]> {
   const userId = getChatUserId()
 
@@ -34,8 +55,8 @@ export async function fetchChatSessions(signal?: AbortSignal): Promise<ChatSessi
   const payload = (await response.json()) as ChatSessionsResponse
   const sessions = Array.isArray(payload.sessions) ? payload.sessions : []
 
-  return [...sessions].sort((a, b) => {
-    return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+  return [...dedupeChatSessions(sessions)].sort((a, b) => {
+    return getSessionUpdatedTimestamp(b) - getSessionUpdatedTimestamp(a)
   })
 }
 

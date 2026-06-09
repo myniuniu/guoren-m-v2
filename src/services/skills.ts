@@ -19,6 +19,10 @@ export interface SkillSummaryItem {
   countLabel?: string
 }
 
+function buildSkillMergeKey(skill: Pick<SkillSummaryItem, 'id' | 'skillName'>): string {
+  return skill.skillName.trim() || skill.id
+}
+
 type SkillListResponse = {
   success?: boolean
   code?: string | number
@@ -167,6 +171,20 @@ export function buildSkillInitialPrompt(skill: Pick<SkillSummaryItem, 'skillName
   return skill.title.trim()
 }
 
+export function mergeSkillSummaryItems(...lists: SkillSummaryItem[][]): SkillSummaryItem[] {
+  const record = new Map<string, SkillSummaryItem>()
+
+  lists.flat().forEach((item) => {
+    const key = buildSkillMergeKey(item)
+
+    if (!record.has(key)) {
+      record.set(key, item)
+    }
+  })
+
+  return [...record.values()]
+}
+
 export async function fetchOfficialSkills(signal?: AbortSignal): Promise<SkillSummaryItem[]> {
   const userId = getRequiredUserId()
   return requestSkillList(buildAiApiUrl(SKILLS_PATH, { user_id: userId }), 'official', signal)
@@ -184,6 +202,11 @@ export async function fetchCreatedSkills(signal?: AbortSignal): Promise<SkillSum
   return requestSkillList(buildAiApiUrl(CUSTOM_SKILLS_PATH, {
     user_id: userId,
   }), 'created', signal)
+}
+
+export async function fetchUserSkills(signal?: AbortSignal): Promise<SkillSummaryItem[]> {
+  const [addedSkills, createdSkills] = await Promise.all([fetchAddedSkills(signal), fetchCreatedSkills(signal)])
+  return mergeSkillSummaryItems(addedSkills, createdSkills)
 }
 
 export async function fetchClawhubSkills(
