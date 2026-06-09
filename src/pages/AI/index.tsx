@@ -1718,19 +1718,6 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
                 )}
               </div>
             </div>
-
-            <div className="ai-drawer-footer">
-              <div className="ai-drawer-footer-divider">- -</div>
-              <div className="ai-drawer-quota">
-                <div className="ai-drawer-quota-left">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="m12 3 1.7 4.7L18 9.4l-3.5 3 1.1 4.6L12 14.8 8.4 17l1.1-4.6L6 9.4l4.3-1.7z" />
-                  </svg>
-                  <span>可用额度：781</span>
-                </div>
-                <span className="ai-drawer-quota-action">续费</span>
-              </div>
-            </div>
           </div>
         </div>
       )}
