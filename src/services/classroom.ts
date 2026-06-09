@@ -83,7 +83,7 @@ export async function fetchClassroomGenerateStatus(
   )
 
   if (!response.ok) {
-    throw new Error(`查询课堂生成状态失败（HTTP ${response.status}）`)
+    throw new Error('查询课堂生成状态失败')
   }
 
   return response.json() as Promise<ClassroomGenerateResponse>

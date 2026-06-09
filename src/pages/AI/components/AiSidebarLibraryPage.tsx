@@ -2,18 +2,15 @@ import { Toast } from 'antd-mobile'
 import { useEffect, useMemo, useState } from 'react'
 import {
   fetchKnowledgeSpaces,
-  fetchLibraryFileDetail,
   fetchLibraryFileDownloadUrl,
   fetchLibraryPageFiles,
-  fetchLibraryPreviewContent,
   saveLibraryFileToOrganizationResource,
   saveLibraryFileToPersonalResource,
   type KnowledgeSpaceOption,
-  type LibraryFileDetail,
   type LibraryPageFileItem,
   type LibraryPageFileType,
 } from '../../../services/library'
-import './AiSidebarLibraryPage.css'
+import AiLibraryFilePreview from './AiLibraryFilePreview'
 
 type AiSidebarLibraryPageProps = {
   onClose: () => void
@@ -52,14 +49,6 @@ function CloseIcon() {
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
       <line x1="18" y1="6" x2="6" y2="18" />
       <line x1="6" y1="6" x2="18" y2="18" />
-    </svg>
-  )
-}
-
-function BackIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="15 18 9 12 15 6" />
     </svg>
   )
 }
@@ -127,36 +116,6 @@ function formatDateTime(value: string): string {
     .replace(/\//g, '-')
 }
 
-function formatFileSize(sizeBytes: number | null): string {
-  if (!sizeBytes || sizeBytes <= 0) {
-    return '未知大小'
-  }
-
-  if (sizeBytes >= 1024 * 1024) {
-    return `${(sizeBytes / (1024 * 1024)).toFixed(1)} MB`
-  }
-
-  if (sizeBytes >= 1024) {
-    return `${Math.round(sizeBytes / 1024)} KB`
-  }
-
-  return `${sizeBytes} B`
-}
-
-function isHtmlPreviewFile(fileName: string): boolean {
-  const ext = fileName.split('.').pop()?.toLowerCase() || ''
-  return ['html', 'htm'].includes(ext)
-}
-
-function isImageFile(detail: LibraryFileDetail): boolean {
-  if (detail.fileType === 'image') {
-    return true
-  }
-
-  const ext = detail.fileName.split('.').pop()?.toLowerCase() || ''
-  return ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(ext)
-}
-
 function isImSession(sessionId: string): boolean {
   return sessionId.includes('_im_')
 }
@@ -193,10 +152,6 @@ export function AiSidebarLibraryPage({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [selectedFile, setSelectedFile] = useState<LibraryPageFileItem | null>(null)
-  const [previewDetail, setPreviewDetail] = useState<LibraryFileDetail | null>(null)
-  const [previewContent, setPreviewContent] = useState('')
-  const [previewLoading, setPreviewLoading] = useState(false)
-  const [previewError, setPreviewError] = useState('')
   const [knowledgeSpaces, setKnowledgeSpaces] = useState<KnowledgeSpaceOption[]>([])
   const [actionTargetFile, setActionTargetFile] = useState<LibraryPageFileItem | null>(null)
   const [actionLoadingKey, setActionLoadingKey] = useState<string | null>(null)
@@ -328,6 +283,10 @@ export function AiSidebarLibraryPage({
     onOpenSession(item.sessionId)
   }
 
+  const handleOpenLibraryFile = async (item: LibraryPageFileItem) => {
+    setSelectedFile(item)
+  }
+
   const handleDownloadFile = async (item: LibraryPageFileItem) => {
     if (!item.filePath.trim()) {
       Toast.show({ content: '缺少文件路径，暂时无法下载' })
@@ -379,128 +338,13 @@ export function AiSidebarLibraryPage({
     }
   }
 
-  useEffect(() => {
-    if (!selectedFile) {
-      setPreviewDetail(null)
-      setPreviewContent('')
-      setPreviewError('')
-      setPreviewLoading(false)
-      return
-    }
-
-    const controller = new AbortController()
-
-    void (async () => {
-      setPreviewLoading(true)
-      setPreviewError('')
-      setPreviewContent('')
-      setPreviewDetail(null)
-
-      try {
-        const detail = await fetchLibraryFileDetail(selectedFile.fileId, controller.signal)
-
-        if (controller.signal.aborted) {
-          return
-        }
-
-        setPreviewDetail(detail)
-
-        // 对齐 PC：非图片文件统一先走预览接口，避免直接把会话产物页 URL 当成 iframe 页面塞进来。
-        if (detail.fileUrl && !isImageFile(detail)) {
-          const nextContent = await fetchLibraryPreviewContent(detail.fileUrl, controller.signal)
-
-          if (!controller.signal.aborted) {
-            setPreviewContent(nextContent)
-          }
-        }
-      } catch (loadError) {
-        if (!controller.signal.aborted) {
-          setPreviewError(loadError instanceof Error ? loadError.message : '文件详情加载失败')
-        }
-      } finally {
-        if (!controller.signal.aborted) {
-          setPreviewLoading(false)
-        }
-      }
-    })()
-
-    return () => {
-      controller.abort()
-    }
-  }, [selectedFile])
-
   if (selectedFile) {
-    const previewFile = previewDetail ?? null
-    const previewName = previewFile?.fileName || selectedFile.fileName
-    const canViewSession = Boolean(selectedFile.sessionId) && !isImSession(selectedFile.sessionId)
-    const showImage = previewFile ? isImageFile(previewFile) : false
-    const showHtml = previewFile ? isHtmlPreviewFile(previewFile.fileName) : false
-    const showText = Boolean(previewFile) && !showImage && !showHtml && Boolean(previewContent)
-
     return (
-      <div className="ai-library-hub-page">
-        <div className="ai-library-hub-preview-topbar">
-          <button className="ai-library-hub-header-btn" type="button" onClick={() => setSelectedFile(null)}>
-            <BackIcon />
-          </button>
-          <div className="ai-library-hub-preview-title">{previewName}</div>
-          {canViewSession ? (
-            <button
-              className="ai-library-hub-link-btn"
-              type="button"
-              onClick={() => onOpenSession(selectedFile.sessionId)}
-            >
-              查看对话
-            </button>
-          ) : (
-            <div className="ai-library-hub-header-spacer" />
-          )}
-        </div>
-
-        <div className="ai-library-hub-preview-body">
-          <div className="ai-library-hub-preview-card">
-            <div className="ai-library-hub-preview-meta">
-              <span>{selectedFile.agentName || '未命名来源'}</span>
-              <span>{getFileTypeLabel(selectedFile.fileType)}</span>
-              <span>{formatDateTime(selectedFile.createdAt)}</span>
-              {previewFile ? <span>{formatFileSize(previewFile.sizeBytes)}</span> : null}
-            </div>
-
-            {previewLoading && !previewFile ? <div className="ai-library-hub-empty">文件详情加载中...</div> : null}
-            {previewError ? <div className="ai-library-hub-empty">{previewError}</div> : null}
-            {!previewLoading && !previewError && previewFile && !previewFile.fileUrl ? (
-              <div className="ai-library-hub-empty">当前文件暂无可预览内容。</div>
-            ) : null}
-            {!previewLoading && !previewError && previewFile && showImage ? (
-              <div className="ai-library-hub-image-wrap">
-                <img
-                  alt={previewName}
-                  className="ai-library-hub-image"
-                  decoding="async"
-                  loading="lazy"
-                  src={previewFile.fileUrl}
-                />
-              </div>
-            ) : null}
-            {!previewLoading && !previewError && previewFile && showText ? (
-              <pre className="ai-library-hub-text-preview">{previewContent || '当前文件暂时没有可展示的文本预览。'}</pre>
-            ) : null}
-            {!previewLoading && !previewError && previewFile && showHtml ? (
-              <iframe
-                className="ai-library-hub-frame-preview"
-                srcDoc={previewContent}
-                title={previewName}
-              />
-            ) : null}
-            {!previewLoading && !previewError && previewFile && showText ? (
-              <pre className="ai-library-hub-text-preview">{previewContent}</pre>
-            ) : null}
-            {!previewLoading && !previewError && previewFile && !showImage && !showHtml && !showText ? (
-              <div className="ai-library-hub-empty">当前文件暂时没有可展示的文档预览。</div>
-            ) : null}
-          </div>
-        </div>
-      </div>
+      <AiLibraryFilePreview
+        onBack={() => setSelectedFile(null)}
+        onOpenSession={onOpenSession}
+        selectedFile={selectedFile}
+      />
     )
   }
 
@@ -620,7 +464,7 @@ export function AiSidebarLibraryPage({
             <button
               className="ai-library-hub-item ai-library-hub-item-main"
               type="button"
-              onClick={() => setSelectedFile(item)}
+              onClick={() => void handleOpenLibraryFile(item)}
             >
               <span className={`ai-library-hub-item-badge type-${item.fileType}`}>{getFileTypeBadge(item.fileType)}</span>
               <span className="ai-library-hub-item-body">

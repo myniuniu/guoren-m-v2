@@ -165,6 +165,7 @@ function mapServerMessage(message: ChatSessionDetail['messages'][number]): ChatM
 
 export type SelectedArtifact = {
   sessionId: string | null
+  createdAt: string
   artifact: ChatArtifactItem
 }
 

@@ -751,7 +751,7 @@ function AssistantOutputMessage({
                 <button
                   className="ai-chat-artifact-card"
                   key={`${artifact.filename}-${index}`}
-                  onClick={() => onSelectArtifact({ sessionId: messageSessionId, artifact })}
+                  onClick={() => onSelectArtifact({ sessionId: messageSessionId, createdAt: message.createdAt, artifact })}
                   type="button"
                 >
                   <div className="ai-chat-artifact-name">{artifact.filename}</div>

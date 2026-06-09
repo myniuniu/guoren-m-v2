@@ -18,6 +18,7 @@ export interface CourseReviewResult {
   stage?: string
   message?: string
   oss_url?: string | null
+  report_oss_url?: string | null
   indicators?: CourseReviewIndicator[]
   html?: string
   content?: string
@@ -89,6 +90,10 @@ export function extractCourseReviewReportOssUrls(result: CourseReviewResult): st
 
   if (isNonEmptyHttpUrl(result.oss_url)) {
     urls.push(result.oss_url.trim())
+  }
+
+  if (isNonEmptyHttpUrl(result.report_oss_url)) {
+    urls.push(result.report_oss_url.trim())
   }
 
   if (Array.isArray(result.indicators)) {
@@ -184,7 +189,7 @@ export async function fetchCourseReviewResult(
   )
 
   if (!response.ok) {
-    throw new Error(`获取评课结果失败（HTTP ${response.status}）`)
+    throw new Error('获取评课结果失败')
   }
 
   const payload = await response.json() as unknown

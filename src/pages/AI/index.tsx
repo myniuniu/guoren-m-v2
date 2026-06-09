@@ -13,7 +13,6 @@ import {
   type AgentUsageLog,
   type DiscoverAgentItem,
 } from '../../services/agents'
-import { fetchClassroomGenerateStatus, resolveClassroomPreviewState, type ClassroomPreviewState } from '../../services/classroom'
 import {
   ALLOWED_CHAT_UPLOAD_EXTENSIONS,
   createPendingChatAttachment,
@@ -25,12 +24,17 @@ import type { ChatAttachment, ChatSession } from '../../services/chat/types'
 import { getChatUserId } from '../../services/chat/api'
 import {
   AI_COURSE_REVIEW_SKILL_NAME,
-  fetchCourseReviewResult,
   parseCourseReviewTaskId,
-  resolveCourseReviewPreviewPayload,
-  type CourseReviewPreviewPayload,
 } from '../../services/courseReview'
-import { fetchKnowledgeSpaces, fetchLibraryFiles, type KnowledgeSpaceOption, type LibraryResourceFile } from '../../services/library'
+import {
+  fetchKnowledgeSpaces,
+  fetchLibraryFiles,
+  type KnowledgeSpaceOption,
+  type LibraryFileDetail,
+  type LibraryPageFileItem,
+  type LibraryPageFileType,
+  type LibraryResourceFile,
+} from '../../services/library'
 import {
   fetchPartnerConfig,
   uploadPartnerAvatar,
@@ -52,6 +56,7 @@ import {
 } from '../../services/skills'
 import { AiConversationThread } from './components/AiConversationThread'
 import AiCommandsPage, { type AiCommandsPageTabKey } from './components/AiCommandsPage'
+import AiLibraryFilePreview from './components/AiLibraryFilePreview'
 import AiSidebarLibraryPage from './components/AiSidebarLibraryPage'
 import { resolveArtifactPreviewUrl, useAiChatRuntime, type ActiveAgentContext } from './hooks/useAiChatRuntime'
 import { useDisplayNamePrefetch } from '../IM/utils/displayNameHooks'
@@ -369,6 +374,78 @@ function isCourseReviewPreviewArtifact(artifact: { type: string; skill_name?: st
   return artifact.type === 'review' || artifact.skill_name === AI_COURSE_REVIEW_SKILL_NAME || Boolean(parseCourseReviewTaskId(artifact.url))
 }
 
+function normalizeArtifactPreviewFileType(artifact: { type: string; skill_name?: string; url: string; filename: string }): Exclude<LibraryPageFileType, 'all'> {
+  if (artifact.type === 'classroom') {
+    return 'classroom'
+  }
+
+  if (isCourseReviewPreviewArtifact(artifact)) {
+    return 'review'
+  }
+
+  if (artifact.type === 'image' || isImageFile(artifact.url, artifact.filename)) {
+    return 'image'
+  }
+
+  if (artifact.type === 'video') {
+    return 'video'
+  }
+
+  if (artifact.type === 'audio') {
+    return 'audio'
+  }
+
+  if (artifact.type === 'whiteboard') {
+    return 'whiteboard'
+  }
+
+  return 'document'
+}
+
+function buildArtifactPreviewEntry(
+  selectedArtifact: {
+    sessionId: string | null
+    createdAt: string
+    artifact: {
+      type: string
+      filename: string
+      url: string
+      size?: number
+      skill_name?: string
+    }
+  } | null,
+): { item: LibraryPageFileItem; detail: LibraryFileDetail } | null {
+  if (!selectedArtifact) {
+    return null
+  }
+
+  const { artifact, sessionId, createdAt } = selectedArtifact
+  const fileType = normalizeArtifactPreviewFileType(artifact)
+  const previewUrl = artifact.url.startsWith('http')
+    ? artifact.url
+    : (sessionId ? resolveArtifactPreviewUrl(sessionId, artifact) : '')
+  const item: LibraryPageFileItem = {
+    fileId: `artifact:${sessionId ?? 'local'}:${artifact.filename}:${artifact.url}`,
+    fileName: artifact.filename,
+    agentName: artifact.skill_name || '会话结果',
+    fileType,
+    filePath: artifact.url,
+    createdAt,
+    sessionId: sessionId ?? '',
+    agentId: null,
+    skillName: artifact.skill_name ?? null,
+  }
+
+  return {
+    item,
+    detail: {
+      ...item,
+      fileUrl: previewUrl,
+      sizeBytes: artifact.size ?? null,
+    },
+  }
+}
+
 function getPartnerWorkspaceField(fileKey: PartnerWorkspaceFileKey): keyof PartnerConfig {
   switch (fileKey) {
     case 'SOUL.md':
@@ -499,10 +576,6 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
   const [partnerAvatarUploading, setPartnerAvatarUploading] = useState(false)
   const [webSearchEnabled, setWebSearchEnabled] = useState(false)
   const [selectedSkillName, setSelectedSkillName] = useState<string | null>(null)
-  const [artifactPreviewLoading, setArtifactPreviewLoading] = useState(false)
-  const [artifactPreviewError, setArtifactPreviewError] = useState('')
-  const [artifactClassroomPreview, setArtifactClassroomPreview] = useState<ClassroomPreviewState | null>(null)
-  const [artifactReviewPreview, setArtifactReviewPreview] = useState<CourseReviewPreviewPayload | null>(null)
 
   const {
     activeAgent,
@@ -534,6 +607,7 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
 
   const displayName = useMemo(() => getDisplayName(), [])
   const currentUserId = useMemo(() => getChatUserId(), [])
+  const artifactPreviewEntry = useMemo(() => buildArtifactPreviewEntry(selectedArtifact), [selectedArtifact])
   const scrollerRef = useRef<HTMLDivElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const partnerAvatarInputRef = useRef<HTMLInputElement | null>(null)
@@ -908,71 +982,6 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
 
     setSelectedSkillName(null)
   }, [activeToolType])
-
-  useEffect(() => {
-    if (!selectedArtifact) {
-      setArtifactPreviewLoading(false)
-      setArtifactPreviewError('')
-      setArtifactClassroomPreview(null)
-      setArtifactReviewPreview(null)
-      return
-    }
-
-    const { artifact } = selectedArtifact
-    const isClassroomArtifact = artifact.type === 'classroom'
-    const isReviewArtifact = isCourseReviewPreviewArtifact(artifact)
-
-    setArtifactPreviewError('')
-    setArtifactClassroomPreview(null)
-    setArtifactReviewPreview(null)
-
-    if (!isClassroomArtifact && !isReviewArtifact) {
-      setArtifactPreviewLoading(false)
-      return
-    }
-
-    const controller = new AbortController()
-
-    void (async () => {
-      setArtifactPreviewLoading(true)
-
-      try {
-        if (isClassroomArtifact) {
-          const result = await fetchClassroomGenerateStatus(artifact.url, controller.signal)
-
-          if (!controller.signal.aborted) {
-            setArtifactClassroomPreview(resolveClassroomPreviewState(result))
-          }
-
-          return
-        }
-
-        const taskId = parseCourseReviewTaskId(artifact.url)
-
-        if (!taskId) {
-          throw new Error('缺少评课任务 ID')
-        }
-
-        const result = await fetchCourseReviewResult(taskId, controller.signal)
-
-        if (!controller.signal.aborted) {
-          setArtifactReviewPreview(resolveCourseReviewPreviewPayload(result))
-        }
-      } catch (error) {
-        if (!controller.signal.aborted) {
-          setArtifactPreviewError(error instanceof Error ? error.message : '结果预览加载失败')
-        }
-      } finally {
-        if (!controller.signal.aborted) {
-          setArtifactPreviewLoading(false)
-        }
-      }
-    })()
-
-    return () => {
-      controller.abort()
-    }
-  }, [selectedArtifact])
 
   useEffect(() => {
     let cancelled = false
@@ -2700,78 +2709,18 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
         </div>
       )}
 
-      {selectedArtifact && (
-        <div className="ai-artifact-overlay" onClick={() => setSelectedArtifact(null)}>
-          <section className="ai-artifact-panel" onClick={(event) => event.stopPropagation()}>
-            <div className="ai-artifact-panel-head">
-              <div>
-                <div className="ai-artifact-panel-title">{selectedArtifact.artifact.filename}</div>
-                <div className="ai-artifact-panel-subtitle">{selectedArtifact.artifact.type}</div>
-              </div>
-              <button className="ai-artifact-close" type="button" onClick={() => setSelectedArtifact(null)}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round">
-                  <line x1="18" y1="6" x2="6" y2="18" />
-                  <line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
-              </button>
-            </div>
-
-            <div className="ai-artifact-panel-body">
-              {artifactPreviewLoading ? (
-                <div className="ai-artifact-result-state">结果预览加载中...</div>
-              ) : artifactPreviewError ? (
-                <div className="ai-artifact-result-state is-error">{artifactPreviewError}</div>
-              ) : artifactClassroomPreview ? (
-                <div className="ai-artifact-result-card">
-                  <div className={`ai-artifact-result-badge is-${artifactClassroomPreview.tone}`}>{artifactClassroomPreview.statusLabel}</div>
-                  <div className="ai-artifact-result-desc">{artifactClassroomPreview.detail}</div>
-                  {artifactClassroomPreview.classroomUrl ? (
-                    <button
-                      className="ai-artifact-result-action"
-                      type="button"
-                      onClick={() => window.open(artifactClassroomPreview.classroomUrl, '_blank', 'noopener,noreferrer')}
-                    >
-                      打开课堂结果
-                    </button>
-                  ) : null}
-                </div>
-              ) : artifactReviewPreview ? (
-                artifactReviewPreview.pendingMessage ? (
-                  <div className="ai-artifact-result-state">{artifactReviewPreview.pendingMessage}</div>
-                ) : artifactReviewPreview.externalUrl ? (
-                  <iframe
-                    className="ai-artifact-frame"
-                    src={artifactReviewPreview.externalUrl}
-                    title={selectedArtifact.artifact.filename}
-                  />
-                ) : artifactReviewPreview.language === 'html' ? (
-                  <iframe
-                    className="ai-artifact-frame"
-                    srcDoc={artifactReviewPreview.content}
-                    title={selectedArtifact.artifact.filename}
-                  />
-                ) : (
-                  <pre className="ai-artifact-result-text">{artifactReviewPreview.content}</pre>
-                )
-              ) : isImageFile(selectedArtifact.artifact.url, selectedArtifact.artifact.filename) ? (
-                <img
-                  alt={selectedArtifact.artifact.filename}
-                  className="ai-artifact-image"
-                  decoding="async"
-                  loading="lazy"
-                  src={resolveArtifactPreviewUrl(selectedArtifact.sessionId, selectedArtifact.artifact)}
-                />
-              ) : (
-                <iframe
-                  className="ai-artifact-frame"
-                  src={resolveArtifactPreviewUrl(selectedArtifact.sessionId, selectedArtifact.artifact)}
-                  title={selectedArtifact.artifact.filename}
-                />
-              )}
-            </div>
-          </section>
-        </div>
-      )}
+      {selectedArtifact && artifactPreviewEntry ? (
+        <AiLibraryFilePreview
+          initialDetail={artifactPreviewEntry.detail}
+          onBack={() => setSelectedArtifact(null)}
+          onOpenSession={(sessionId) => {
+            setSelectedArtifact(null)
+            openSession(sessionId)
+          }}
+          selectedFile={artifactPreviewEntry.item}
+          showOpenSessionLink={false}
+        />
+      ) : null}
 
       <Dialog
         visible={Boolean(deleteTargetAgent)}

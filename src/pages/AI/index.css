@@ -3677,9 +3677,12 @@
 .ai-artifact-panel-body {
   flex: 1;
   min-height: 320px;
-  background: #f6f8fb;
-  padding: 16px;
-  overflow: auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  padding: 0;
+  overflow: hidden;
 }
 
 .ai-artifact-result-state {
