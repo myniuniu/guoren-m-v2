@@ -28,3 +28,5 @@ CLAUDE.md
 doc/
 docs/
 scripts/
+tests/
+.cert/

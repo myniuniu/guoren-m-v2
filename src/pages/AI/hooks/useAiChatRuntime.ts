@@ -13,6 +13,7 @@ import {
 } from '../../../services/chat/api'
 import { createChatStreamBridge, type ChatStreamBridge } from '../../../services/chat/bridge'
 import {
+  advanceAssistantMessageForNextModelPhase,
   appendErrorToAssistantMessage,
   appendReasoningDeltaToMessages,
   appendTextDeltaToMessages,
@@ -61,6 +62,7 @@ function buildUserMessage(
     sessionId,
     loading: false,
     reasoningContent: null,
+    reasoningTimestamp: null,
     toolCalls: [],
     references: [],
     skillOutput: [],
@@ -77,6 +79,7 @@ function buildAssistantPlaceholder(sessionId: string | null): ChatMessage {
     sessionId,
     loading: true,
     reasoningContent: null,
+    reasoningTimestamp: null,
     toolCalls: [],
     references: [],
     skillOutput: [],
@@ -142,6 +145,7 @@ function mapServerMessage(message: ChatSessionDetail['messages'][number]): ChatM
     sessionId: null,
     loading: false,
     reasoningContent: message.reasoning_content ?? null,
+    reasoningTimestamp: message.reasoning_content ? message.created_at : null,
     toolCalls: Array.isArray(message.tool_calls)
       ? message.tool_calls.map((toolCall) => ({
           name: toolCall.name,
@@ -149,6 +153,7 @@ function mapServerMessage(message: ChatSessionDetail['messages'][number]): ChatM
           status: toolCall.status === 'completed' ? 'completed' : 'running',
           input: toolCall.input ?? {},
           output: toolCall.output,
+          timestamp: toolCall.timestamp,
           toolDisplay: toolCall.tool_display,
         }))
       : [],
@@ -269,6 +274,23 @@ export function useAiChatRuntime() {
           syncSnapshot({
             ...nextSnapshot,
             lastEventSequence: nextSequence,
+          })
+        },
+        onChatModelStart() {
+          if (!nextSnapshot.activeMessageId) {
+            return
+          }
+
+          const result = advanceAssistantMessageForNextModelPhase(
+            nextSnapshot.messages,
+            nextSnapshot.activeMessageId,
+            buildTimestamp(),
+          )
+
+          syncSnapshot({
+            ...nextSnapshot,
+            messages: result.messages,
+            activeMessageId: result.activeMessageId,
           })
         },
         onTextDelta(chunk) {

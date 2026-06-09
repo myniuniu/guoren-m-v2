@@ -3,6 +3,7 @@ import type { ChatArtifactItem, ChatReference, ChatToolCall } from './types'
 type ToolStartEvent = {
   name?: string
   run_id?: string
+  timestamp?: string
   data?: {
     input?: Record<string, unknown>
   }
@@ -11,6 +12,7 @@ type ToolStartEvent = {
 type ToolEndEvent = {
   name?: string
   run_id?: string
+  timestamp?: string
   data?: {
     output?: unknown
     tool_display?: Record<string, unknown>
@@ -36,6 +38,7 @@ type ChatModelEndEvent = {
         name?: string
         args?: Record<string, unknown>
         id?: string
+        timestamp?: string
       }>
     }
   }
@@ -129,6 +132,7 @@ export async function readSseStream(
           runId: eventObj.run_id,
           status: 'running',
           input: eventObj.data?.input ?? {},
+          timestamp: eventObj.timestamp,
         })
       }
       return
@@ -148,6 +152,7 @@ export async function readSseStream(
           status: 'completed',
           input: {},
           output: eventObj.data?.output,
+          timestamp: eventObj.timestamp,
           toolDisplay: eventObj.data?.tool_display,
         })
       }
@@ -193,6 +198,7 @@ export async function readSseStream(
           runId: toolCall.id,
           status: 'running',
           input: toolCall.args ?? {},
+          timestamp: toolCall.timestamp,
         })
       })
 

@@ -36,6 +36,7 @@ export interface ChatToolCall {
   input: Record<string, unknown>
   output?: unknown
   toolDisplay?: Record<string, unknown>
+  timestamp?: string
 }
 
 export interface ChatMessage {
@@ -46,6 +47,7 @@ export interface ChatMessage {
   sessionId: string | null
   loading?: boolean
   reasoningContent?: string | null
+  reasoningTimestamp?: string | null
   toolCalls: ChatToolCall[]
   references: ChatReference[]
   skillOutput: ChatArtifactItem[]
@@ -78,6 +80,7 @@ export interface ChatSessionMessage {
     input: Record<string, unknown>
     output?: unknown
     status?: string
+    timestamp?: string
     tool_display?: Record<string, unknown>
   }>
   references: ChatReference[]

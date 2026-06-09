@@ -27,10 +27,41 @@ function createFollowupAssistantMessage(
     createdAt: nextTimestamp,
     loading: true,
     reasoningContent: null,
+    reasoningTimestamp: null,
     toolCalls: [],
     references: [],
     skillOutput: [],
     attachments: [],
+  }
+}
+
+export function advanceAssistantMessageForNextModelPhase(
+  messages: ChatMessage[],
+  activeMessageId: string,
+  timestamp: string
+): MessageMutationResult {
+  const activeIndex = messages.findIndex((message) => message.id === activeMessageId)
+
+  if (activeIndex === -1) {
+    return { messages, activeMessageId }
+  }
+
+  const activeMessage = messages[activeIndex]
+
+  if (activeMessage.role !== 'assistant' || !hasProcessingSteps(activeMessage)) {
+    return { messages, activeMessageId }
+  }
+
+  const nextMessageId = buildFollowupMessageId(messages, activeMessageId)
+  const followupMessage = createFollowupAssistantMessage(activeMessage, nextMessageId, timestamp)
+
+  return {
+    messages: [
+      ...messages.slice(0, activeIndex + 1),
+      followupMessage,
+      ...messages.slice(activeIndex + 1),
+    ],
+    activeMessageId: nextMessageId,
   }
 }
 
@@ -70,14 +101,9 @@ export function appendTextDeltaToMessages(
     }
   }
 
-  const nextMessageId = buildFollowupMessageId(messages, activeMessageId)
-  const followupMessage = createFollowupAssistantMessage(activeMessage, nextMessageId, timestamp)
-  const nextMessages = [
-    ...messages.slice(0, activeIndex + 1),
-    followupMessage,
-    ...messages.slice(activeIndex + 1),
-  ].map((message) => {
-    if (message.id !== nextMessageId) {
+  const nextPhaseResult = advanceAssistantMessageForNextModelPhase(messages, activeMessageId, timestamp)
+  const nextMessages = nextPhaseResult.messages.map((message) => {
+    if (message.id !== nextPhaseResult.activeMessageId) {
       return message
     }
 
@@ -91,7 +117,7 @@ export function appendTextDeltaToMessages(
 
   return {
     messages: nextMessages,
-    activeMessageId: nextMessageId,
+    activeMessageId: nextPhaseResult.activeMessageId,
   }
 }
 
@@ -110,6 +136,7 @@ export function appendReasoningDeltaToMessages(
       ...message,
       createdAt: timestamp,
       reasoningContent: `${message.reasoningContent ?? ''}${chunk}`,
+      reasoningTimestamp: message.reasoningTimestamp ?? timestamp,
     }
   })
 }
@@ -132,9 +159,13 @@ export function upsertToolCallInMessages(
       nextToolCalls[existingIndex] = {
         ...nextToolCalls[existingIndex],
         ...toolCall,
+        timestamp: toolCall.timestamp ?? nextToolCalls[existingIndex].timestamp ?? timestamp,
       }
     } else {
-      nextToolCalls.push(toolCall)
+      nextToolCalls.push({
+        ...toolCall,
+        timestamp: toolCall.timestamp ?? timestamp,
+      })
     }
 
     return {

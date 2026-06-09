@@ -1,8 +1,14 @@
+import { Toast } from 'antd-mobile'
 import { useEffect, useMemo, useState } from 'react'
 import {
+  fetchKnowledgeSpaces,
   fetchLibraryFileDetail,
+  fetchLibraryFileDownloadUrl,
   fetchLibraryPageFiles,
   fetchLibraryPreviewContent,
+  saveLibraryFileToOrganizationResource,
+  saveLibraryFileToPersonalResource,
+  type KnowledgeSpaceOption,
   type LibraryFileDetail,
   type LibraryPageFileItem,
   type LibraryPageFileType,
@@ -16,6 +22,8 @@ type AiSidebarLibraryPageProps = {
 }
 
 type FilterMenuKey = 'source' | 'type'
+
+const LAST_SELECTED_ORG_ID_KEY = 'LAST_SELECTED_ORG_ID'
 
 const FILE_TYPE_FILTERS: Array<{ key: LibraryPageFileType; label: string }> = [
   { key: 'all', label: '全部' },
@@ -61,6 +69,16 @@ function SearchIcon() {
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="11" cy="11" r="7" />
       <line x1="20" y1="20" x2="16.65" y2="16.65" />
+    </svg>
+  )
+}
+
+function MoreIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <circle cx="12" cy="5" r="1.9" />
+      <circle cx="12" cy="12" r="1.9" />
+      <circle cx="12" cy="19" r="1.9" />
     </svg>
   )
 }
@@ -151,6 +169,16 @@ function buildListMeta(item: LibraryPageFileItem): string {
   ].join(' · ')
 }
 
+function triggerBrowserDownload(downloadUrl: string, fileName: string) {
+  const link = document.createElement('a')
+  link.href = downloadUrl
+  link.download = fileName
+  link.rel = 'noreferrer'
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+}
+
 export function AiSidebarLibraryPage({
   onClose,
   onOpenDrawer,
@@ -169,6 +197,9 @@ export function AiSidebarLibraryPage({
   const [previewContent, setPreviewContent] = useState('')
   const [previewLoading, setPreviewLoading] = useState(false)
   const [previewError, setPreviewError] = useState('')
+  const [knowledgeSpaces, setKnowledgeSpaces] = useState<KnowledgeSpaceOption[]>([])
+  const [actionTargetFile, setActionTargetFile] = useState<LibraryPageFileItem | null>(null)
+  const [actionLoadingKey, setActionLoadingKey] = useState<string | null>(null)
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -252,6 +283,101 @@ export function AiSidebarLibraryPage({
 
     return files.filter((item) => item.agentName === sourceFilter)
   }, [files, sourceFilter])
+
+  const loadKnowledgeSpaceOptions = async (): Promise<KnowledgeSpaceOption[]> => {
+    const nextSpaces = await fetchKnowledgeSpaces()
+    setKnowledgeSpaces(nextSpaces)
+    return nextSpaces
+  }
+
+  const resolveOrganizationOwnerId = async (): Promise<string> => {
+    let savedOrgId = ''
+
+    try {
+      savedOrgId = localStorage.getItem(LAST_SELECTED_ORG_ID_KEY)?.trim() || ''
+    } catch {
+      savedOrgId = ''
+    }
+
+    if (savedOrgId) {
+      return savedOrgId
+    }
+
+    if (knowledgeSpaces[0]?.id) {
+      return knowledgeSpaces[0].id
+    }
+
+    const nextSpaces = await loadKnowledgeSpaceOptions()
+    return nextSpaces[0]?.id?.trim() || ''
+  }
+
+  const closeActionSheet = () => {
+    if (actionLoadingKey) {
+      return
+    }
+
+    setActionTargetFile(null)
+  }
+
+  const handleViewSession = (item: LibraryPageFileItem) => {
+    if (!item.sessionId || isImSession(item.sessionId)) {
+      return
+    }
+
+    setActionTargetFile(null)
+    onOpenSession(item.sessionId)
+  }
+
+  const handleDownloadFile = async (item: LibraryPageFileItem) => {
+    if (!item.filePath.trim()) {
+      Toast.show({ content: '缺少文件路径，暂时无法下载' })
+      return
+    }
+
+    try {
+      setActionLoadingKey('download')
+      const downloadUrl = await fetchLibraryFileDownloadUrl(item.filePath)
+      triggerBrowserDownload(downloadUrl, item.fileName)
+      setActionTargetFile(null)
+      Toast.show({ content: '已开始下载' })
+    } catch (error) {
+      Toast.show({ content: error instanceof Error ? error.message : '下载失败，请稍后重试' })
+    } finally {
+      setActionLoadingKey(null)
+    }
+  }
+
+  const handleSaveToPersonalLibrary = async (item: LibraryPageFileItem) => {
+    try {
+      setActionLoadingKey('save-personal')
+      await saveLibraryFileToPersonalResource(item.fileId, item.fileName)
+      setActionTargetFile(null)
+      Toast.show({ content: '添加到个人资料库成功' })
+    } catch (error) {
+      Toast.show({ content: error instanceof Error ? error.message : '添加到个人资料库失败' })
+    } finally {
+      setActionLoadingKey(null)
+    }
+  }
+
+  const handleSaveToOrganizationLibrary = async (item: LibraryPageFileItem) => {
+    try {
+      setActionLoadingKey('save-organization')
+      const knowledgeSpaceOwnerId = await resolveOrganizationOwnerId()
+
+      if (!knowledgeSpaceOwnerId) {
+        throw new Error('缺少组织知识空间ID，无法添加到组织资料库')
+      }
+
+      await saveLibraryFileToOrganizationResource(item.fileId, knowledgeSpaceOwnerId, item.fileName)
+      setActionTargetFile(null)
+      Toast.show({ content: '添加到组织资料库成功' })
+    } catch (error) {
+      Toast.show({ content: error instanceof Error ? error.message : '添加到组织资料库失败' })
+    } finally {
+      setActionLoadingKey(null)
+    }
+  }
 
   useEffect(() => {
     if (!selectedFile) {
@@ -490,20 +616,106 @@ export function AiSidebarLibraryPage({
         {!loading && error ? <div className="ai-library-hub-empty">{error}</div> : null}
         {!loading && !error && visibleFiles.length === 0 ? <div className="ai-library-hub-empty">当前没有可展示的库文件。</div> : null}
         {!loading && !error && visibleFiles.map((item) => (
-          <button
-            className="ai-library-hub-item"
-            key={item.fileId}
-            type="button"
-            onClick={() => setSelectedFile(item)}
-          >
-            <span className={`ai-library-hub-item-badge type-${item.fileType}`}>{getFileTypeBadge(item.fileType)}</span>
-            <span className="ai-library-hub-item-body">
-              <span className="ai-library-hub-item-name">{item.fileName}</span>
-              <span className="ai-library-hub-item-meta">{buildListMeta(item)}</span>
-            </span>
-          </button>
+          <div className="ai-library-hub-item-row" key={item.fileId}>
+            <button
+              className="ai-library-hub-item ai-library-hub-item-main"
+              type="button"
+              onClick={() => setSelectedFile(item)}
+            >
+              <span className={`ai-library-hub-item-badge type-${item.fileType}`}>{getFileTypeBadge(item.fileType)}</span>
+              <span className="ai-library-hub-item-body">
+                <span className="ai-library-hub-item-name">{item.fileName}</span>
+                <span className="ai-library-hub-item-meta">{buildListMeta(item)}</span>
+              </span>
+            </button>
+            <button
+              aria-label="更多操作"
+              className="ai-library-hub-item-more"
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation()
+                setActionTargetFile(item)
+              }}
+            >
+              <MoreIcon />
+            </button>
+          </div>
         ))}
       </div>
+
+      {actionTargetFile ? (
+        <div
+          className="ai-library-hub-action-overlay"
+          role="presentation"
+          onClick={closeActionSheet}
+        >
+          <div
+            className="ai-library-hub-action-sheet"
+            role="dialog"
+            aria-modal="true"
+            aria-label="库文件更多操作"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="ai-library-hub-action-sheet-title">{actionTargetFile.fileName || '更多操作'}</div>
+            <div className="ai-library-hub-action-sheet-meta">{buildListMeta(actionTargetFile)}</div>
+
+            {isImSession(actionTargetFile.sessionId) ? null : (
+              <button
+                className="ai-library-hub-action-btn"
+                disabled={Boolean(actionLoadingKey)}
+                type="button"
+                onClick={() => handleViewSession(actionTargetFile)}
+              >
+                查看对话
+              </button>
+            )}
+
+            {actionTargetFile.fileType === 'document' ? (
+              <button
+                className="ai-library-hub-action-btn"
+                disabled={Boolean(actionLoadingKey)}
+                type="button"
+                onClick={() => {
+                  void handleDownloadFile(actionTargetFile)
+                }}
+              >
+                {actionLoadingKey === 'download' ? '下载中...' : '下载'}
+              </button>
+            ) : null}
+
+            <button
+              className="ai-library-hub-action-btn"
+              disabled={Boolean(actionLoadingKey)}
+              type="button"
+              onClick={() => {
+                void handleSaveToPersonalLibrary(actionTargetFile)
+              }}
+            >
+              {actionLoadingKey === 'save-personal' ? '处理中...' : '添加到个人资料库'}
+            </button>
+
+            <button
+              className="ai-library-hub-action-btn"
+              disabled={Boolean(actionLoadingKey)}
+              type="button"
+              onClick={() => {
+                void handleSaveToOrganizationLibrary(actionTargetFile)
+              }}
+            >
+              {actionLoadingKey === 'save-organization' ? '处理中...' : '添加到组织资料库'}
+            </button>
+
+            <button
+              className="ai-library-hub-action-btn is-cancel"
+              disabled={Boolean(actionLoadingKey)}
+              type="button"
+              onClick={closeActionSheet}
+            >
+              取消
+            </button>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

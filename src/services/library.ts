@@ -6,6 +6,7 @@ const RESOURCE_TREE_PATH = '/res/node/tree'
 const RESOURCE_NODE_ADD_PATH = '/res/node/add'
 const LIBRARY_PAGE_PATH = '/api/v1/files/library'
 const LIBRARY_PREVIEW_PATH = '/api/v1/chat/files/preview'
+const LIBRARY_DOWNLOAD_URL_PATH = '/api/v1/chat/files/download-url'
 
 export interface KnowledgeSpaceOption {
   id: string
@@ -131,6 +132,16 @@ type LibraryDetailResponse = {
   skill_name?: string | null
   file_url?: string
   size_bytes?: number | null
+}
+
+type LibraryDownloadUrlResponse = {
+  success?: boolean
+  code?: number | string
+  message?: string
+  msg?: string
+  data?: {
+    url?: string
+  }
 }
 
 type SaveLibraryResourcePayload = {
@@ -616,6 +627,36 @@ export async function fetchLibraryPreviewContent(fileUrl: string, signal?: Abort
   }
 
   return response.text()
+}
+
+export async function fetchLibraryFileDownloadUrl(filePath: string, signal?: AbortSignal): Promise<string> {
+  if (!filePath.trim()) {
+    throw new Error('缺少文件路径，暂时无法下载')
+  }
+
+  const response = await authorizedFetch(buildAiApiUrl(LIBRARY_DOWNLOAD_URL_PATH, {
+    url: filePath,
+    expires: '3600',
+  }), {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json',
+    },
+    signal,
+  })
+
+  if (!response.ok) {
+    throw new Error(`获取下载链接失败（HTTP ${response.status}）`)
+  }
+
+  const payload = (await response.json()) as LibraryDownloadUrlResponse
+  const downloadUrl = payload.data?.url?.trim() || ''
+
+  if (payload.success === false || !downloadUrl) {
+    throw new Error(payload.message || payload.msg || '获取下载链接失败')
+  }
+
+  return downloadUrl
 }
 
 function parseOssResourceInfoFromTreeNode(node: LibraryTreeNode) {

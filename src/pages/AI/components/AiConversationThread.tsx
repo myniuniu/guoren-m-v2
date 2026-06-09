@@ -27,11 +27,15 @@ type ProcessStep =
       id: string
       type: 'reasoning'
       reasoning: string
+      stepTimestamp: string
+      sortOrder: number
     }
   | {
       id: string
       type: 'tool'
       toolCall: ChatToolCall
+      stepTimestamp: string
+      sortOrder: number
     }
 
 type SearchResultItem = {
@@ -119,27 +123,82 @@ function groupMessages(messages: ChatMessage[]): PresentationGroup[] {
 }
 
 function buildProcessSteps(messages: ChatMessage[]): ProcessStep[] {
-  return messages.flatMap((message, messageIndex) => {
+  const steps = messages.flatMap((message, messageIndex) => {
     const steps: ProcessStep[] = []
+    const stepOrderBase = messageIndex * 100
 
     if (message.reasoningContent?.trim()) {
       steps.push({
         id: `${message.id}-reasoning-${messageIndex}`,
         type: 'reasoning',
         reasoning: message.reasoningContent.trim(),
+        stepTimestamp: message.reasoningTimestamp ?? message.createdAt,
+        sortOrder: stepOrderBase,
       })
     }
 
-    for (const toolCall of message.toolCalls) {
+    for (const [toolCallIndex, toolCall] of message.toolCalls.entries()) {
       steps.push({
         id: `${toolCall.runId}-${messageIndex}`,
         type: 'tool',
         toolCall,
+        stepTimestamp: toolCall.timestamp ?? message.createdAt,
+        sortOrder: stepOrderBase + toolCallIndex + 1,
       })
     }
 
     return steps
   })
+
+  return [...steps].sort((left, right) => {
+    const leftTimestamp = Date.parse(left.stepTimestamp)
+    const rightTimestamp = Date.parse(right.stepTimestamp)
+
+    if (Number.isFinite(leftTimestamp) && Number.isFinite(rightTimestamp) && leftTimestamp !== rightTimestamp) {
+      return leftTimestamp - rightTimestamp
+    }
+
+    if (Number.isFinite(leftTimestamp) && !Number.isFinite(rightTimestamp)) {
+      return -1
+    }
+
+    if (!Number.isFinite(leftTimestamp) && Number.isFinite(rightTimestamp)) {
+      return 1
+    }
+
+    return left.sortOrder - right.sortOrder
+  }).reduce<ProcessStep[]>((dedupedSteps, step) => {
+    if (step.type !== 'tool') {
+      dedupedSteps.push(step)
+      return dedupedSteps
+    }
+
+    const existingIndex = dedupedSteps.findIndex((item) => item.type === 'tool' && item.toolCall.runId === step.toolCall.runId)
+
+    if (existingIndex === -1) {
+      dedupedSteps.push(step)
+      return dedupedSteps
+    }
+
+    const existingStep = dedupedSteps[existingIndex]
+
+    if (existingStep.type !== 'tool') {
+      dedupedSteps.push(step)
+      return dedupedSteps
+    }
+
+    dedupedSteps[existingIndex] = {
+      ...existingStep,
+      toolCall: {
+        ...existingStep.toolCall,
+        ...step.toolCall,
+        input: Object.keys(step.toolCall.input).length ? step.toolCall.input : existingStep.toolCall.input,
+        timestamp: existingStep.toolCall.timestamp ?? step.toolCall.timestamp,
+      },
+    }
+
+    return dedupedSteps
+  }, [])
 }
 
 function readRecord(value: unknown): Record<string, unknown> | null {

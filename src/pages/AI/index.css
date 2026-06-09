@@ -1203,6 +1203,22 @@
   color: #9aa3b2;
   font-size: 12px;
   flex-shrink: 0;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.18s ease;
+}
+
+.ai-drawer-agent-row:hover .ai-drawer-agent-delete {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.ai-drawer-agent-row.is-removing .ai-drawer-agent-delete {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
 }
 
 .ai-drawer-agent-delete:disabled {
@@ -3354,6 +3370,22 @@
   font-size: 12px;
   color: #9aa3b2;
   flex-shrink: 0;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.18s ease;
+}
+
+.ai-drawer-chat-row:hover .ai-drawer-chat-delete {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.ai-drawer-chat-row.is-removing .ai-drawer-chat-delete {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
 }
 
 .ai-drawer-chat-delete:disabled {
