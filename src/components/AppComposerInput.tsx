@@ -1,5 +1,7 @@
-import { TextArea } from 'antd-mobile'
+import { useCallback, useRef } from 'react'
+import { TextArea, Toast } from 'antd-mobile'
 import { AddOutline, AudioOutline, StopOutline, UpOutline } from 'antd-mobile-icons'
+import { useVoiceInput } from '../hooks/useVoiceInput'
 import './AppComposerInput.css'
 
 export interface AppComposerInputProps {
@@ -15,7 +17,7 @@ export interface AppComposerInputProps {
   actionAriaLabel?: string
   onChange: (nextValue: string) => void
   onPlusClick?: () => void
-  onSubmit?: () => void | Promise<void>
+  onSubmit?: (promptOverride?: string) => void | Promise<void>
   onStop?: () => void | Promise<void>
 }
 
@@ -40,10 +42,105 @@ export default function AppComposerInput({
   onStop,
 }: AppComposerInputProps) {
   const hasValue = value.trim().length > 0
-  const actionDisabled = Boolean((!canSubmit && !isResponding) || isStopping)
+  const voiceBaseTextRef = useRef('')
+  const isVoiceSendingRef = useRef(false)
+  const hasRecognizedTextRef = useRef(false)
+
+  const handleVoiceResult = useCallback((text: string, isFinal: boolean) => {
+    if (isVoiceSendingRef.current || !text) {
+      return
+    }
+
+    hasRecognizedTextRef.current = true
+
+    const base = voiceBaseTextRef.current
+
+    if (isFinal) {
+      const nextValue = base + text
+      voiceBaseTextRef.current = nextValue
+      onChange(nextValue)
+      return
+    }
+
+    onChange(base + text)
+  }, [onChange])
+
+  const { state: voiceState, startRecording, stopRecording, isSupported: isVoiceSupported } = useVoiceInput({
+    onResult: handleVoiceResult,
+    onError: (error) => {
+      hasRecognizedTextRef.current = false
+      isVoiceSendingRef.current = false
+      Toast.show({ content: error.message || '语音输入失败' })
+    },
+  })
+
+  const isRecording = voiceState === 'recording' || voiceState === 'requesting'
+  const isVoiceTransitioning = voiceState === 'requesting' || voiceState === 'stopping'
+  const actionDisabled = isStopping || (isResponding
+    ? false
+    : isRecording
+      ? false
+      : hasValue
+        ? !canSubmit
+        : !isVoiceSupported || isVoiceTransitioning)
   const actionState = isResponding ? 'is-stop' : hasValue ? 'is-submit' : 'is-voice'
 
-  const handleAction = () => {
+  const handleToggleVoice = useCallback(() => {
+    if (!isVoiceSupported || isVoiceTransitioning) {
+      return
+    }
+
+    if (isRecording) {
+      stopRecording()
+
+      if (!hasRecognizedTextRef.current) {
+        Toast.show({ content: '未识别到文字' })
+        onChange(voiceBaseTextRef.current)
+        voiceBaseTextRef.current = ''
+        hasRecognizedTextRef.current = false
+        return
+      }
+
+      isVoiceSendingRef.current = true
+      const finalText = voiceBaseTextRef.current.trim()
+      voiceBaseTextRef.current = ''
+      hasRecognizedTextRef.current = false
+
+      if (finalText) {
+        void onSubmit?.(finalText)
+      }
+
+      setTimeout(() => {
+        isVoiceSendingRef.current = false
+      }, 1000)
+      return
+    }
+
+    voiceBaseTextRef.current = value
+    hasRecognizedTextRef.current = false
+    void startRecording()
+  }, [isRecording, isVoiceSupported, isVoiceTransitioning, onChange, onSubmit, startRecording, stopRecording, value])
+
+  const handleActionClick = () => {
+    if (isResponding) {
+      void onStop?.()
+      return
+    }
+
+    if (isRecording) {
+      handleToggleVoice()
+      return
+    }
+
+    if (hasValue) {
+      void onSubmit?.()
+      return
+    }
+
+    handleToggleVoice()
+  }
+
+  const handleEnterPress = () => {
     if (isResponding) {
       void onStop?.()
       return
@@ -76,18 +173,26 @@ export default function AppComposerInput({
             rows={1}
             value={value}
             onChange={onChange}
-            onEnterPress={handleAction}
+            onEnterPress={handleEnterPress}
           />
 
           <button
-            aria-label={isResponding ? '停止回答' : actionAriaLabel}
-            className={joinClassNames('app-composer-input-action', actionState)}
+            aria-label={isResponding ? '停止回答' : isRecording ? '停止录音' : hasValue ? actionAriaLabel : '语音输入'}
+            className={joinClassNames('app-composer-input-action', actionState, isRecording ? 'is-recording' : null)}
             disabled={actionDisabled}
             type="button"
-            onClick={handleAction}
+            onClick={handleActionClick}
           >
             {isResponding ? (
               <StopOutline aria-hidden="true" style={{ fontSize: 18 }} />
+            ) : isRecording ? (
+              <span aria-hidden="true" className="app-composer-input-voice-wave">
+                <span className="app-composer-input-voice-wave-bar" />
+                <span className="app-composer-input-voice-wave-bar" />
+                <span className="app-composer-input-voice-wave-bar" />
+                <span className="app-composer-input-voice-wave-bar" />
+                <span className="app-composer-input-voice-wave-bar" />
+              </span>
             ) : hasValue ? (
               <UpOutline aria-hidden="true" style={{ fontSize: 18 }} />
             ) : (

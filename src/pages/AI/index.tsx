@@ -1405,7 +1405,7 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
             setShowPlusSheet(true)
           }}
           onStop={() => stopResponding()}
-          onSubmit={() => submitPrompt()}
+          onSubmit={(promptOverride) => submitPrompt(promptOverride)}
         />
         <input
           accept={fileInputAccept}
