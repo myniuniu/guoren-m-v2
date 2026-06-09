@@ -46,6 +46,7 @@ import { useDisplayNamePrefetch } from '../IM/utils/displayNameHooks'
 import AppComposerInput from '../../components/AppComposerInput'
 import DisplayName from '../../components/DisplayName'
 import { APP_ROUTE_PATHS } from '../../routes'
+import '../Library/index.css'
 import './index.css'
 
 const LUCKY_AVATAR_URL = 'https://guoren-skills-hb-test.oss-cn-beijing.aliyuncs.com/system/images/avatar/73799dbfdc2c495c8c0e1d86ffd2bf23.png'
@@ -253,6 +254,70 @@ function resolveLibrarySpaceName(
   selectedSpaceId: string,
 ): string {
   return spaces.find((item) => item.id === selectedSpaceId)?.name ?? ''
+}
+
+function formatLibraryPickerDateTime(value: string): string {
+  if (!value) {
+    return '-'
+  }
+
+  const date = new Date(value)
+
+  if (Number.isNaN(date.getTime())) {
+    return value
+  }
+
+  return new Intl.DateTimeFormat('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  })
+    .format(date)
+    .replace(/\//g, '-')
+}
+
+function resolveLibraryPickerBadge(file: LibraryResourceFile): { bg: string; label: string } {
+  const normalizedExt = file.fileExt.toLowerCase() || file.fileName.split('.').pop()?.toLowerCase() || ''
+
+  if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(normalizedExt)) {
+    return { bg: '#FF8A34', label: 'IMG' }
+  }
+
+  if (['mp4', 'mov', 'avi', 'mkv', 'webm', 'flv', 'm4v'].includes(normalizedExt)) {
+    return { bg: '#8D5BFF', label: 'VID' }
+  }
+
+  if (['mp3', 'wav', 'm4a', 'aac', 'flac', 'ogg'].includes(normalizedExt)) {
+    return { bg: '#25B864', label: 'AUD' }
+  }
+
+  if (['ppt', 'pptx', 'key'].includes(normalizedExt)) {
+    return { bg: '#FF8A34', label: 'PPT' }
+  }
+
+  if (normalizedExt === 'pdf') {
+    return { bg: '#4A7CFF', label: 'PDF' }
+  }
+
+  if (normalizedExt === 'html' || normalizedExt === 'htm') {
+    return { bg: '#8c8f96', label: 'HTML' }
+  }
+
+  return { bg: '#4A7CFF', label: 'DOC' }
+}
+
+function renderLibraryPickerFileBadge(file: LibraryResourceFile) {
+  const { bg, label } = resolveLibraryPickerBadge(file)
+
+  return (
+    <div className="library-file-icon" style={{ background: bg }}>
+      {label}
+    </div>
+  )
 }
 
 function getDisplayName(): string {
@@ -1209,48 +1274,6 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
     }
   }
 
-  function renderLibraryFileIcon(type: string) {
-    switch (type) {
-      case 'pdf':
-        return (
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M7 3.5h6l4 4v13A1.5 1.5 0 0 1 15.5 22h-8A1.5 1.5 0 0 1 6 20.5V5A1.5 1.5 0 0 1 7.5 3.5z" />
-            <polyline points="13 3.5 13 8 17 8" />
-          </svg>
-        )
-      case 'html':
-        return (
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M8 3.5h6l4 4v13A1.5 1.5 0 0 1 16.5 22h-9A1.5 1.5 0 0 1 6 20.5V5A1.5 1.5 0 0 1 7.5 3.5z" />
-            <polyline points="14 3.5 14 8 18 8" />
-            <path d="m9.5 13 2-2-2-2" />
-            <path d="m14.5 9-2 4" />
-            <path d="m14.5 13-2 2 2 2" />
-          </svg>
-        )
-      case 'ppt':
-        return (
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="4.5" y="6" width="15" height="12" />
-            <path d="M8 18v2" />
-            <path d="M16 18v2" />
-            <path d="M8.5 9.5h4.5v5H8.5z" />
-          </svg>
-        )
-      case 'doc':
-        return (
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M7 3.5h6l4 4v13A1.5 1.5 0 0 1 15.5 22h-8A1.5 1.5 0 0 1 6 20.5V5A1.5 1.5 0 0 1 7.5 3.5z" />
-            <polyline points="13 3.5 13 8 17 8" />
-            <line x1="9" y1="12" x2="15" y2="12" />
-            <line x1="9" y1="15.5" x2="15" y2="15.5" />
-          </svg>
-        )
-      default:
-        return null
-    }
-  }
-
   return (
     <div className="ai-page">
       {/* 背景 */}
@@ -1978,106 +2001,119 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
       )}
 
       {showLibraryPage && (
-        <div className="ai-library-page">
-          <div className="ai-library-header">
-            <div className="ai-library-title">选择资料</div>
-            <button className="ai-library-close" type="button" onClick={() => setShowLibraryPage(false)}>
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#555" strokeWidth="2" strokeLinecap="round">
-                <line x1="18" y1="6" x2="6" y2="18" />
-                <line x1="6" y1="6" x2="18" y2="18" />
-              </svg>
-            </button>
-          </div>
-
-          <div className="ai-library-tabs">
-            <button
-              className={`ai-library-tab ${libraryTab === 'personal' ? 'is-active' : ''}`}
-              type="button"
-              onClick={() => {
-                setLibraryTab('personal')
-                setShowOrgSpacePicker(false)
-              }}
-            >
-              个人资料库
-            </button>
-            <button
-              className={`ai-library-tab ${libraryTab === 'org' ? 'is-active' : ''}`}
-              type="button"
-              onClick={() => setLibraryTab('org')}
-            >
-              组织资料库
-            </button>
-          </div>
-
-          {libraryTab === 'org' && (
-            <button className="ai-library-space-trigger" type="button" onClick={() => setShowOrgSpacePicker(true)}>
-              <span className="ai-library-space-label">当前空间</span>
-              <span className="ai-library-space-value">{selectedOrgSpaceName || '请选择知识空间'}</span>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="6 9 12 15 18 9" />
-              </svg>
-            </button>
-          )}
-
-          <div className="ai-library-toolbar">
-            <div className="ai-library-search">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                <circle cx="11" cy="11" r="7" />
-                <line x1="20" y1="20" x2="16.65" y2="16.65" />
-              </svg>
-              <input
-                className="ai-inline-search-input"
-                placeholder="搜索文件名"
-                value={librarySearchValue}
-                onChange={(event) => setLibrarySearchValue(event.target.value)}
-              />
+        <div className="library-page ai-library-picker-page">
+          <div className="library-header ai-library-picker-header">
+            <div className="library-nav">
+              <div className="library-icon-placeholder" />
+              <div className="library-title-wrap">
+                <div className="library-title">选择资料</div>
+              </div>
+              <button className="library-icon-btn ai-library-picker-close" type="button" onClick={() => setShowLibraryPage(false)}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
             </div>
-            <div className="ai-library-selected">已选 {selectedLibraryIds.length}</div>
+
+            <div className="library-scope-switch">
+              <button
+                className={`library-scope-btn ${libraryTab === 'personal' ? 'is-active' : ''}`}
+                type="button"
+                onClick={() => {
+                  setLibraryTab('personal')
+                  setShowOrgSpacePicker(false)
+                }}
+              >
+                个人资料库
+              </button>
+              <button
+                className={`library-scope-btn ${libraryTab === 'org' ? 'is-active' : ''}`}
+                type="button"
+                onClick={() => setLibraryTab('org')}
+              >
+                组织资料库
+              </button>
+            </div>
+
+            {libraryTab === 'org' ? (
+              <button className="library-org-space-trigger" type="button" onClick={() => setShowOrgSpacePicker(true)}>
+                <span>知识空间</span>
+                <span className="library-org-space-value">{selectedOrgSpaceName || '请选择知识空间'}</span>
+              </button>
+            ) : null}
+
+            <div className="ai-library-picker-toolbar">
+              <div className="library-search">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                  <circle cx="11" cy="11" r="7" />
+                  <line x1="20" y1="20" x2="16.65" y2="16.65" />
+                </svg>
+                <input
+                  className="ai-inline-search-input"
+                  placeholder="搜索文件名"
+                  value={librarySearchValue}
+                  onChange={(event) => setLibrarySearchValue(event.target.value)}
+                />
+              </div>
+              <div className="ai-library-picker-selected">已选 {selectedLibraryIds.length}</div>
+            </div>
           </div>
 
-          <div className="ai-library-list">
-            {libraryLoading ? <div className="ai-data-status">资料库加载中…</div> : null}
-            {!libraryLoading && libraryError ? <div className="ai-data-status">{libraryError}</div> : null}
-            {!libraryLoading && !libraryError && visibleLibraryItems.length === 0 ? <div className="ai-data-status">暂无可引用文件</div> : null}
-            {visibleLibraryItems.map((item) => {
-              const checked = selectedLibraryIds.includes(item.nodeId)
-              const isAlreadyAttached = draftResourceIds.has(item.resourceId)
-              return (
-                <button
-                  className={`ai-library-item ${isAlreadyAttached ? 'is-disabled' : ''}`}
-                  disabled={isAlreadyAttached}
-                  key={item.nodeId}
-                  type="button"
-                  onClick={() => {
-                    if (!isAlreadyAttached) {
-                      toggleLibraryItem(item.nodeId)
-                    }
-                  }}
-                >
-                  <span className={`ai-library-checkbox ${checked ? 'is-checked' : ''}`}>
-                    {checked && (
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="20 6 9 17 4 12" />
-                      </svg>
-                    )}
-                  </span>
-                  <span className={`ai-library-file-icon type-${item.fileType}`}>{renderLibraryFileIcon(item.fileType)}</span>
-                  <span className="ai-library-item-content">
-                    <span className="ai-library-item-name">{item.fileName}</span>
-                    <span className="ai-library-item-meta">
-                      <span>{isAlreadyAttached ? '已添加到当前会话' : item.createBy || '未知来源'}</span>
-                      <span>{item.createTime || '-'}</span>
+          <div className="library-content ai-library-picker-content">
+            <div className="library-list">
+              {libraryLoading ? <div className="library-empty">资料库加载中...</div> : null}
+              {!libraryLoading && libraryError ? <div className="library-empty">{libraryError}</div> : null}
+              {!libraryLoading && !libraryError && visibleLibraryItems.length === 0 ? (
+                <div className="library-empty">
+                  <div className="library-empty-title">暂无可引用文件</div>
+                  <div className="library-empty-desc">当前直接使用资料库接口返回的数据，没有额外做前端过滤。</div>
+                </div>
+              ) : null}
+              {!libraryLoading && !libraryError && visibleLibraryItems.map((item) => {
+                const checked = selectedLibraryIds.includes(item.nodeId)
+                const isAlreadyAttached = draftResourceIds.has(item.resourceId)
+                const metaText = isAlreadyAttached ? '已添加到当前会话' : item.createBy || '未知来源'
+
+                return (
+                  <button
+                    className={`library-item ai-library-picker-item ${checked ? 'is-selected' : ''} ${isAlreadyAttached ? 'is-disabled' : ''}`}
+                    disabled={isAlreadyAttached}
+                    key={item.nodeId}
+                    type="button"
+                    onClick={() => {
+                      if (!isAlreadyAttached) {
+                        toggleLibraryItem(item.nodeId)
+                      }
+                    }}
+                  >
+                    <span className={`ai-library-picker-checkbox ${checked ? 'is-checked' : ''}`}>
+                      {checked && (
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      )}
                     </span>
-                  </span>
-                </button>
-              )
-            })}
+                    <div className="library-item-main">
+                      {renderLibraryPickerFileBadge(item)}
+                      <div className="library-item-body">
+                        <div className="library-item-name">{item.fileName}</div>
+                        <div className="library-item-meta">{metaText}</div>
+                      </div>
+                    </div>
+                    <div className="library-item-side">
+                      <span className="library-item-side-text">{formatLibraryPickerDateTime(item.createTime)}</span>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
           </div>
 
-          <div className="ai-library-footer">
-            <button className="ai-library-footer-btn" type="button" onClick={() => setShowLibraryPage(false)}>取消</button>
+          <div className="ai-library-picker-footer">
+            <button className="ai-library-picker-footer-btn" type="button" onClick={() => setShowLibraryPage(false)}>取消</button>
             <button
-              className="ai-library-footer-btn is-primary"
+              className="ai-library-picker-footer-btn is-primary"
               disabled={selectedLibraryIds.length === 0}
               type="button"
               onClick={addSelectedLibraryItemsToDraft}
@@ -2086,15 +2122,15 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
             </button>
           </div>
 
-          {showOrgSpacePicker && (
-            <div className="ai-library-space-overlay" onClick={() => setShowOrgSpacePicker(false)}>
-              <div className="ai-library-space-sheet" onClick={(e) => e.stopPropagation()}>
-                <div className="ai-library-space-sheet-handle" />
-                <div className="ai-library-space-sheet-title">选择空间</div>
-                <div className="ai-library-space-list">
+          {showOrgSpacePicker ? (
+            <div className="library-filter-sheet-overlay" onClick={() => setShowOrgSpacePicker(false)}>
+              <div className="library-filter-sheet" onClick={(event) => event.stopPropagation()}>
+                <div className="library-filter-sheet-handle" />
+                <div className="library-filter-sheet-title">选择知识空间</div>
+                <div className="library-org-save-options">
                   {knowledgeSpaces.map((space) => (
                     <button
-                      className={`ai-library-space-item ${selectedOrgSpaceId === space.id ? 'is-active' : ''}`}
+                      className={`library-sheet-option ${selectedOrgSpaceId === space.id ? 'is-active' : ''}`}
                       key={space.id}
                       type="button"
                       onClick={() => {
@@ -2103,17 +2139,14 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
                       }}
                     >
                       <span>{space.name}</span>
-                      {selectedOrgSpaceId === space.id && (
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-                          <polyline points="20 6 9 17 4 12" />
-                        </svg>
-                      )}
+                      {selectedOrgSpaceId === space.id ? <span>已选</span> : null}
                     </button>
                   ))}
+                  {knowledgeSpaces.length === 0 ? <div className="library-empty">当前没有可用知识空间。</div> : null}
                 </div>
               </div>
             </div>
-          )}
+          ) : null}
         </div>
       )}
       {/* 侧边栏库全屏页 */}

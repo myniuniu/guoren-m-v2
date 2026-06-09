@@ -660,51 +660,52 @@ function AssistantOutputMessage({
 }) {
   return (
     <div className="ai-chat-row is-assistant">
-      <div className="ai-chat-bubble is-assistant">
-        {message.content ? (
-          <div className="ai-chat-markdown">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-              {message.content}
-            </ReactMarkdown>
-          </div>
-        ) : null}
+      <div className="ai-chat-assistant-stack">
+        <div className="ai-chat-bubble is-assistant">
+          {message.content ? (
+            <div className="ai-chat-markdown">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {message.content}
+              </ReactMarkdown>
+            </div>
+          ) : null}
 
-        {message.references.length > 0 && (
-          <div className="ai-chat-reference-list">
-            {message.references.map((reference: ChatReference, index) => (
-              <a
-                className="ai-chat-reference-chip"
-                href={reference.url || '#'}
-                key={`${reference.title ?? 'ref'}-${index}`}
-                rel="noreferrer"
-                target="_blank"
-              >
-                {reference.title || reference.url || `引用 ${index + 1}`}
-              </a>
-            ))}
-          </div>
-        )}
+          {message.references.length > 0 && (
+            <div className="ai-chat-reference-list">
+              {message.references.map((reference: ChatReference, index) => (
+                <a
+                  className="ai-chat-reference-chip"
+                  href={reference.url || '#'}
+                  key={`${reference.title ?? 'ref'}-${index}`}
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  {reference.title || reference.url || `引用 ${index + 1}`}
+                </a>
+              ))}
+            </div>
+          )}
 
-        {message.skillOutput.length > 0 && (
-          <div className="ai-chat-artifact-list">
-            {message.skillOutput.map((artifact: ChatArtifactItem, index) => (
-              <button
-                className="ai-chat-artifact-card"
-                key={`${artifact.filename}-${index}`}
-                onClick={() => onSelectArtifact({ sessionId: messageSessionId, artifact })}
-                type="button"
-              >
-                <div className="ai-chat-artifact-name">{artifact.filename}</div>
-                <div className="ai-chat-artifact-meta">
-                  {artifact.type}
-                  {artifact.skill_name ? ` · ${artifact.skill_name}` : ''}
-                </div>
-              </button>
-            ))}
-          </div>
-        )}
-
-        <div className="ai-chat-message-meta">
+          {message.skillOutput.length > 0 && (
+            <div className="ai-chat-artifact-list">
+              {message.skillOutput.map((artifact: ChatArtifactItem, index) => (
+                <button
+                  className="ai-chat-artifact-card"
+                  key={`${artifact.filename}-${index}`}
+                  onClick={() => onSelectArtifact({ sessionId: messageSessionId, artifact })}
+                  type="button"
+                >
+                  <div className="ai-chat-artifact-name">{artifact.filename}</div>
+                  <div className="ai-chat-artifact-meta">
+                    {artifact.type}
+                    {artifact.skill_name ? ` · ${artifact.skill_name}` : ''}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="ai-chat-message-meta is-assistant is-outside">
           <span>{formatMessageTime(message.createdAt)}</span>
           {message.loading ? <span className="ai-chat-message-loading">流式中</span> : null}
         </div>
