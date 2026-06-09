@@ -498,6 +498,7 @@ export function useAiChatRuntime() {
     promptOverride?: string,
     nextToolType?: string | null,
     attachmentOverride?: ChatAttachment[],
+    submitOptions?: { enableWebSearch?: boolean },
   ) => {
     const prompt = (promptOverride ?? inputValue).trim()
 
@@ -549,6 +550,7 @@ export function useAiChatRuntime() {
       setActiveToolType(resolvedToolType ?? null)
 
       const { streamRequest, stopRequest } = await buildStartChatStreamRequest(sessionId, {
+        enableWebSearch: submitOptions?.enableWebSearch ?? false,
         message: prompt,
         skillName: resolvedToolType ?? undefined,
         uploadedFiles: attachmentPayload.uploadedFiles,
@@ -570,6 +572,7 @@ export function useAiChatRuntime() {
         await consumeStreamOnMainThread(
           initialSnapshot,
           (signal) => streamChatMessage(sessionId, {
+            enableWebSearch: submitOptions?.enableWebSearch ?? false,
             message: prompt,
             skillName: resolvedToolType ?? undefined,
             uploadedFiles: attachmentPayload.uploadedFiles,

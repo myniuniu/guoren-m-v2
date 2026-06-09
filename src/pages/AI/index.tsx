@@ -1,8 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { SetOutline } from 'antd-mobile-icons'
+import { Dialog, Switch } from 'antd-mobile'
+import { GlobalOutline, SetOutline } from 'antd-mobile-icons'
 import { fetchCommands, mapCommandsToPromptItems, type CommandPromptItem } from '../../services/commands'
-import { ensureAgentUsageLog, groupVisibleAgents, listVisibleAgents, type AgentCategoryKey, type DiscoverAgentItem } from '../../services/agents'
+import {
+  deleteAgentUsageLog,
+  ensureAgentUsageLog,
+  getAgentUsageLogs,
+  groupVisibleAgents,
+  listVisibleAgents,
+  type AgentCategoryKey,
+  type AgentUsageLog,
+  type DiscoverAgentItem,
+} from '../../services/agents'
 import { fetchClassroomGenerateStatus, resolveClassroomPreviewState, type ClassroomPreviewState } from '../../services/classroom'
 import {
   ALLOWED_CHAT_UPLOAD_EXTENSIONS,
@@ -10,7 +20,8 @@ import {
   isAllowedChatUploadFile,
   uploadPendingChatFile,
 } from '../../services/chat/upload'
-import type { ChatAttachment } from '../../services/chat/types'
+import { groupChatSessionsByTime } from '../../services/chat/session'
+import type { ChatAttachment, ChatSession } from '../../services/chat/types'
 import { getChatUserId } from '../../services/chat/api'
 import {
   AI_COURSE_REVIEW_SKILL_NAME,
@@ -446,6 +457,15 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
   const [userSkillsLoading, setUserSkillsLoading] = useState(false)
   const [userSkillsError, setUserSkillsError] = useState('')
   const [visibleAgents, setVisibleAgents] = useState<DiscoverAgentItem[]>([])
+  const [agentUsageLogs, setAgentUsageLogs] = useState<AgentUsageLog[]>([])
+  const [agentUsageLogsLoading, setAgentUsageLogsLoading] = useState(false)
+  const [agentUsageLogsError, setAgentUsageLogsError] = useState('')
+  const [deleteTargetAgent, setDeleteTargetAgent] = useState<AgentUsageLog | null>(null)
+  const [deleteAgentUsageLoading, setDeleteAgentUsageLoading] = useState(false)
+  const [removingAgentIds, setRemovingAgentIds] = useState<Set<string>>(new Set())
+  const [deleteTargetSession, setDeleteTargetSession] = useState<ChatSession | null>(null)
+  const [deleteSessionLoading, setDeleteSessionLoading] = useState(false)
+  const [removingSessionIds, setRemovingSessionIds] = useState<Set<string>>(new Set())
   const [discoverLoading, setDiscoverLoading] = useState(false)
   const [discoverError, setDiscoverError] = useState('')
   const [librarySearchValue, setLibrarySearchValue] = useState('')
@@ -465,6 +485,7 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
   const [partnerError, setPartnerError] = useState('')
   const [partnerSaving, setPartnerSaving] = useState(false)
   const [partnerAvatarUploading, setPartnerAvatarUploading] = useState(false)
+  const [webSearchEnabled, setWebSearchEnabled] = useState(false)
   const [selectedSkillName, setSelectedSkillName] = useState<string | null>(null)
   const [artifactPreviewLoading, setArtifactPreviewLoading] = useState(false)
   const [artifactPreviewError, setArtifactPreviewError] = useState('')
@@ -506,6 +527,10 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
   const partnerAvatarInputRef = useRef<HTMLInputElement | null>(null)
   const uploadAbortControllersRef = useRef<Map<string, AbortController>>(new Map())
   const hasConversation = messages.length > 0 || Boolean(routeSessionId)
+  const groupedSessions = useMemo(() => groupChatSessionsByTime(sessions), [sessions])
+  const hasGroupedSessions = groupedSessions.today.length > 0
+    || groupedSessions.within7Days.length > 0
+    || groupedSessions.beyond7Days.length > 0
 
   const menuItems = [
     { key: 'new', label: '新建' },
@@ -526,15 +551,14 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
     }
   }, [partnerConfig])
   const groupedDiscoverAgents = useMemo(() => groupVisibleAgents(visibleAgents, currentUserId), [currentUserId, visibleAgents])
-  const customAgents = groupedDiscoverAgents.mine
-  const visibleCustomAgents = showMore ? customAgents : customAgents.slice(0, 6)
+  const visibleAgentUsageLogs = showMore ? agentUsageLogs : agentUsageLogs.slice(0, 6)
   const plusCardItems = [
     { key: 'file', label: '图片 / 文件' },
     { key: 'doc', label: '资料库' },
   ]
   const plusListItems = [
     { key: 'skills', label: '技能' },
-    { key: 'tools', label: '工具' },
+    { key: 'network', label: '联网' },
   ]
   const fileMenuItems = [
     { key: 'album', label: '照片图库', icon: 'album' },
@@ -1091,6 +1115,36 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
   }, [showSkillSelectorPage])
 
   useEffect(() => {
+    if (!showDrawer) {
+      return
+    }
+
+    const controller = new AbortController()
+
+    void (async () => {
+      setAgentUsageLogsLoading(true)
+      setAgentUsageLogsError('')
+
+      try {
+        setAgentUsageLogs(await getAgentUsageLogs(controller.signal))
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          setAgentUsageLogs([])
+          setAgentUsageLogsError(error instanceof Error ? error.message : '智能体使用记录加载失败')
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setAgentUsageLogsLoading(false)
+        }
+      }
+    })()
+
+    return () => {
+      controller.abort()
+    }
+  }, [showDrawer])
+
+  useEffect(() => {
     const controller = new AbortController()
 
     void (async () => {
@@ -1206,16 +1260,172 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
   }
 
   const openAgentChat = async (agent: DiscoverAgentItem) => {
+    let createdUsageLog = false
+
     try {
-      await ensureAgentUsageLog(agent.agentId)
+      createdUsageLog = await ensureAgentUsageLog(agent.agentId)
     } catch (error) {
       console.warn('[ai-page] 补写智能体使用记录失败：', error)
     }
+
+    setAgentUsageLogs((current) => {
+      const nextEntry: AgentUsageLog = {
+        agentId: agent.agentId,
+        userId: currentUserId,
+        agentName: agent.agentName,
+        avatarUrl: agent.avatarUrl,
+        usedAt: new Date().toISOString(),
+      }
+
+      if (createdUsageLog || !current.some((item) => item.agentId === agent.agentId)) {
+        return [nextEntry, ...current.filter((item) => item.agentId !== agent.agentId)]
+      }
+
+      return current.map((item) => item.agentId === agent.agentId ? {
+        ...item,
+        agentName: agent.agentName,
+        avatarUrl: agent.avatarUrl,
+      } : item)
+    })
 
     activateAgent(buildAgentContext(agent))
     startNewChat({ keepAgent: true })
     setShowDiscoverPage(false)
     setShowDrawer(false)
+  }
+
+  const openAgentUsageLogChat = (agent: AgentUsageLog) => {
+    const matchedAgent = visibleAgents.find((item) => item.agentId === agent.agentId)
+
+    if (matchedAgent) {
+      void openAgentChat(matchedAgent)
+      return
+    }
+
+    activateAgent({
+      agentId: agent.agentId,
+      agentName: agent.agentName,
+      description: '',
+    })
+    startNewChat({ keepAgent: true })
+    setShowDiscoverPage(false)
+    setShowDrawer(false)
+  }
+
+  const openDeleteAgentUsageDialog = (agent: AgentUsageLog) => {
+    setDeleteTargetAgent(agent)
+  }
+
+  const closeDeleteAgentUsageDialog = () => {
+    if (deleteAgentUsageLoading) {
+      return
+    }
+
+    setDeleteTargetAgent(null)
+  }
+
+  const confirmDeleteAgentUsageLog = async () => {
+    const agent = deleteTargetAgent
+
+    if (!agent) {
+      return
+    }
+
+    try {
+      setDeleteAgentUsageLoading(true)
+      setRemovingAgentIds((current) => new Set(current).add(agent.agentId))
+      await deleteAgentUsageLog(agent.agentId)
+      setAgentUsageLogs((current) => current.filter((item) => item.agentId !== agent.agentId))
+      setDeleteTargetAgent(null)
+    } catch (error) {
+      setLocalBannerMessage(error instanceof Error ? error.message : '删除智能体使用记录失败')
+    } finally {
+      setDeleteAgentUsageLoading(false)
+      setRemovingAgentIds((current) => {
+        const next = new Set(current)
+        next.delete(agent.agentId)
+        return next
+      })
+    }
+  }
+
+  const openDeleteSessionDialog = (session: ChatSession) => {
+    setDeleteTargetSession(session)
+  }
+
+  const closeDeleteSessionDialog = () => {
+    if (deleteSessionLoading) {
+      return
+    }
+
+    setDeleteTargetSession(null)
+  }
+
+  const confirmDeleteSession = async () => {
+    const session = deleteTargetSession
+
+    if (!session) {
+      return
+    }
+
+    try {
+      setDeleteSessionLoading(true)
+      setRemovingSessionIds((current) => new Set(current).add(session.session_id))
+      await removeSession(session.session_id)
+      setDeleteTargetSession(null)
+    } catch (error) {
+      setLocalBannerMessage(error instanceof Error ? error.message : '删除会话失败')
+    } finally {
+      setDeleteSessionLoading(false)
+      setRemovingSessionIds((current) => {
+        const next = new Set(current)
+        next.delete(session.session_id)
+        return next
+      })
+    }
+  }
+
+  const renderDrawerSessionGroup = (title: '今天' | '7天内' | '7天外', items: ChatSession[]) => {
+    if (items.length === 0) {
+      return null
+    }
+
+    return (
+      <div className="ai-drawer-chat-group" key={title}>
+        <div className="ai-drawer-chat-group-title">{title}</div>
+        {items.map((session) => (
+          <div
+            className={`ai-drawer-chat-row ${removingSessionIds.has(session.session_id) ? 'is-removing' : ''}`}
+            key={session.session_id}
+          >
+            <button
+              className={`ai-drawer-chat-item ${routeSessionId === session.session_id ? 'is-active' : ''}`}
+              disabled={removingSessionIds.has(session.session_id)}
+              type="button"
+              onClick={() => {
+                openSession(session.session_id)
+                setShowDrawer(false)
+              }}
+            >
+              <div className="ai-drawer-chat-icon">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                </svg>
+              </div>
+              <span className="ai-drawer-chat-title">{session.session_name?.trim() || '话题'}</span>
+            </button>
+            <button
+              className="ai-drawer-chat-delete"
+              disabled={removingSessionIds.has(session.session_id)}
+              type="button"
+              onClick={() => { openDeleteSessionDialog(session) }}
+            >
+              {removingSessionIds.has(session.session_id) ? '删除中' : '删除'}
+            </button>
+          </div>
+        ))}
+      </div>
+    )
   }
 
   const addSelectedLibraryItemsToDraft = () => {
@@ -1428,7 +1638,7 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
             setShowPlusSheet(true)
           }}
           onStop={() => stopResponding()}
-          onSubmit={(promptOverride) => submitPrompt(promptOverride)}
+          onSubmit={(promptOverride) => submitPrompt(promptOverride, undefined, undefined, { enableWebSearch: webSearchEnabled })}
         />
         <input
           accept={fileInputAccept}
@@ -1587,135 +1797,133 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
 
           <div className="ai-drawer-panel" onClick={(e) => e.stopPropagation()}>
             <div className="ai-drawer-body">
-              <div className="ai-drawer-profile">
-                <img
-                  alt={BRAND_NAME}
-                  className="ai-drawer-profile-avatar"
-                  decoding="async"
-                  loading="lazy"
-                  src={LUCKY_AVATAR_URL}
-                />
-                <div className="ai-drawer-profile-name">{BRAND_NAME}</div>
-              </div>
+              <div className="ai-drawer-fixed-section">
+                <div className="ai-drawer-profile">
+                  <img
+                    alt={BRAND_NAME}
+                    className="ai-drawer-profile-avatar"
+                    decoding="async"
+                    loading="lazy"
+                    src={LUCKY_AVATAR_URL}
+                  />
+                  <div className="ai-drawer-profile-name">{BRAND_NAME}</div>
+                </div>
 
-              <div className="ai-drawer-menu">
-                {menuItems.map((item) => (
-                  <div className={`ai-drawer-menu-item ${(item.key === 'library' && showSidebarLibrary) || (item.key === 'new' && !showSidebarLibrary && !showDiscoverPage && !showSkillsPage) || (item.key === 'discover' && showDiscoverPage) || (item.key === 'skills' && showSkillsPage) ? 'is-highlighted' : ''}`} key={item.key} onClick={() => {
-                    if (item.key === 'library') {
-                      openSidebarLibraryPage()
-                    }
-                    if (item.key === 'new') {
-                      startNewChat()
-                      setShowSidebarLibrary(false)
-                      setShowDiscoverPage(false)
-                      setShowSkillsPage(false)
-                      setShowDrawer(false)
-                    }
-                    if (item.key === 'discover') {
-                      setShowDiscoverPage(true)
-                      setShowSidebarLibrary(false)
-                      setShowSkillsPage(false)
-                      setShowDrawer(false)
-                    }
-                    if (item.key === 'skills') {
-                      openSkillsPage()
-                    }
-                  }}>
-                    <span className="ai-drawer-menu-icon">{renderDrawerIcon(item.key)}</span>
-                    <span className="ai-drawer-menu-label">{item.label}</span>
-                  </div>
-                ))}
-              </div>
-
-              <div className="ai-drawer-section">
-                <div className="ai-drawer-section-title">智能伙伴</div>
-                <button className="ai-drawer-agent-item" type="button" onClick={openPartnerPage}>
-                  <div
-                    className="ai-drawer-agent-avatar"
-                    style={builtInAgent.avatarUrl ? {
-                      backgroundImage: `url(${builtInAgent.avatarUrl})`,
-                      backgroundSize: 'cover',
-                      backgroundPosition: 'center',
-                      backgroundColor: 'transparent',
-                    } : { background: builtInAgent.color }}
-                  >
-                    {!builtInAgent.avatarUrl && builtInAgent.avatar}
-                  </div>
-                  <span className="ai-drawer-agent-name">{builtInAgent.name}</span>
-                </button>
-              </div>
-
-              <div className="ai-drawer-section">
-                <div className="ai-drawer-section-title">自定义智能体</div>
-                {visibleCustomAgents.map((agent) => (
-                  <button
-                    className="ai-drawer-agent-item"
-                    key={agent.agentId}
-                    type="button"
-                    onClick={() => { void openAgentChat(agent) }}
-                  >
-                    <div
-                      className="ai-drawer-agent-avatar"
-                      style={agent.avatarUrl ? {
-                        backgroundImage: `url(${agent.avatarUrl})`,
-                        backgroundSize: 'cover',
-                        backgroundPosition: 'center',
-                        backgroundColor: 'transparent',
-                      } : { backgroundColor: '#4A7CFF' }}
-                    >
-                      {!agent.avatarUrl && getAgentAvatarLetter(agent.agentName)}
-                    </div>
-                    <span className="ai-drawer-agent-name">{agent.agentName}</span>
-                  </button>
-                ))}
-
-                {!showMore && customAgents.length > visibleCustomAgents.length && (
-                  <button className="ai-drawer-more" type="button" onClick={() => setShowMore(true)}>
-                    更多
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                      <polyline points="6 9 12 15 18 9" />
-                    </svg>
-                  </button>
-                )}
-              </div>
-
-              {/* 会话历史记录 */}
-              <div className="ai-drawer-section">
-                <div className="ai-drawer-section-title">最近对话</div>
-                {isLoadingSessions ? (
-                  <div className="ai-drawer-chat-empty">正在刷新会话…</div>
-                ) : sessions.length === 0 ? (
-                  <div className="ai-drawer-chat-empty">还没有历史会话</div>
-                ) : (
-                  sessions.map((session) => (
-                    <button
-                      className={`ai-drawer-chat-item ${routeSessionId === session.session_id ? 'is-active' : ''}`}
-                      key={session.session_id}
-                      type="button"
-                      onClick={() => {
-                        openSession(session.session_id)
+                <div className="ai-drawer-menu">
+                  {menuItems.map((item) => (
+                    <div className={`ai-drawer-menu-item ${(item.key === 'library' && showSidebarLibrary) || (item.key === 'new' && !showSidebarLibrary && !showDiscoverPage && !showSkillsPage) || (item.key === 'discover' && showDiscoverPage) || (item.key === 'skills' && showSkillsPage) ? 'is-highlighted' : ''}`} key={item.key} onClick={() => {
+                      if (item.key === 'library') {
+                        openSidebarLibraryPage()
+                      }
+                      if (item.key === 'new') {
+                        startNewChat()
+                        setShowSidebarLibrary(false)
+                        setShowDiscoverPage(false)
+                        setShowSkillsPage(false)
                         setShowDrawer(false)
-                      }}
-                    >
-                      <div className="ai-drawer-chat-icon">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                        </svg>
-                      </div>
-                      <span className="ai-drawer-chat-title">{session.session_name?.trim() || '话题'}</span>
-                      <span
-                        className="ai-drawer-chat-delete"
-                        onClick={(event) => {
-                          event.preventDefault()
-                          event.stopPropagation()
-                          void removeSession(session.session_id)
-                        }}
+                      }
+                      if (item.key === 'discover') {
+                        setShowDiscoverPage(true)
+                        setShowSidebarLibrary(false)
+                        setShowSkillsPage(false)
+                        setShowDrawer(false)
+                      }
+                      if (item.key === 'skills') {
+                        openSkillsPage()
+                      }
+                    }}>
+                      <span className="ai-drawer-menu-icon">{renderDrawerIcon(item.key)}</span>
+                      <span className="ai-drawer-menu-label">{item.label}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="ai-drawer-scroll-section">
+                <div className="ai-drawer-unified-scroll">
+                  <div className="ai-drawer-section">
+                    <div className="ai-drawer-section-title">智能伙伴</div>
+                    <button className="ai-drawer-agent-item" type="button" onClick={openPartnerPage}>
+                      <div
+                        className="ai-drawer-agent-avatar"
+                        style={builtInAgent.avatarUrl ? {
+                          backgroundImage: `url(${builtInAgent.avatarUrl})`,
+                          backgroundSize: 'cover',
+                          backgroundPosition: 'center',
+                          backgroundColor: 'transparent',
+                        } : { background: builtInAgent.color }}
                       >
-                        删除
-                      </span>
+                        {!builtInAgent.avatarUrl && builtInAgent.avatar}
+                      </div>
+                      <span className="ai-drawer-agent-name">{builtInAgent.name}</span>
                     </button>
-                  ))
-                )}
+                  </div>
+
+                  <div className="ai-drawer-section">
+                    <div className="ai-drawer-section-title">自定义智能体</div>
+                    {agentUsageLogsLoading ? (
+                      <div className="ai-drawer-chat-empty">正在刷新智能体…</div>
+                    ) : agentUsageLogsError ? (
+                      <div className="ai-drawer-chat-empty">{agentUsageLogsError}</div>
+                    ) : visibleAgentUsageLogs.length === 0 ? (
+                      <div className="ai-drawer-chat-empty">还没有智能体使用记录</div>
+                    ) : visibleAgentUsageLogs.map((agent) => (
+                      <div className={`ai-drawer-agent-row ${removingAgentIds.has(agent.agentId) ? 'is-removing' : ''}`} key={agent.agentId}>
+                        <button
+                          className="ai-drawer-agent-item"
+                          disabled={removingAgentIds.has(agent.agentId)}
+                          type="button"
+                          onClick={() => { openAgentUsageLogChat(agent) }}
+                        >
+                          <div
+                            className="ai-drawer-agent-avatar"
+                            style={agent.avatarUrl ? {
+                              backgroundImage: `url(${agent.avatarUrl})`,
+                              backgroundSize: 'cover',
+                              backgroundPosition: 'center',
+                              backgroundColor: 'transparent',
+                            } : { backgroundColor: '#4A7CFF' }}
+                          >
+                            {!agent.avatarUrl && getAgentAvatarLetter(agent.agentName)}
+                          </div>
+                          <span className="ai-drawer-agent-name">{agent.agentName}</span>
+                        </button>
+                        <button
+                          className="ai-drawer-agent-delete"
+                          disabled={removingAgentIds.has(agent.agentId)}
+                          type="button"
+                          onClick={() => { openDeleteAgentUsageDialog(agent) }}
+                        >
+                          {removingAgentIds.has(agent.agentId) ? '删除中' : '删除'}
+                        </button>
+                      </div>
+                    ))}
+
+                    {!showMore && agentUsageLogs.length > visibleAgentUsageLogs.length && (
+                      <button className="ai-drawer-more" type="button" onClick={() => setShowMore(true)}>
+                        更多
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                          <polyline points="6 9 12 15 18 9" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="ai-drawer-section">
+                    <div className="ai-drawer-section-title">最近对话</div>
+                    {isLoadingSessions ? (
+                      <div className="ai-drawer-chat-empty">正在刷新会话…</div>
+                    ) : !hasGroupedSessions ? (
+                      <div className="ai-drawer-chat-empty">还没有历史会话</div>
+                    ) : (
+                      <>
+                        {renderDrawerSessionGroup('今天', groupedSessions.today)}
+                        {renderDrawerSessionGroup('7天内', groupedSessions.within7Days)}
+                        {renderDrawerSessionGroup('7天外', groupedSessions.beyond7Days)}
+                      </>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -1790,39 +1998,68 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
 
             <div className="ai-plus-sheet-list">
               {plusListItems.map((item) => (
-                <button
-                  className="ai-plus-sheet-row"
-                  key={item.key}
-                  type="button"
-                  onClick={item.key === 'skills' ? openSkillSelectorPage : () => setShowFileMenu(false)}
-                >
-                  <span className="ai-plus-sheet-row-left">
-                    <span className="ai-plus-sheet-row-icon">
-                      {item.key === 'skills' ? (
+                item.key === 'skills' ? (
+                  <button
+                    className="ai-plus-sheet-row"
+                    key={item.key}
+                    type="button"
+                    onClick={openSkillSelectorPage}
+                  >
+                    <span className="ai-plus-sheet-row-left">
+                      <span className="ai-plus-sheet-row-icon">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M14.5 4.5a3 3 0 0 1 4.24 4.24l-1.42 1.42-4.24-4.24z" />
                           <path d="M13.09 5.91 5.3 13.7a2 2 0 0 0 0 2.83l2.17 2.17a2 2 0 0 0 2.83 0l7.79-7.79" />
                           <path d="m8.5 11.5 4 4" />
                         </svg>
-                      ) : (
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                          <circle cx="6" cy="18" r="2" />
-                          <circle cx="18" cy="18" r="2" />
-                          <circle cx="12" cy="7" r="2" />
-                          <path d="M8 17l2.6-7.2" />
-                          <path d="M16 17l-2.6-7.2" />
-                          <path d="M8 18h8" />
-                        </svg>
-                      )}
+                      </span>
+                      <span className="ai-plus-sheet-row-label">{item.label}</span>
                     </span>
-                    <span className="ai-plus-sheet-row-label">{item.label}</span>
-                  </span>
-                  <span className="ai-plus-sheet-row-arrow">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="9 18 15 12 9 6" />
-                    </svg>
-                  </span>
-                </button>
+                    <span className="ai-plus-sheet-row-arrow">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="9 18 15 12 9 6" />
+                      </svg>
+                    </span>
+                  </button>
+                ) : (
+                  <div
+                    className="ai-plus-sheet-row is-switch-row"
+                    key={item.key}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => {
+                      setShowFileMenu(false)
+                      setWebSearchEnabled((value) => !value)
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault()
+                        setShowFileMenu(false)
+                        setWebSearchEnabled((value) => !value)
+                      }
+                    }}
+                  >
+                    <span className="ai-plus-sheet-row-left">
+                      <span className="ai-plus-sheet-row-icon">
+                        <GlobalOutline fontSize={20} />
+                      </span>
+                      <span className="ai-plus-sheet-row-label">{item.label}</span>
+                    </span>
+                    <span
+                      className="ai-plus-sheet-row-switch"
+                      onClick={(event) => {
+                        event.stopPropagation()
+                      }}
+                    >
+                      <Switch
+                        aria-label="联网查询开关"
+                        checked={webSearchEnabled}
+                        className="ai-plus-sheet-network-switch"
+                        onChange={setWebSearchEnabled}
+                      />
+                    </span>
+                  </div>
+                )
               ))}
             </div>
           </div>
@@ -2471,6 +2708,60 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
           </section>
         </div>
       )}
+
+      <Dialog
+        visible={Boolean(deleteTargetAgent)}
+        content="是否确认删除该智能体使用记录？"
+        closeOnAction={false}
+        closeOnMaskClick={!deleteAgentUsageLoading}
+        onClose={closeDeleteAgentUsageDialog}
+        actions={[
+          [
+            {
+              key: 'cancel',
+              text: '取消',
+              disabled: deleteAgentUsageLoading,
+              style: { color: '#1f2329' },
+              onClick: closeDeleteAgentUsageDialog,
+            },
+            {
+              key: 'delete',
+              text: deleteAgentUsageLoading ? '删除中...' : '删除',
+              bold: true,
+              disabled: deleteAgentUsageLoading,
+              style: { color: '#1f2329' },
+              onClick: confirmDeleteAgentUsageLog,
+            },
+          ],
+        ]}
+      />
+
+      <Dialog
+        visible={Boolean(deleteTargetSession)}
+        content="确认删除后将无法恢复，是否继续？"
+        closeOnAction={false}
+        closeOnMaskClick={!deleteSessionLoading}
+        onClose={closeDeleteSessionDialog}
+        actions={[
+          [
+            {
+              key: 'cancel-session-delete',
+              text: '取消',
+              disabled: deleteSessionLoading,
+              style: { color: '#1f2329' },
+              onClick: closeDeleteSessionDialog,
+            },
+            {
+              key: 'confirm-session-delete',
+              text: deleteSessionLoading ? '删除中...' : '删除',
+              bold: true,
+              disabled: deleteSessionLoading,
+              style: { color: '#1f2329' },
+              onClick: confirmDeleteSession,
+            },
+          ],
+        ]}
+      />
     </div>
   )
 }

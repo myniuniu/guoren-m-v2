@@ -125,7 +125,7 @@ export async function buildStartChatStreamRequest(
       method: 'POST',
       headers: streamHeaders,
       body: JSON.stringify({
-        enable_web_search: false,
+        enable_web_search: payload.enableWebSearch ?? false,
         include_tool_details: true,
         message: payload.message,
         uploaded_files: payload.uploadedFiles ?? [],

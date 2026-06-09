@@ -112,6 +112,7 @@ export interface ChatStreamHttpRequest {
 
 export interface ChatStreamStartPayload {
   message: string
+  enableWebSearch?: boolean
   skillName?: string | null
   uploadedFiles?: Array<{
     resource_id: string

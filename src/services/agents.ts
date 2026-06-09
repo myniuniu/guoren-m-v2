@@ -3,6 +3,7 @@ import { getChatUserId } from './chat/api'
 
 const VISIBLE_AGENTS_PATH = '/api/v1/custom-agents/public/list'
 const AGENT_USAGE_LOGS_PATH = '/api/v1/custom-agents/usage-logs'
+const AGENT_USAGE_LOG_DETAIL_PATH = '/api/v1/custom-agents/usage-logs/{agent_id}'
 const AGENT_USAGE_PAGE_SIZE = 100
 
 export type AgentPublishScope = 'private' | 'public' | 'specified'
@@ -24,6 +25,9 @@ export interface DiscoverAgentItem {
 
 export interface AgentUsageLog {
   agentId: string
+  userId: string
+  agentName: string
+  avatarUrl: string | null
   usedAt: string
 }
 
@@ -46,6 +50,9 @@ type AgentUsageLogsResponse = {
   data?: {
     logs?: Array<{
       agent_id?: string
+      user_id?: string
+      agent_name?: string
+      avatar_url?: string
       used_at?: string
     }>
   }
@@ -202,6 +209,9 @@ export async function getAgentUsageLogs(signal?: AbortSignal): Promise<AgentUsag
 
           return [{
             agentId: item.agent_id,
+            userId: typeof item.user_id === 'string' ? item.user_id : '',
+            agentName: typeof item.agent_name === 'string' ? item.agent_name : '',
+            avatarUrl: typeof item.avatar_url === 'string' ? item.avatar_url : null,
             usedAt: item.used_at,
           }]
         })
@@ -247,6 +257,35 @@ export async function addAgentUsageLog(agentId: string, signal?: AbortSignal): P
 
   if (payload.success === false) {
     throw new Error(payload.msg || payload.message || '添加智能体使用记录失败')
+  }
+}
+
+export async function deleteAgentUsageLog(agentId: string, signal?: AbortSignal): Promise<void> {
+  const userId = getRequiredUserId()
+  const requestUrl = buildAiApiUrl(
+    AGENT_USAGE_LOG_DETAIL_PATH.replace('{agent_id}', encodeURIComponent(agentId)),
+    {
+      user_id: userId,
+      agent_id: agentId,
+    },
+  )
+
+  const response = await authorizedFetch(requestUrl, {
+    method: 'DELETE',
+    headers: {
+      Accept: 'application/json',
+    },
+    signal,
+  })
+
+  if (!response.ok) {
+    throw new Error('删除智能体使用记录失败')
+  }
+
+  const payload = await response.json() as { success?: boolean; msg?: string; message?: string }
+
+  if (payload.success === false) {
+    throw new Error(payload.msg || payload.message || '删除智能体使用记录失败')
   }
 }
 
