@@ -13,6 +13,7 @@ import { buildHmacAuthHeaders } from './hmacSign';
 // API 基础地址，从环境变量读取
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://test-guoren-api.grtcloud.net/jeecg-boot';
 const AI_BASE_URL = import.meta.env.VITE_AI_API_BASE_URL || 'https://test-guoren-ai.grtcloud.net';
+const AI_DEV_PROXY_PREFIX = '/__ai_proxy';
 
 // 401 回调注册
 type UnauthorizedCallback = () => void;
@@ -149,6 +150,29 @@ function buildUrlWithBase(baseUrl: string, path: string, params?: Record<string,
   return urlObj.toString();
 }
 
+function getCanonicalAiApiBaseUrl(): string {
+  return AI_BASE_URL.replace(/\/+$/, '');
+}
+
+export function getAiBrowserBaseUrl(): string {
+  return import.meta.env.DEV ? AI_DEV_PROXY_PREFIX : getCanonicalAiApiBaseUrl();
+}
+
+function resolveBrowserFetchUrl(url: string): string {
+  if (!import.meta.env.DEV || url.startsWith(AI_DEV_PROXY_PREFIX)) {
+    return url;
+  }
+
+  const normalizedAiBaseUrl = getCanonicalAiApiBaseUrl();
+
+  if (!url.startsWith(normalizedAiBaseUrl)) {
+    return url;
+  }
+
+  const urlObj = new URL(url);
+  return `${AI_DEV_PROXY_PREFIX}${urlObj.pathname}${urlObj.search}`;
+}
+
 /**
  * 底层请求函数：仅做 HMAC 签名，不做 token 注入和 401 处理
  * 用于登录、获取验证码等不需要鉴权的接口
@@ -159,6 +183,7 @@ export async function signedFetch(
 ): Promise<Response> {
   const method = (options.method || 'GET').toUpperCase();
   const { finalUrl, body } = resolveRequestUrl(url, options);
+  const requestUrl = resolveBrowserFetchUrl(finalUrl);
 
   // 获取 HMAC 签名头
   const hmacHeaders = await buildHmacAuthHeaders(finalUrl, method);
@@ -173,7 +198,7 @@ export async function signedFetch(
     ...hmacHeaders,
   };
 
-  return fetch(finalUrl, {
+  return fetch(requestUrl, {
     ...options,
     method,
     body,
@@ -193,7 +218,7 @@ export function buildApiUrl(path: string, params?: Record<string, string>): stri
  * AI 服务基座，供聊天、指令、智能体等 /api/v1/* 接口显式使用。
  */
 export function getAiApiBaseUrl(): string {
-  return AI_BASE_URL.replace(/\/+$/, '');
+  return getCanonicalAiApiBaseUrl();
 }
 
 /**
@@ -204,6 +229,13 @@ export function buildAiApiUrl(
   params?: Record<string, string>
 ): string {
   return buildUrlWithBase(getAiApiBaseUrl(), path, params);
+}
+
+export function buildAiBrowserUrl(
+  path: string,
+  params?: Record<string, string>
+): string {
+  return buildUrlWithBase(getAiBrowserBaseUrl(), path, params);
 }
 
 /**
@@ -246,12 +278,13 @@ export async function authorizedFetch(
 ): Promise<Response> {
   const method = (options.method || 'GET').toUpperCase();
   const { finalUrl, body } = resolveRequestUrl(url, options);
+  const requestUrl = resolveBrowserFetchUrl(finalUrl);
   const headers = await buildAuthorizedHeaders(finalUrl, method, mergeRequestHeaders({
     'Content-Type': 'application/json',
     Accept: 'application/json',
   }, options.headers));
 
-  return fetch(finalUrl, {
+  return fetch(requestUrl, {
     ...options,
     method,
     body,

@@ -9,7 +9,7 @@ export type CommandApiItem = {
   id: string
   type: 'recommend' | 'practice'
   name: string
-  description: string
+  description: string | null
   template: string
   skill_name: string | null
   attachments: unknown[]
@@ -87,6 +87,10 @@ function normalizeCommandAttachments(rawAttachments: unknown): ChatAttachment[] 
   })
 }
 
+function normalizeCommandText(value: string | null | undefined): string {
+  return typeof value === 'string' ? value : ''
+}
+
 function resolveCommandsData(payload: CommandsSuccessResponse): CommandsData {
   const data = payload.data ?? payload
 
@@ -124,16 +128,20 @@ export async function fetchCommands(signal?: AbortSignal): Promise<CommandsData>
 }
 
 export function mapCommandsToPromptItems(commands: CommandApiItem[]): CommandPromptItem[] {
-  return commands.map((command) => ({
-    id: command.id,
-    icon: command.icon ?? '📝',
-    title: command.name,
-    summary: command.description.length > MAX_DESCRIPTION_LENGTH
-      ? `${command.description.slice(0, MAX_DESCRIPTION_LENGTH)}…`
-      : command.description,
-    template: command.template,
-    skillName: command.skill_name ?? null,
-    attachments: normalizeCommandAttachments(command.attachments),
-    image: command.image ?? null,
-  }))
+  return commands.map((command) => {
+    const description = normalizeCommandText(command.description)
+
+    return {
+      id: command.id,
+      icon: command.icon ?? '📝',
+      title: command.name,
+      summary: description.length > MAX_DESCRIPTION_LENGTH
+        ? `${description.slice(0, MAX_DESCRIPTION_LENGTH)}…`
+        : description,
+      template: command.template,
+      skillName: command.skill_name ?? null,
+      attachments: normalizeCommandAttachments(command.attachments),
+      image: command.image ?? null,
+    }
+  })
 }

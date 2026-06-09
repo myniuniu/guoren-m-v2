@@ -1,6 +1,7 @@
 import {
   authorizedFetch,
   buildAiApiUrl,
+  buildAiBrowserUrl,
   buildAuthorizedHeaders,
 } from '../../utils/request'
 import type { ChatStreamHttpRequest, ChatStreamStartPayload } from './types'
@@ -110,6 +111,8 @@ export async function buildStartChatStreamRequest(
 }> {
   const streamUrl = buildAiApiUrl(`${CHAT_SESSIONS_PATH}/${sessionId}/stream`)
   const stopUrl = buildAiApiUrl(`${CHAT_SESSIONS_PATH}/${sessionId}/stream/stop`)
+  const browserStreamUrl = buildAiBrowserUrl(`${CHAT_SESSIONS_PATH}/${sessionId}/stream`)
+  const browserStopUrl = buildAiBrowserUrl(`${CHAT_SESSIONS_PATH}/${sessionId}/stream/stop`)
 
   const streamHeaders = await buildAuthorizedHeaders(streamUrl, 'POST', {
     Accept: 'text/event-stream',
@@ -121,7 +124,7 @@ export async function buildStartChatStreamRequest(
 
   return {
     streamRequest: {
-      url: streamUrl,
+      url: browserStreamUrl,
       method: 'POST',
       headers: streamHeaders,
       body: JSON.stringify({
@@ -134,7 +137,7 @@ export async function buildStartChatStreamRequest(
       }),
     },
     stopRequest: {
-      url: stopUrl,
+      url: browserStopUrl,
       method: 'POST',
       headers: stopHeaders,
     },
@@ -152,6 +155,10 @@ export async function buildResumeChatStreamRequest(
     cursor: String(afterSequence),
   })
   const stopUrl = buildAiApiUrl(`${CHAT_SESSIONS_PATH}/${sessionId}/stream/stop`)
+  const browserStreamUrl = buildAiBrowserUrl(`${CHAT_SESSIONS_PATH}/${sessionId}/stream`, {
+    cursor: String(afterSequence),
+  })
+  const browserStopUrl = buildAiBrowserUrl(`${CHAT_SESSIONS_PATH}/${sessionId}/stream/stop`)
 
   const streamHeaders = await buildAuthorizedHeaders(streamUrl, 'GET', {
     Accept: 'text/event-stream',
@@ -162,12 +169,12 @@ export async function buildResumeChatStreamRequest(
 
   return {
     streamRequest: {
-      url: streamUrl,
+      url: browserStreamUrl,
       method: 'GET',
       headers: streamHeaders,
     },
     stopRequest: {
-      url: stopUrl,
+      url: browserStopUrl,
       method: 'POST',
       headers: stopHeaders,
     },

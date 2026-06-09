@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react'
-import { getAiApiBaseUrl } from '../utils/request'
+import { getAiBrowserBaseUrl } from '../utils/request'
 
 type VoiceState = 'idle' | 'requesting' | 'recording' | 'stopping' | 'error'
 
@@ -94,8 +94,8 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputRetur
       throw new Error('当前缺少登录态，暂时无法使用语音输入')
     }
 
-    const apiBaseUrl = getAiApiBaseUrl()
-    const url = new URL(apiBaseUrl)
+    const apiBaseUrl = getAiBrowserBaseUrl()
+    const url = new URL(apiBaseUrl, window.location.origin)
     const protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
 
     return `${protocol}//${url.host}/api/v1/asr/realtime?user_id=${encodeURIComponent(userId)}&x_access_token=${encodeURIComponent(token)}`

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } f
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Dialog, Switch } from 'antd-mobile'
 import { GlobalOutline, SetOutline } from 'antd-mobile-icons'
-import { fetchCommands, mapCommandsToPromptItems, type CommandPromptItem } from '../../services/commands'
+import { fetchCommands, mapCommandsToPromptItems, type CommandApiItem, type CommandPromptItem, type CommandsData } from '../../services/commands'
 import {
   deleteAgentUsageLog,
   ensureAgentUsageLog,
@@ -51,6 +51,7 @@ import {
   type SkillSummaryItem,
 } from '../../services/skills'
 import { AiConversationThread } from './components/AiConversationThread'
+import AiCommandsPage, { type AiCommandsPageTabKey } from './components/AiCommandsPage'
 import AiSidebarLibraryPage from './components/AiSidebarLibraryPage'
 import { resolveArtifactPreviewUrl, useAiChatRuntime, type ActiveAgentContext } from './hooks/useAiChatRuntime'
 import { useDisplayNamePrefetch } from '../IM/utils/displayNameHooks'
@@ -93,6 +94,12 @@ const fallbackFeatureCards: CommandPromptItem[] = [
     attachments: [],
   },
 ]
+
+const EMPTY_COMMANDS_DATA: CommandsData = {
+  official_commands: [],
+  best_practices: [],
+  my_commands: [],
+}
 
 const featureCardColors = ['#FF8C00', '#8E8E93', '#5AC8FA', '#4A7CFF', '#33C39B', '#34C759']
 
@@ -432,6 +439,8 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
   const [showLibraryPage, setShowLibraryPage] = useState(false)
   const [showSidebarLibrary, setShowSidebarLibrary] = useState(false)
   const [showDiscoverPage, setShowDiscoverPage] = useState(false)
+  const [showCommandsPage, setShowCommandsPage] = useState(false)
+  const [commandsPageTab, setCommandsPageTab] = useState<AiCommandsPageTabKey>('best-practice')
   const [showMySkillsPage, setShowMySkillsPage] = useState(false)
   const [mySkillsTab, setMySkillsTab] = useState<'added' | 'created'>('added')
   const [showCreateSkillSheet, setShowCreateSkillSheet] = useState(false)
@@ -441,6 +450,9 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
   const [selectedOrgSpaceId, setSelectedOrgSpaceId] = useState('')
   const [showOrgSpacePicker, setShowOrgSpacePicker] = useState(false)
   const [featureCards, setFeatureCards] = useState<CommandPromptItem[]>(fallbackFeatureCards)
+  const [commandsData, setCommandsData] = useState<CommandsData>(EMPTY_COMMANDS_DATA)
+  const [commandsLoading, setCommandsLoading] = useState(false)
+  const [commandsError, setCommandsError] = useState('')
   const [skillSearchValue, setSkillSearchValue] = useState('')
   const [skillSelectorSearchValue, setSkillSelectorSearchValue] = useState('')
   const [debouncedSkillSearchValue, setDebouncedSkillSearchValue] = useState('')
@@ -966,6 +978,9 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
     let cancelled = false
 
     void (async () => {
+      setCommandsLoading(true)
+      setCommandsError('')
+
       try {
         const commands = await fetchCommands()
 
@@ -973,10 +988,18 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
           return
         }
 
+        setCommandsData(commands)
         const nextCards = mapCommandsToPromptItems(commands.best_practices)
         setFeatureCards(nextCards.length > 0 ? nextCards : fallbackFeatureCards)
       } catch (error) {
+        if (!cancelled) {
+          setCommandsError(error instanceof Error ? error.message : '指令内容加载失败')
+        }
         console.warn('[ai-page] 加载最佳实践失败：', error)
+      } finally {
+        if (!cancelled) {
+          setCommandsLoading(false)
+        }
       }
     })()
 
@@ -1244,6 +1267,22 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
     setDraftAttachments(card.attachments)
   }
 
+  const openCommandsPage = (tab: AiCommandsPageTabKey = 'best-practice') => {
+    setCommandsPageTab(tab)
+    setShowCommandsPage(true)
+  }
+
+  const applyCommandItem = (command: CommandApiItem) => {
+    const nextCard = mapCommandsToPromptItems([command])[0]
+
+    if (!nextCard) {
+      return
+    }
+
+    applyFeatureCard(nextCard)
+    setShowCommandsPage(false)
+  }
+
   const applySkillItem = (skill: SkillSummaryItem) => {
     const resolvedSkillName = skill.skillName || skill.id
 
@@ -1484,7 +1523,19 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
     }
   }
 
-  return (
+  return showCommandsPage ? (
+    <AiCommandsPage
+      activeTab={commandsPageTab}
+      bestPractices={commandsData.best_practices}
+      error={commandsError}
+      loading={commandsLoading}
+      myCommands={commandsData.my_commands}
+      officialCommands={commandsData.official_commands}
+      onApplyCommand={applyCommandItem}
+      onBack={() => setShowCommandsPage(false)}
+      onTabChange={setCommandsPageTab}
+    />
+  ) : (
     <div className="ai-page">
       {/* 背景 */}
       <div className="ai-page-bg" />
@@ -1553,7 +1604,7 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
             ) : (
               <>
                 <h1>Hi <DisplayName userId={currentUserId} fallback={displayName} />，有什么可以帮你的？</h1>
-                <div className="ai-page-practice-header">
+                <div className="ai-page-practice-header" onClick={() => openCommandsPage()}>
                   <span className="ai-page-practice-title">全部最佳实践</span>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <polyline points="9 18 15 12 9 6" />
@@ -1567,7 +1618,20 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
             <div className="ai-page-cards">
               {featureCards.map((card, index) => (
                 <button className="ai-card" key={card.id} type="button" onClick={() => applyFeatureCard(card)}>
-                  <div className="ai-card-icon" style={{ background: getFeatureCardColor(index) }}>{card.icon}</div>
+                  <div
+                    className={`ai-card-icon ${card.image ? 'has-image' : 'is-empty'}`}
+                    style={card.image ? undefined : { background: getFeatureCardColor(index) }}
+                  >
+                    {card.image ? (
+                      <img
+                        alt={card.title}
+                        className="ai-card-icon-image"
+                        decoding="async"
+                        loading="lazy"
+                        src={card.image}
+                      />
+                    ) : null}
+                  </div>
                   <div className="ai-card-text">
                     <span className="ai-card-label1">{card.title}</span>
                     <span className="ai-card-label2">{card.summary}</span>
