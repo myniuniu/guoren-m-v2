@@ -110,9 +110,18 @@ function isImSession(sessionId: string): boolean {
   return sessionId.includes('_im_')
 }
 
+function getSourceDisplayText(item: LibraryPageFileItem): string {
+  if (!item.agentName) {
+    return '未命名来源'
+  }
+
+  // 这里和 PC 端文件库保持一致：IM 产物统一在来源前补 IM-，便于用户区分普通会话和 IM 会话结果。
+  return isImSession(item.sessionId) ? `IM-${item.agentName}` : item.agentName
+}
+
 function buildListMeta(item: LibraryPageFileItem): string {
   return [
-    item.agentName || '未命名来源',
+    getSourceDisplayText(item),
     getFileTypeLabel(item.fileType),
     formatDateTime(item.createdAt),
   ].join(' · ')
@@ -196,7 +205,7 @@ export function AiSidebarLibraryPage({
   const sourceOptions = useMemo(() => {
     return [
       'all',
-      ...Array.from(new Set(files.map((item) => item.agentName).filter(Boolean))),
+      ...Array.from(new Set(files.map((item) => getSourceDisplayText(item)).filter(Boolean))),
     ]
   }, [files])
 
@@ -225,7 +234,7 @@ export function AiSidebarLibraryPage({
       return files
     }
 
-    return files.filter((item) => item.agentName === sourceFilter)
+    return files.filter((item) => getSourceDisplayText(item) === sourceFilter)
   }, [files, sourceFilter])
 
   const loadKnowledgeSpaceOptions = async (): Promise<KnowledgeSpaceOption[]> => {
