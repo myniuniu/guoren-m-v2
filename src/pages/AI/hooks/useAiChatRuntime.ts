@@ -13,16 +13,19 @@ import {
 } from '../../../services/chat/api'
 import { createChatStreamBridge, type ChatStreamBridge } from '../../../services/chat/bridge'
 import {
-  advanceAssistantMessageForNextModelPhase,
   appendErrorToAssistantMessage,
-  appendReasoningDeltaToMessages,
-  appendTextDeltaToMessages,
-  attachReferencesToMessages,
-  attachSkillOutputToMessages,
   completeAssistantMessage,
-  upsertToolCallInMessages,
 } from '../../../services/chat/messageState'
 import { readSseStream } from '../../../services/chat/sse'
+import {
+  applyChatModelStartToSnapshot,
+  applyEventIdToSnapshot,
+  applyReasoningDeltaToSnapshot,
+  applyReferencesToSnapshot,
+  applySkillOutputToSnapshot,
+  applyTextDeltaToSnapshot,
+  applyToolCallToSnapshot,
+} from '../../../services/chat/streamState'
 import {
   clearChatStreamSnapshot,
   loadChatStreamSnapshot,
@@ -269,124 +272,28 @@ export function useAiChatRuntime() {
 
       await readSseStream(stream, {
         onEventId(eventId) {
-          const nextSequence = Number(eventId)
-
-          if (!Number.isFinite(nextSequence)) {
-            return
-          }
-
-          syncSnapshot({
-            ...nextSnapshot,
-            lastEventSequence: nextSequence,
-          })
+          syncSnapshot(applyEventIdToSnapshot(nextSnapshot, Number(eventId)))
         },
         onChatModelStart() {
-          if (!nextSnapshot.activeMessageId) {
-            return
-          }
-
-          const result = advanceAssistantMessageForNextModelPhase(
-            nextSnapshot.messages,
-            nextSnapshot.activeMessageId,
-            buildTimestamp(),
-          )
-
-          syncSnapshot({
-            ...nextSnapshot,
-            messages: result.messages,
-            activeMessageId: result.activeMessageId,
-          })
+          syncSnapshot(applyChatModelStartToSnapshot(nextSnapshot, buildTimestamp()))
         },
         onTextDelta(chunk) {
-          if (!nextSnapshot.activeMessageId) {
-            return
-          }
-
-          const result = appendTextDeltaToMessages(
-            nextSnapshot.messages,
-            nextSnapshot.activeMessageId,
-            chunk,
-            buildTimestamp(),
-          )
-
-          syncSnapshot({
-            ...nextSnapshot,
-            messages: result.messages,
-            activeMessageId: result.activeMessageId,
-          })
+          syncSnapshot(applyTextDeltaToSnapshot(nextSnapshot, chunk, buildTimestamp()))
         },
         onReasoningDelta(chunk) {
-          if (!nextSnapshot.activeMessageId) {
-            return
-          }
-
-          syncSnapshot({
-            ...nextSnapshot,
-            messages: appendReasoningDeltaToMessages(
-              nextSnapshot.messages,
-              nextSnapshot.activeMessageId,
-              chunk,
-              buildTimestamp(),
-            ),
-          })
+          syncSnapshot(applyReasoningDeltaToSnapshot(nextSnapshot, chunk, buildTimestamp()))
         },
         onToolStart(toolCall) {
-          if (!nextSnapshot.activeMessageId) {
-            return
-          }
-
-          syncSnapshot({
-            ...nextSnapshot,
-            messages: upsertToolCallInMessages(
-              nextSnapshot.messages,
-              nextSnapshot.activeMessageId,
-              toolCall,
-              buildTimestamp(),
-            ),
-          })
+          syncSnapshot(applyToolCallToSnapshot(nextSnapshot, toolCall, buildTimestamp()))
         },
         onToolEnd(toolCall) {
-          if (!nextSnapshot.activeMessageId) {
-            return
-          }
-
-          syncSnapshot({
-            ...nextSnapshot,
-            messages: upsertToolCallInMessages(
-              nextSnapshot.messages,
-              nextSnapshot.activeMessageId,
-              toolCall,
-              buildTimestamp(),
-            ),
-          })
+          syncSnapshot(applyToolCallToSnapshot(nextSnapshot, toolCall, buildTimestamp()))
         },
         onReferences(references) {
-          if (!nextSnapshot.activeMessageId) {
-            return
-          }
-
-          syncSnapshot({
-            ...nextSnapshot,
-            messages: attachReferencesToMessages(
-              nextSnapshot.messages,
-              nextSnapshot.activeMessageId,
-              references,
-            ),
-          })
+          syncSnapshot(applyReferencesToSnapshot(nextSnapshot, references))
         },
         onSkillOutput(skillOutput) {
-          if (!nextSnapshot.activeMessageId) {
-            return
-          }
-
-          syncSnapshot({
-            ...nextSnapshot,
-            messages: attachSkillOutputToMessages(
-              nextSnapshot.messages,
-              nextSnapshot.activeMessageId,
-              skillOutput,
-            ),
-          })
+          syncSnapshot(applySkillOutputToSnapshot(nextSnapshot, skillOutput))
         },
       })
 

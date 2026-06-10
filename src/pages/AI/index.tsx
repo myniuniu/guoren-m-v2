@@ -589,6 +589,7 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
   const artifactPreviewEntry = useMemo(() => buildArtifactPreviewEntry(selectedArtifact), [selectedArtifact])
   const scrollerRef = useRef<HTMLDivElement | null>(null)
   const autoScrollEnabledRef = useRef(true)
+  const lastRouteSessionIdRef = useRef<string | null>(routeSessionId)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const partnerAvatarInputRef = useRef<HTMLInputElement | null>(null)
   const uploadAbortControllersRef = useRef<Map<string, AbortController>>(new Map())
@@ -1076,10 +1077,17 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
   }, [routeSessionId])
 
   useEffect(() => {
-    if (!routeSessionId || messages.length === 0) {
+    if (lastRouteSessionIdRef.current !== routeSessionId) {
+      autoScrollEnabledRef.current = true
+      lastRouteSessionIdRef.current = routeSessionId
+    }
+  }, [routeSessionId])
+
+  useEffect(() => {
+    if (messages.length === 0) {
       autoScrollEnabledRef.current = true
     }
-  }, [messages.length, routeSessionId])
+  }, [messages.length])
 
   useEffect(() => {
     const timer = window.setTimeout(() => {

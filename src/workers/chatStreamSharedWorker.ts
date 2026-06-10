@@ -2,14 +2,18 @@
 
 import {
   appendErrorToAssistantMessage,
-  appendReasoningDeltaToMessages,
-  appendTextDeltaToMessages,
-  attachReferencesToMessages,
-  attachSkillOutputToMessages,
   completeAssistantMessage,
-  upsertToolCallInMessages,
 } from '../services/chat/messageState'
 import { readSseStream } from '../services/chat/sse'
+import {
+  applyChatModelStartToSnapshot,
+  applyEventIdToSnapshot,
+  applyReasoningDeltaToSnapshot,
+  applyReferencesToSnapshot,
+  applySkillOutputToSnapshot,
+  applyTextDeltaToSnapshot,
+  applyToolCallToSnapshot,
+} from '../services/chat/streamState'
 import type { ChatStreamHttpRequest, ChatStreamSnapshot } from '../services/chat/types'
 
 type WorkerPortMessage =
@@ -183,119 +187,28 @@ async function runStream(message: Extract<WorkerPortMessage, { type: 'start-stre
 
     await readSseStream(response.body, {
       onEventId(eventId) {
-        const nextSequence = Number(eventId)
-
-        if (!Number.isFinite(nextSequence)) {
-          return
-        }
-
-        updateSnapshot(message.sessionId, (snapshot) => ({
-          ...snapshot,
-          lastEventSequence: nextSequence,
-        }))
+        updateSnapshot(message.sessionId, (snapshot) => applyEventIdToSnapshot(snapshot, Number(eventId)))
+      },
+      onChatModelStart() {
+        updateSnapshot(message.sessionId, (snapshot) => applyChatModelStartToSnapshot(snapshot, buildTimestamp()))
       },
       onTextDelta(chunk) {
-        updateSnapshot(message.sessionId, (snapshot) => {
-          if (!snapshot.activeMessageId) {
-            return snapshot
-          }
-
-          const result = appendTextDeltaToMessages(
-            snapshot.messages,
-            snapshot.activeMessageId,
-            chunk,
-            buildTimestamp(),
-          )
-
-          return {
-            ...snapshot,
-            messages: result.messages,
-            activeMessageId: result.activeMessageId,
-          }
-        })
+        updateSnapshot(message.sessionId, (snapshot) => applyTextDeltaToSnapshot(snapshot, chunk, buildTimestamp()))
       },
       onReasoningDelta(chunk) {
-        updateSnapshot(message.sessionId, (snapshot) => {
-          if (!snapshot.activeMessageId) {
-            return snapshot
-          }
-
-          return {
-            ...snapshot,
-            messages: appendReasoningDeltaToMessages(
-              snapshot.messages,
-              snapshot.activeMessageId,
-              chunk,
-              buildTimestamp(),
-            ),
-          }
-        })
+        updateSnapshot(message.sessionId, (snapshot) => applyReasoningDeltaToSnapshot(snapshot, chunk, buildTimestamp()))
       },
       onToolStart(toolCall) {
-        updateSnapshot(message.sessionId, (snapshot) => {
-          if (!snapshot.activeMessageId) {
-            return snapshot
-          }
-
-          return {
-            ...snapshot,
-            messages: upsertToolCallInMessages(
-              snapshot.messages,
-              snapshot.activeMessageId,
-              toolCall,
-              buildTimestamp(),
-            ),
-          }
-        })
+        updateSnapshot(message.sessionId, (snapshot) => applyToolCallToSnapshot(snapshot, toolCall, buildTimestamp()))
       },
       onToolEnd(toolCall) {
-        updateSnapshot(message.sessionId, (snapshot) => {
-          if (!snapshot.activeMessageId) {
-            return snapshot
-          }
-
-          return {
-            ...snapshot,
-            messages: upsertToolCallInMessages(
-              snapshot.messages,
-              snapshot.activeMessageId,
-              toolCall,
-              buildTimestamp(),
-            ),
-          }
-        })
+        updateSnapshot(message.sessionId, (snapshot) => applyToolCallToSnapshot(snapshot, toolCall, buildTimestamp()))
       },
       onReferences(references) {
-        updateSnapshot(message.sessionId, (snapshot) => {
-          if (!snapshot.activeMessageId) {
-            return snapshot
-          }
-
-          return {
-            ...snapshot,
-            messages: attachReferencesToMessages(
-              snapshot.messages,
-              snapshot.activeMessageId,
-              references,
-            ),
-          }
-        })
+        updateSnapshot(message.sessionId, (snapshot) => applyReferencesToSnapshot(snapshot, references))
       },
       onSkillOutput(skillOutput) {
-        updateSnapshot(message.sessionId, (snapshot) => {
-          if (!snapshot.activeMessageId) {
-            return snapshot
-          }
-
-          return {
-            ...snapshot,
-            messages: attachSkillOutputToMessages(
-              snapshot.messages,
-              snapshot.activeMessageId,
-              skillOutput,
-            ),
-          }
-        })
+        updateSnapshot(message.sessionId, (snapshot) => applySkillOutputToSnapshot(snapshot, skillOutput))
       },
     })
 
