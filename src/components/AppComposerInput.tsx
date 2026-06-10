@@ -43,6 +43,7 @@ export default function AppComposerInput({
 }: AppComposerInputProps) {
   const hasValue = value.trim().length > 0
   const voiceBaseTextRef = useRef('')
+  const voiceCurrentTextRef = useRef('')
   const isVoiceSendingRef = useRef(false)
   const hasRecognizedTextRef = useRef(false)
 
@@ -54,9 +55,11 @@ export default function AppComposerInput({
     hasRecognizedTextRef.current = true
 
     const base = voiceBaseTextRef.current
+    const nextValue = base + text
+
+    voiceCurrentTextRef.current = nextValue
 
     if (isFinal) {
-      const nextValue = base + text
       voiceBaseTextRef.current = nextValue
       onChange(nextValue)
       return
@@ -69,41 +72,40 @@ export default function AppComposerInput({
     onResult: handleVoiceResult,
     onError: (error) => {
       hasRecognizedTextRef.current = false
+      voiceCurrentTextRef.current = ''
       isVoiceSendingRef.current = false
       Toast.show({ content: error.message || '语音输入失败' })
     },
   })
 
-  const isRecording = voiceState === 'recording' || voiceState === 'requesting'
-  const isVoiceTransitioning = voiceState === 'requesting' || voiceState === 'stopping'
+  const isVoiceActive = voiceState === 'recording' || voiceState === 'requesting'
+  const isVoiceStopping = voiceState === 'stopping'
   const actionDisabled = isStopping || (isResponding
     ? false
-    : isRecording
+    : isVoiceActive
       ? false
       : hasValue
         ? !canSubmit
-        : !isVoiceSupported || isVoiceTransitioning)
+        : !isVoiceSupported || isVoiceStopping)
   const actionState = isResponding ? 'is-stop' : hasValue ? 'is-submit' : 'is-voice'
 
   const handleToggleVoice = useCallback(() => {
-    if (!isVoiceSupported || isVoiceTransitioning) {
-      return
-    }
-
-    if (isRecording) {
+    if (isVoiceActive) {
       stopRecording()
 
       if (!hasRecognizedTextRef.current) {
         Toast.show({ content: '未识别到文字' })
         onChange(voiceBaseTextRef.current)
         voiceBaseTextRef.current = ''
+        voiceCurrentTextRef.current = ''
         hasRecognizedTextRef.current = false
         return
       }
 
       isVoiceSendingRef.current = true
-      const finalText = voiceBaseTextRef.current.trim()
+      const finalText = voiceCurrentTextRef.current.trim()
       voiceBaseTextRef.current = ''
+      voiceCurrentTextRef.current = ''
       hasRecognizedTextRef.current = false
 
       if (finalText) {
@@ -116,10 +118,15 @@ export default function AppComposerInput({
       return
     }
 
+    if (!isVoiceSupported || isVoiceStopping) {
+      return
+    }
+
     voiceBaseTextRef.current = value
+    voiceCurrentTextRef.current = value
     hasRecognizedTextRef.current = false
     void startRecording()
-  }, [isRecording, isVoiceSupported, isVoiceTransitioning, onChange, onSubmit, startRecording, stopRecording, value])
+  }, [isVoiceActive, isVoiceStopping, isVoiceSupported, onChange, onSubmit, startRecording, stopRecording, value])
 
   const handleActionClick = () => {
     if (isResponding) {
@@ -127,7 +134,7 @@ export default function AppComposerInput({
       return
     }
 
-    if (isRecording) {
+    if (isVoiceActive) {
       handleToggleVoice()
       return
     }
@@ -177,15 +184,15 @@ export default function AppComposerInput({
           />
 
           <button
-            aria-label={isResponding ? '停止回答' : isRecording ? '停止录音' : hasValue ? actionAriaLabel : '语音输入'}
-            className={joinClassNames('app-composer-input-action', actionState, isRecording ? 'is-recording' : null)}
+            aria-label={isResponding ? '停止回答' : isVoiceActive ? '停止录音' : hasValue ? actionAriaLabel : '语音输入'}
+            className={joinClassNames('app-composer-input-action', actionState, isVoiceActive ? 'is-recording' : null)}
             disabled={actionDisabled}
             type="button"
             onClick={handleActionClick}
           >
             {isResponding ? (
               <StopOutline aria-hidden="true" style={{ fontSize: 18 }} />
-            ) : isRecording ? (
+            ) : isVoiceActive ? (
               <span aria-hidden="true" className="app-composer-input-voice-wave">
                 <span className="app-composer-input-voice-wave-bar" />
                 <span className="app-composer-input-voice-wave-bar" />

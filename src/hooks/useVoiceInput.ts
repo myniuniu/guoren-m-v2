@@ -71,6 +71,7 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputRetur
   const { onResult, onError, onStateChange } = options
 
   const [state, setState] = useState<VoiceState>('idle')
+  const stateRef = useRef<VoiceState>('idle')
   const mediaStreamRef = useRef<MediaStream | null>(null)
   const audioContextRef = useRef<AudioContext | null>(null)
   const scriptProcessorRef = useRef<ScriptProcessorNode | null>(null)
@@ -79,9 +80,11 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputRetur
   const audioChunksRef = useRef<Int16Array[]>([])
   const isRecordingRef = useRef(false)
   const reconnectCountRef = useRef(0)
+  const cancelStartRef = useRef(false)
   const maxReconnectCount = 3
 
   const setVoiceState = useCallback((nextState: VoiceState) => {
+    stateRef.current = nextState
     setState(nextState)
     onStateChange?.(nextState)
   }, [onStateChange])
@@ -97,8 +100,10 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputRetur
     const apiBaseUrl = getAiBrowserBaseUrl()
     const url = new URL(apiBaseUrl, window.location.origin)
     const protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
+    const proxyBasePath = url.pathname.replace(/\/+$/, '')
 
-    return `${protocol}//${url.host}/api/v1/asr/realtime?user_id=${encodeURIComponent(userId)}&x_access_token=${encodeURIComponent(token)}`
+    // 开发环境需要保留 /__ai_proxy 这类代理前缀，不然 WebSocket 会直接打到 Vite 本身，语音服务收不到请求。
+    return `${protocol}//${url.host}${proxyBasePath}/api/v1/asr/realtime?user_id=${encodeURIComponent(userId)}&x_access_token=${encodeURIComponent(token)}`
   }, [])
 
   const sendAudioData = useCallback(() => {
@@ -252,6 +257,7 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputRetur
     }
 
     try {
+      cancelStartRef.current = false
       setVoiceState('requesting')
 
       const mediaStream = await navigator.mediaDevices.getUserMedia({
@@ -262,6 +268,15 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputRetur
           noiseSuppression: true,
         },
       })
+
+      // 这里先判断一次取消标记，避免用户点了关闭后又被异步权限返回重新拉起录音。
+      if (cancelStartRef.current) {
+        for (const track of mediaStream.getTracks()) {
+          track.stop()
+        }
+        setVoiceState('idle')
+        return
+      }
 
       mediaStreamRef.current = mediaStream
       isRecordingRef.current = true
@@ -289,6 +304,12 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputRetur
 
       await initWebSocket()
 
+      if (cancelStartRef.current || !isRecordingRef.current) {
+        cleanup()
+        setVoiceState('idle')
+        return
+      }
+
       // 固定按小片段推送，和 PC 端保持一致，避免一口气堆太多音频导致识别延迟。
       sendIntervalRef.current = setInterval(() => {
         sendAudioData()
@@ -298,6 +319,12 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputRetur
     } catch (error) {
       const resolvedError = error instanceof Error ? error : new Error(String(error))
       cleanup()
+
+      if (cancelStartRef.current) {
+        setVoiceState('idle')
+        return
+      }
+
       setVoiceState('error')
       onError?.(resolvedError)
       setTimeout(() => {
@@ -307,10 +334,17 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputRetur
   }, [cleanup, initWebSocket, onError, sendAudioData, setVoiceState])
 
   const stopRecording = useCallback(() => {
+    if (stateRef.current === 'requesting' && !isRecordingRef.current) {
+      cancelStartRef.current = true
+      setVoiceState('idle')
+      return
+    }
+
     if (!isRecordingRef.current) {
       return
     }
 
+    cancelStartRef.current = true
     setVoiceState('stopping')
     cleanup()
 
