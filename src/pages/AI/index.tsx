@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Dialog, Switch } from 'antd-mobile'
+import { Dialog, Switch, Toast } from 'antd-mobile'
 import { GlobalOutline, SetOutline } from 'antd-mobile-icons'
 import { fetchCommands, mapCommandsToPromptItems, type CommandApiItem, type CommandPromptItem, type CommandsData } from '../../services/commands'
 import {
@@ -23,16 +23,11 @@ import { groupChatSessionsByTime } from '../../services/chat/session'
 import type { ChatAttachment, ChatSession } from '../../services/chat/types'
 import { getChatUserId } from '../../services/chat/api'
 import {
-  AI_COURSE_REVIEW_SKILL_NAME,
-  parseCourseReviewTaskId,
-} from '../../services/courseReview'
-import {
   fetchKnowledgeSpaces,
   fetchLibraryFiles,
   type KnowledgeSpaceOption,
   type LibraryFileDetail,
   type LibraryPageFileItem,
-  type LibraryPageFileType,
   type LibraryResourceFile,
 } from '../../services/library'
 import {
@@ -43,14 +38,17 @@ import {
   type PartnerConfigUpdateField,
 } from '../../services/partner'
 import {
+  addOfficialSkill,
   buildSkillDisplayName,
   buildSkillInitialPrompt,
+  deleteCreatedSkill,
   fetchAddedSkills,
   fetchClawhubSkills,
   fetchCreatedSkills,
   fetchUserSkills,
-  mergeSkillSummaryItems,
   fetchOfficialSkills,
+  installClawhubSkill,
+  removeAddedSkill,
   searchClawhubSkills,
   type SkillSummaryItem,
 } from '../../services/skills'
@@ -58,7 +56,12 @@ import { AiConversationThread } from './components/AiConversationThread'
 import AiCommandsPage, { type AiCommandsPageTabKey } from './components/AiCommandsPage'
 import AiLibraryFilePreview from './components/AiLibraryFilePreview'
 import AiSidebarLibraryPage from './components/AiSidebarLibraryPage'
+import AiSkillDetailPage from './components/AiSkillDetailPage'
 import { resolveArtifactPreviewUrl, useAiChatRuntime, type ActiveAgentContext } from './hooks/useAiChatRuntime'
+import {
+  normalizeSessionArtifactPreviewFilePath,
+  normalizeSessionArtifactPreviewFileType,
+} from './utils/sessionArtifactPreview'
 import { useDisplayNamePrefetch } from '../IM/utils/displayNameHooks'
 import AppComposerInput from '../../components/AppComposerInput'
 import DisplayName from '../../components/DisplayName'
@@ -107,6 +110,9 @@ const EMPTY_COMMANDS_DATA: CommandsData = {
 }
 
 const featureCardColors = ['#FF8C00', '#8E8E93', '#5AC8FA', '#4A7CFF', '#33C39B', '#34C759']
+const FEATURED_SKILLS_PAGE_SIZE = 5
+const SKILL_CREATOR_TOOL_TYPE = 'skill-creator'
+const SKILL_CREATOR_INITIAL_PROMPT = '/skill-creator 帮我创建一个技能：/技能描述'
 
 function getFeatureCardColor(index: number): string {
   return featureCardColors[index % featureCardColors.length]
@@ -362,45 +368,8 @@ function getDisplayName(): string {
   return '用户'
 }
 
-function isImageFile(url: string, filename: string): boolean {
-  const target = `${filename} ${url}`.toLowerCase()
-  return ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'].some((suffix) => target.includes(suffix))
-}
-
 type PartnerSettingsPage = 'menu' | 'basic' | 'workspace'
 type PartnerWorkspaceFileKey = 'SOUL.md' | 'USER.md' | 'IDENTITY.md'
-
-function isCourseReviewPreviewArtifact(artifact: { type: string; skill_name?: string; url: string }): boolean {
-  return artifact.type === 'review' || artifact.skill_name === AI_COURSE_REVIEW_SKILL_NAME || Boolean(parseCourseReviewTaskId(artifact.url))
-}
-
-function normalizeArtifactPreviewFileType(artifact: { type: string; skill_name?: string; url: string; filename: string }): Exclude<LibraryPageFileType, 'all'> {
-  if (artifact.type === 'classroom') {
-    return 'classroom'
-  }
-
-  if (isCourseReviewPreviewArtifact(artifact)) {
-    return 'review'
-  }
-
-  if (artifact.type === 'image' || isImageFile(artifact.url, artifact.filename)) {
-    return 'image'
-  }
-
-  if (artifact.type === 'video') {
-    return 'video'
-  }
-
-  if (artifact.type === 'audio') {
-    return 'audio'
-  }
-
-  if (artifact.type === 'whiteboard') {
-    return 'whiteboard'
-  }
-
-  return 'document'
-}
 
 function buildArtifactPreviewEntry(
   selectedArtifact: {
@@ -420,7 +389,8 @@ function buildArtifactPreviewEntry(
   }
 
   const { artifact, sessionId, createdAt } = selectedArtifact
-  const fileType = normalizeArtifactPreviewFileType(artifact)
+  const normalizedFilePath = normalizeSessionArtifactPreviewFilePath(artifact)
+  const fileType = normalizeSessionArtifactPreviewFileType(artifact)
   const previewUrl = artifact.url.startsWith('http')
     ? artifact.url
     : (sessionId ? resolveArtifactPreviewUrl(sessionId, artifact) : '')
@@ -429,7 +399,7 @@ function buildArtifactPreviewEntry(
     fileName: artifact.filename,
     agentName: artifact.skill_name || '会话结果',
     fileType,
-    filePath: artifact.url,
+    filePath: normalizedFilePath,
     createdAt,
     sessionId: sessionId ?? '',
     agentId: null,
@@ -521,7 +491,6 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
   const [showMySkillsPage, setShowMySkillsPage] = useState(false)
   const [mySkillsTab, setMySkillsTab] = useState<'added' | 'created'>('added')
   const [showCreateSkillSheet, setShowCreateSkillSheet] = useState(false)
-  const [showCreateSkillChat, setShowCreateSkillChat] = useState(false)
   const [libraryTab, setLibraryTab] = useState<'personal' | 'org'>('personal')
   const [selectedLibraryIds, setSelectedLibraryIds] = useState<string[]>([])
   const [selectedOrgSpaceId, setSelectedOrgSpaceId] = useState('')
@@ -531,11 +500,16 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
   const [commandsLoading, setCommandsLoading] = useState(false)
   const [commandsError, setCommandsError] = useState('')
   const [skillSearchValue, setSkillSearchValue] = useState('')
+  const [featuredGroupIndex, setFeaturedGroupIndex] = useState(0)
   const [skillSelectorSearchValue, setSkillSelectorSearchValue] = useState('')
   const [debouncedSkillSearchValue, setDebouncedSkillSearchValue] = useState('')
   const [mySkillSearchValue, setMySkillSearchValue] = useState('')
   const [officialSkills, setOfficialSkills] = useState<SkillSummaryItem[]>([])
   const [communitySkills, setCommunitySkills] = useState<SkillSummaryItem[]>([])
+  const [selectedSkillDetail, setSelectedSkillDetail] = useState<SkillSummaryItem | null>(null)
+  const [skillActionLoadingId, setSkillActionLoadingId] = useState<string | null>(null)
+  const [removeSkillLoadingId, setRemoveSkillLoadingId] = useState<string | null>(null)
+  const [deleteTargetManageSkill, setDeleteTargetManageSkill] = useState<SkillSummaryItem | null>(null)
   const [addedSkills, setAddedSkills] = useState<SkillSummaryItem[]>([])
   const [createdSkills, setCreatedSkills] = useState<SkillSummaryItem[]>([])
   const [skillsLoading, setSkillsLoading] = useState(false)
@@ -656,12 +630,26 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
     setShowPlusSheet(false)
     setShowFileMenu(false)
     setSkillSearchValue('')
+    setSelectedSkillDetail(null)
     setShowSidebarLibrary(false)
     setShowDiscoverPage(false)
     setShowMySkillsPage(false)
     setShowSkillSelectorPage(false)
     setShowDrawer(false)
     setShowSkillsPage(true)
+  }
+
+  const handleCreateSkillByChat = () => {
+    setShowCreateSkillSheet(false)
+    setShowPlusSheet(false)
+    setShowFileMenu(false)
+    setShowSkillsPage(false)
+    setShowMySkillsPage(false)
+    setShowSkillSelectorPage(false)
+    setSelectedSkillDetail(null)
+    setInputValue(SKILL_CREATOR_INITIAL_PROMPT)
+    setActiveToolType(SKILL_CREATOR_TOOL_TYPE)
+    setSelectedSkillName(SKILL_CREATOR_TOOL_TYPE)
   }
 
   const openSkillSelectorPage = () => {
@@ -882,11 +870,17 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
     }
   }
 
-  const featuredSkills = useMemo(() => filterSkillItems(officialSkills, skillSearchValue).slice(0, 3), [officialSkills, skillSearchValue])
-  const visibleCommunitySkills = useMemo(() => {
-    const filteredOfficial = filterSkillItems(officialSkills, skillSearchValue)
-    return mergeSkillSummaryItems(filteredOfficial, communitySkills)
-  }, [communitySkills, officialSkills, skillSearchValue])
+  const filteredOfficialSkills = useMemo(() => {
+    return filterSkillItems(officialSkills, skillSearchValue)
+  }, [officialSkills, skillSearchValue])
+  const featuredSkills = useMemo(() => {
+    const startIndex = featuredGroupIndex * FEATURED_SKILLS_PAGE_SIZE
+
+    return filteredOfficialSkills.slice(startIndex, startIndex + FEATURED_SKILLS_PAGE_SIZE)
+  }, [featuredGroupIndex, filteredOfficialSkills])
+  const visibleClawhubSkills = useMemo(() => {
+    return filterSkillItems(communitySkills, skillSearchValue)
+  }, [communitySkills, skillSearchValue])
   const visibleManageSkills = useMemo(() => {
     const sourceList = mySkillsTab === 'added' ? addedSkills : createdSkills
     return filterSkillItems(sourceList, mySkillSearchValue)
@@ -912,6 +906,21 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
   const fileInputAccept = filePickerMode === 'all'
     ? ALLOWED_CHAT_UPLOAD_EXTENSIONS.map((extension) => `.${extension}`).join(',')
     : 'image/*'
+
+  useEffect(() => {
+    const totalGroups = Math.ceil(filteredOfficialSkills.length / FEATURED_SKILLS_PAGE_SIZE)
+
+    if (totalGroups === 0) {
+      if (featuredGroupIndex !== 0) {
+        setFeaturedGroupIndex(0)
+      }
+      return
+    }
+
+    if (featuredGroupIndex >= totalGroups) {
+      setFeaturedGroupIndex(0)
+    }
+  }, [featuredGroupIndex, filteredOfficialSkills.length])
 
   useEffect(() => {
     if (!isPartnerRoute || !activeAgent) {
@@ -1080,6 +1089,14 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
       controller.abort()
     }
   }, [debouncedSkillSearchValue, showSkillsPage])
+
+  const handleRefreshFeatured = useCallback(() => {
+    const totalGroups = Math.ceil(filteredOfficialSkills.length / FEATURED_SKILLS_PAGE_SIZE)
+
+    if (totalGroups > 1) {
+      setFeaturedGroupIndex((current) => (current + 1) % totalGroups)
+    }
+  }, [filteredOfficialSkills.length])
 
   useEffect(() => {
     if (!showMySkillsPage) {
@@ -1305,6 +1322,150 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
     setShowSkillsPage(false)
     setShowMySkillsPage(false)
     setShowSkillSelectorPage(false)
+    setSelectedSkillDetail(null)
+  }
+
+  const openOfficialSkillDetail = (skill: SkillSummaryItem) => {
+    setSelectedSkillDetail({
+      ...skill,
+      source: 'official',
+    })
+  }
+
+  const openClawhubSkillDetail = (skill: SkillSummaryItem) => {
+    setSelectedSkillDetail({
+      ...skill,
+      source: 'clawhub',
+    })
+  }
+
+  const markSkillSelected = (skill: SkillSummaryItem) => {
+    const resolvedSkillName = skill.skillName || skill.id
+
+    const applySelection = (items: SkillSummaryItem[]) => items.map((item) => {
+      const currentSkillName = item.skillName || item.id
+
+      if (currentSkillName !== resolvedSkillName) {
+        return item
+      }
+
+      return {
+        ...item,
+        isSelected: true,
+      }
+    })
+
+    setOfficialSkills(applySelection)
+    setCommunitySkills(applySelection)
+    setAddedSkills(applySelection)
+    setUserSkills(applySelection)
+    setSelectedSkillDetail((current) => {
+      if (!current) {
+        return current
+      }
+
+      const currentSkillName = current.skillName || current.id
+
+      if (currentSkillName !== resolvedSkillName) {
+        return current
+      }
+
+      return {
+        ...current,
+        isSelected: true,
+      }
+    })
+  }
+
+  const handleSkillDetailAction = async (skill: SkillSummaryItem) => {
+    if (skillActionLoadingId === skill.id) {
+      return
+    }
+
+    if (skill.isSelected) {
+      applySkillItem(skill)
+      return
+    }
+
+    const resolvedSkillName = skill.skillName || skill.id
+
+    if (!resolvedSkillName) {
+      return
+    }
+
+    setSkillActionLoadingId(skill.id)
+
+    try {
+      if (skill.source === 'clawhub') {
+        await installClawhubSkill(resolvedSkillName)
+      } else {
+        await addOfficialSkill(resolvedSkillName)
+      }
+
+      markSkillSelected({
+        ...skill,
+        isSelected: true,
+      })
+      Toast.show({ content: '添加成功' })
+    } catch (error) {
+      Toast.show({ content: error instanceof Error ? error.message : '添加技能失败' })
+    } finally {
+      setSkillActionLoadingId(null)
+    }
+  }
+
+  const handleRemoveManageSkill = async (skill: SkillSummaryItem) => {
+    if (removeSkillLoadingId === skill.id) {
+      return
+    }
+
+    const resolvedSkillName = skill.skillName || skill.id
+
+    if (!resolvedSkillName) {
+      return
+    }
+
+    setRemoveSkillLoadingId(skill.id)
+
+    try {
+      if (skill.source === 'created') {
+        await deleteCreatedSkill(resolvedSkillName)
+        setCreatedSkills(await fetchCreatedSkills())
+      } else {
+        await removeAddedSkill(resolvedSkillName)
+        setAddedSkills(await fetchAddedSkills())
+      }
+    } finally {
+      setRemoveSkillLoadingId(null)
+    }
+  }
+
+  const openDeleteManageSkillDialog = (skill: SkillSummaryItem) => {
+    setDeleteTargetManageSkill(skill)
+  }
+
+  const closeDeleteManageSkillDialog = () => {
+    if (removeSkillLoadingId) {
+      return
+    }
+
+    setDeleteTargetManageSkill(null)
+  }
+
+  const confirmDeleteManageSkill = async () => {
+    const skill = deleteTargetManageSkill
+
+    if (!skill) {
+      return
+    }
+
+    try {
+      setMySkillsError('')
+      await handleRemoveManageSkill(skill)
+      setDeleteTargetManageSkill(null)
+    } catch (error) {
+      setMySkillsError(error instanceof Error ? error.message : skill.source === 'created' ? '删除技能失败' : '移除技能失败')
+    }
   }
 
   const openAgentChat = async (agent: DiscoverAgentItem) => {
@@ -2140,134 +2301,125 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
       )}
 
       {showSkillsPage && (
-        <div className="ai-skill-community-page">
-          {/* Header */}
-          <div className="ai-skill-community-header">
-            <div className="ai-skill-community-menu" onClick={() => setShowDrawer(true)}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round">
-                <line x1="3" y1="6" x2="21" y2="6" />
-                <line x1="3" y1="12" x2="21" y2="12" />
-                <line x1="3" y1="18" x2="21" y2="18" />
-              </svg>
-            </div>
-            <div className="ai-skill-community-title">技能社区</div>
-            <div className="ai-skill-community-actions">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round" onClick={() => setShowCreateSkillSheet(true)} style={{ cursor: 'pointer' }}>
-                <line x1="12" y1="5" x2="12" y2="19" />
-                <line x1="5" y1="12" x2="19" y2="12" />
-              </svg>
-              <button className="ai-skill-community-settings" type="button" onClick={() => setShowMySkillsPage(true)}>
-                <SetOutline aria-hidden="true" style={{ fontSize: 20 }} />
-              </button>
-            </div>
-          </div>
-
-          <div className="ai-skill-community-content">
-            <div className="ai-skill-community-search">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="2" strokeLinecap="round">
-                <circle cx="11" cy="11" r="7" />
-                <line x1="20" y1="20" x2="16.65" y2="16.65" />
-              </svg>
-              <input
-                className="ai-inline-search-input"
-                placeholder="搜索技能名称、描述或标签"
-                value={skillSearchValue}
-                onChange={(event) => setSkillSearchValue(event.target.value)}
-              />
-            </div>
-
-            <div className="ai-skill-community-section-header">
-              <div className="ai-skill-community-section-title">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M4 7h16l-2 10H6z" />
-                  <path d="m9 12 2.2 2.2L16 9" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-                官方精选
-              </div>
-              <button className="ai-skill-community-refresh" type="button" onClick={() => setSkillSearchValue('')}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21.5 2v6h-6" />
-                  <path d="M2.5 12a9.5 9.5 0 0 1 16.5-6.5L21.5 8" />
-                  <path d="M2.5 22v-6h6" />
-                  <path d="M21.5 12a9.5 9.5 0 0 1-16.5 6.5L2.5 16" />
-                </svg>
-                换一换
-              </button>
-            </div>
-
-            <div className="ai-skill-community-cards">
-              {skillsLoading ? <div className="ai-data-status">技能加载中…</div> : null}
-              {!skillsLoading && skillsError ? <div className="ai-data-status">{skillsError}</div> : null}
-              {!skillsLoading && !skillsError && featuredSkills.length === 0 ? <div className="ai-data-status">暂无精选技能</div> : null}
-              {!skillsLoading && !skillsError && featuredSkills.map((skill, index) => (
-                <button className="ai-skill-community-card" key={skill.id} type="button" onClick={() => applySkillItem(skill)}>
-                  <div className="ai-skill-community-card-header">
-                    <div className="ai-skill-community-card-icon" style={{ background: getFeatureCardColor(index) }}>
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M14.5 4.5a3 3 0 0 1 4.24 4.24l-1.42 1.42-4.24-4.24z" />
-                        <path d="M13.09 5.91 5.3 13.7a2 2 0 0 0 0 2.83l2.17 2.17a2 2 0 0 0 2.83 0l7.79-7.79" />
-                        <path d="m8.5 11.5 4 4" />
-                      </svg>
-                    </div>
-                    <div className="ai-skill-community-card-title">{skill.title}</div>
-                  </div>
-                  <div className="ai-skill-community-card-desc">{skill.description || '暂无描述'}</div>
-                  <div className="ai-skill-community-card-footer">
-                    <div className="ai-skill-community-card-tags">
-                      {getSkillCardTags(skill).map((tag) => (
-                        <span className="ai-skill-community-card-tag" key={tag}>{tag}</span>
-                      ))}
-                    </div>
-                    <span className="ai-skill-community-card-count">{skill.countLabel || skill.source}</span>
-                  </div>
-                </button>
-              ))}
-            </div>
-
-            <div className="ai-skill-community-all-skills">
-              <div className="ai-skill-community-all-skills-header">
-                <div className="ai-skill-community-all-skills-title">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M14.5 4.5a3 3 0 0 1 4.24 4.24l-1.42 1.42-4.24-4.24z" />
-                    <path d="M13.09 5.91 5.3 13.7a2 2 0 0 0 0 2.83l2.17 2.17a2 2 0 0 0 2.83 0l7.79-7.79" />
-                    <path d="m8.5 11.5 4 4" />
+        <>
+          {selectedSkillDetail ? (
+            <AiSkillDetailPage
+              actionLoading={skillActionLoadingId === selectedSkillDetail.id}
+              onAction={handleSkillDetailAction}
+              onBack={() => setSelectedSkillDetail(null)}
+              skill={selectedSkillDetail}
+            />
+          ) : (
+            <div className="ai-skill-community-page">
+              {/* Header */}
+              <div className="ai-skill-community-header">
+                <div className="ai-skill-community-menu" onClick={() => setShowDrawer(true)}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round">
+                    <line x1="3" y1="6" x2="21" y2="6" />
+                    <line x1="3" y1="12" x2="21" y2="12" />
+                    <line x1="3" y1="18" x2="21" y2="18" />
                   </svg>
-                  全部技能
                 </div>
-                <div className="ai-skill-community-filter">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M22 3H2l8 9.46V19l4 2v-8.46z" />
+                <div className="ai-skill-community-title">技能社区</div>
+                <div className="ai-skill-community-actions">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round" onClick={() => setShowCreateSkillSheet(true)} style={{ cursor: 'pointer' }}>
+                    <line x1="12" y1="5" x2="12" y2="19" />
+                    <line x1="5" y1="12" x2="19" y2="12" />
                   </svg>
-                  {debouncedSkillSearchValue ? '搜索结果' : '全部列表'}
-                </div>
-              </div>
-              <div className="ai-skill-community-all-list">
-                {!skillsLoading && !skillsError && visibleCommunitySkills.length === 0 ? <div className="ai-data-status">暂无技能数据</div> : null}
-                {!skillsLoading && !skillsError && visibleCommunitySkills.map((skill, index) => (
-                  <button className="ai-skill-community-all-item" key={skill.id} type="button" onClick={() => applySkillItem(skill)}>
-                    <div className="ai-skill-community-all-icon" style={{ background: getFeatureCardColor(index) }}>
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M14.5 4.5a3 3 0 0 1 4.24 4.24l-1.42 1.42-4.24-4.24z" />
-                        <path d="M13.09 5.91 5.3 13.7a2 2 0 0 0 0 2.83l2.17 2.17a2 2 0 0 0 2.83 0l7.79-7.79" />
-                        <path d="m8.5 11.5 4 4" />
-                      </svg>
-                    </div>
-                    <div className="ai-skill-community-all-body">
-                      <div className="ai-skill-community-all-title-row">
-                        <span className="ai-skill-community-all-title">{skill.title}</span>
-                        <div className="ai-skill-community-all-tags">
-                          {getSkillCardTags(skill).map((tag) => (
-                            <span className="ai-skill-community-all-tag" key={tag}>{tag}</span>
-                          ))}
-                        </div>
-                      </div>
-                      <div className="ai-skill-community-all-desc">{skill.description || '暂无描述'}</div>
-                    </div>
+                  <button className="ai-skill-community-settings" type="button" onClick={() => setShowMySkillsPage(true)}>
+                    <SetOutline aria-hidden="true" style={{ fontSize: 20 }} />
                   </button>
-                ))}
+                </div>
+              </div>
+
+              <div className="ai-skill-community-content">
+                <div className="ai-skill-community-search">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="2" strokeLinecap="round">
+                    <circle cx="11" cy="11" r="7" />
+                    <line x1="20" y1="20" x2="16.65" y2="16.65" />
+                  </svg>
+                  <input
+                    className="ai-inline-search-input"
+                    placeholder="搜索技能名称、描述或标签"
+                    value={skillSearchValue}
+                    onChange={(event) => setSkillSearchValue(event.target.value)}
+                  />
+                </div>
+
+                <div className="ai-skill-community-section-header">
+                  <div className="ai-skill-community-section-title">官方精选</div>
+                  <button className="ai-skill-community-refresh" type="button" onClick={handleRefreshFeatured}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21.5 2v6h-6" />
+                      <path d="M2.5 12a9.5 9.5 0 0 1 16.5-6.5L21.5 8" />
+                      <path d="M2.5 22v-6h6" />
+                      <path d="M21.5 12a9.5 9.5 0 0 1-16.5 6.5L2.5 16" />
+                    </svg>
+                    换一换
+                  </button>
+                </div>
+
+                <div className="ai-skill-community-featured-list">
+                  {skillsLoading ? <div className="ai-data-status">技能加载中…</div> : null}
+                  {!skillsLoading && skillsError ? <div className="ai-data-status">{skillsError}</div> : null}
+                  {!skillsLoading && !skillsError && featuredSkills.length === 0 ? <div className="ai-data-status">暂无精选技能</div> : null}
+                  {!skillsLoading && !skillsError && featuredSkills.map((skill, index) => (
+                    <button className="ai-skill-community-featured-item" key={skill.id} type="button" onClick={() => openOfficialSkillDetail(skill)}>
+                      <div className="ai-skill-community-all-icon" style={{ background: getFeatureCardColor(index) }}>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M14.5 4.5a3 3 0 0 1 4.24 4.24l-1.42 1.42-4.24-4.24z" />
+                          <path d="M13.09 5.91 5.3 13.7a2 2 0 0 0 0 2.83l2.17 2.17a2 2 0 0 0 2.83 0l7.79-7.79" />
+                          <path d="m8.5 11.5 4 4" />
+                        </svg>
+                      </div>
+                      <div className="ai-skill-community-all-body">
+                        <div className="ai-skill-community-all-title-row">
+                          <span className="ai-skill-community-all-title">{skill.title}</span>
+                          <div className="ai-skill-community-all-tags">
+                            {getSkillCardTags(skill).map((tag) => (
+                              <span className="ai-skill-community-all-tag" key={tag}>{tag}</span>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="ai-skill-community-all-desc">{skill.description || '暂无描述'}</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+
+                <div className="ai-skill-community-all-skills">
+                  <div className="ai-skill-community-all-skills-header">
+                    <div className="ai-skill-community-all-skills-title">ClawHub</div>
+                  </div>
+                  <div className="ai-skill-community-all-list">
+                    {!skillsLoading && !skillsError && visibleClawhubSkills.length === 0 ? <div className="ai-data-status">暂无 ClawHub 技能</div> : null}
+                    {!skillsLoading && !skillsError && visibleClawhubSkills.map((skill, index) => (
+                      <button className="ai-skill-community-all-item" key={skill.id} type="button" onClick={() => openClawhubSkillDetail(skill)}>
+                        <div className="ai-skill-community-all-icon" style={{ background: getFeatureCardColor(index) }}>
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M14.5 4.5a3 3 0 0 1 4.24 4.24l-1.42 1.42-4.24-4.24z" />
+                            <path d="M13.09 5.91 5.3 13.7a2 2 0 0 0 0 2.83l2.17 2.17a2 2 0 0 0 2.83 0l7.79-7.79" />
+                            <path d="m8.5 11.5 4 4" />
+                          </svg>
+                        </div>
+                        <div className="ai-skill-community-all-body">
+                          <div className="ai-skill-community-all-title-row">
+                            <span className="ai-skill-community-all-title">{skill.title}</span>
+                            <div className="ai-skill-community-all-tags">
+                              {getSkillCardTags(skill).map((tag) => (
+                                <span className="ai-skill-community-all-tag" key={tag}>{tag}</span>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="ai-skill-community-all-desc">{skill.description || '暂无描述'}</div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
           {/* 创建技能底部弹层 */}
           {showCreateSkillSheet && (
@@ -2283,12 +2435,12 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
                 </div>
                 <div className="ai-skill-create-sheet-title">使用对话创建</div>
                 <div className="ai-skill-create-sheet-desc">通过对话构建个人使用的技能</div>
-                <button className="ai-skill-create-sheet-btn" type="button" onClick={() => { setShowCreateSkillSheet(false); setShowCreateSkillChat(true) }}>去创建</button>
+                <button className="ai-skill-create-sheet-btn" type="button" onClick={handleCreateSkillByChat}>去创建</button>
                 <div className="ai-skill-create-sheet-tip">如需上传本地文件，请前往电脑端操作</div>
               </div>
             </div>
           )}
-        </div>
+        </>
       )}
 
       {showLibraryPage && (
@@ -2554,12 +2706,7 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
                 我创建的
               </button>
             </div>
-            <div className="ai-my-skills-actions">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M22 3H2l8 9.46V19l4 2v-8.46z" />
-              </svg>
-              <SetOutline aria-hidden="true" className="ai-my-skills-settings" style={{ fontSize: 20 }} />
-            </div>
+            <div className="ai-my-skills-actions" />
           </div>
 
           <div className="ai-my-skills-search">
@@ -2575,7 +2722,7 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
             />
           </div>
 
-          <div className="ai-my-skills-list">
+          <div className={`ai-my-skills-list ${!mySkillsLoading && !mySkillsError && visibleManageSkills.length === 0 ? 'is-empty' : ''}`}>
             {mySkillsLoading ? <div className="ai-data-status">我的技能加载中…</div> : null}
             {!mySkillsLoading && mySkillsError ? <div className="ai-data-status">{mySkillsError}</div> : null}
             {!mySkillsLoading && !mySkillsError && visibleManageSkills.length === 0 ? <div className="ai-data-status">暂无技能数据</div> : null}
@@ -2590,113 +2737,26 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
                     </svg>
                   </div>
                   <div className="ai-my-skill-card-title">{skill.title}</div>
-                  <span className="ai-my-skill-card-badge">{skill.source === 'created' ? '我创建的' : '已添加'}</span>
-                  <div className="ai-my-skill-card-more">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="#999">
-                      <circle cx="12" cy="5" r="1.8" />
-                      <circle cx="12" cy="12" r="1.8" />
-                      <circle cx="12" cy="19" r="1.8" />
+                  <button
+                    aria-label="删除技能"
+                    className="ai-my-skill-card-remove"
+                    disabled={removeSkillLoadingId === skill.id}
+                    type="button"
+                    onClick={() => { openDeleteManageSkillDialog(skill) }}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
                     </svg>
-                  </div>
+                  </button>
                 </div>
                 <div className="ai-my-skill-card-desc">{skill.description || '暂无描述'}</div>
-                <div className="ai-my-skill-card-meta">
-                  <div className="ai-my-skill-card-avatars">
-                    <div className="ai-my-skill-card-avatar" style={{ background: '#E8734A' }}>{skill.title.slice(0, 1) || '技'}</div>
-                    <div className="ai-my-skill-card-avatar" style={{ background: '#7A95FF', marginLeft: '-6px' }}>{(skill.skillName || skill.title).slice(0, 1) || '能'}</div>
-                  </div>
-                  <span>{skill.skillName ? `技能标识 ${skill.skillName}` : '未设置 skill_name'}</span>
-                </div>
                 <button className="ai-my-skill-card-btn" type="button" onClick={() => applySkillItem(skill)}>立即使用</button>
               </div>
             ))}
           </div>
         </div>
       )}
-      {/* 创建技能对话页 */}
-      {showCreateSkillChat && (
-        <div className="ai-create-skill-chat-page">
-          <div className="ai-create-skill-chat-header">
-            <div className="ai-create-skill-chat-menu" onClick={() => setShowDrawer(true)}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round">
-                <line x1="3" y1="6" x2="21" y2="6" />
-                <line x1="3" y1="12" x2="21" y2="12" />
-                <line x1="3" y1="18" x2="21" y2="18" />
-              </svg>
-            </div>
-            <div className="ai-create-skill-chat-actions">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round">
-                <circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /><circle cx="5" cy="12" r="1" />
-              </svg>
-              <div className="ai-create-skill-chat-close" onClick={() => setShowCreateSkillChat(false)}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round">
-                  <line x1="18" y1="6" x2="6" y2="18" />
-                  <line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
-              </div>
-            </div>
-          </div>
-
-          <div className="ai-create-skill-chat-content">
-            <div className="ai-create-skill-chat-welcome">
-              <h1>Hi <DisplayName userId={currentUserId} fallback={displayName} />，有什么可以帮你的？</h1>
-              <div className="ai-create-skill-chat-practice">
-                <span>全部最佳实践</span>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="9 18 15 12 9 6" />
-                </svg>
-              </div>
-            </div>
-
-            <div className="ai-create-skill-chat-cards">
-              <div className="ai-create-skill-chat-card">
-                <div className="ai-create-skill-chat-card-icon" style={{ background: '#FF8C00' }}>🎁</div>
-                <div className="ai-create-skill-chat-card-text">
-                  <span>领取新人免费体验礼包</span>
-                </div>
-              </div>
-              <div className="ai-create-skill-chat-card">
-                <div className="ai-create-skill-chat-card-icon" style={{ background: '#8E8E93' }}>📄</div>
-                <div className="ai-create-skill-chat-text">
-                  <span>解读Harness</span>
-                  <span>Engineering</span>
-                </div>
-              </div>
-              <div className="ai-create-skill-chat-card">
-                <div className="ai-create-skill-chat-card-icon" style={{ background: '#5AC8FA' }}>⭐</div>
-                <div className="ai-create-skill-chat-text">
-                  <span>影视飓风同款</span>
-                  <span>落地行动建…</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="ai-create-skill-chat-bottom">
-            <div className="ai-create-skill-chat-actions">
-              <div className="ai-create-skill-chat-action">创建图片 PPT</div>
-              <div className="ai-create-skill-chat-action">创建网页 PPT</div>
-              <div className="ai-create-skill-chat-action">写云文档</div>
-              <div className="ai-create-skill-chat-action">…</div>
-            </div>
-            <div className="ai-create-skill-chat-input-bar">
-              <div className="ai-create-skill-chat-plus">+</div>
-              <div className="ai-create-skill-chat-input-field">
-                帮我使用 <span className="ai-create-skill-chat-highlight">AI 生成技能</span> 创建一个技能。请先问我这个技能可以做什么。
-              </div>
-              <div className="ai-create-skill-chat-send">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="12" y1="19" x2="12" y2="5" />
-                  <line x1="5" y1="12" x2="12" y2="5" />
-                  <line x1="12" y1="5" x2="19" y2="12" />
-                </svg>
-              </div>
-            </div>
-            <p className="ai-create-skill-chat-disclaimer">使用国内合规模型并严格遵循权限隔离，保障企业数据安全</p>
-          </div>
-        </div>
-      )}
-
       {selectedArtifact && artifactPreviewEntry ? (
         <AiLibraryFilePreview
           initialDetail={artifactPreviewEntry.detail}
@@ -2759,6 +2819,33 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
               disabled: deleteSessionLoading,
               style: { color: '#1f2329' },
               onClick: confirmDeleteSession,
+            },
+          ],
+        ]}
+      />
+
+      <Dialog
+        visible={Boolean(deleteTargetManageSkill)}
+        content="确认删除后将无法恢复，是否继续？"
+        closeOnAction={false}
+        closeOnMaskClick={!removeSkillLoadingId}
+        onClose={closeDeleteManageSkillDialog}
+        actions={[
+          [
+            {
+              key: 'cancel-manage-skill-delete',
+              text: '取消',
+              disabled: Boolean(removeSkillLoadingId),
+              style: { color: '#1f2329' },
+              onClick: closeDeleteManageSkillDialog,
+            },
+            {
+              key: 'confirm-manage-skill-delete',
+              text: removeSkillLoadingId ? '删除中...' : '删除',
+              bold: true,
+              disabled: Boolean(removeSkillLoadingId),
+              style: { color: '#1f2329' },
+              onClick: confirmDeleteManageSkill,
             },
           ],
         ]}

@@ -1,9 +1,23 @@
 import { authorizedFetch, buildAiApiUrl } from '../utils/request'
+import {
+  AI_COURSE_REVIEW_SKILL_NAME,
+  COURSE_REVIEW_ARTIFACT_PREFIX,
+  buildCourseReviewArtifactPath,
+  isCourseReviewArtifact,
+  normalizeCourseReviewTaskId,
+  parseCourseReviewTaskId,
+} from './courseReviewArtifact'
 
 const COURSE_REVIEW_RESULT_PATH = '/api/v1/course_review/result'
 
-export const AI_COURSE_REVIEW_SKILL_NAME = 'ai-course-review'
-export const COURSE_REVIEW_ARTIFACT_PREFIX = 'course-review://'
+export {
+  AI_COURSE_REVIEW_SKILL_NAME,
+  COURSE_REVIEW_ARTIFACT_PREFIX,
+  buildCourseReviewArtifactPath,
+  isCourseReviewArtifact,
+  normalizeCourseReviewTaskId,
+  parseCourseReviewTaskId,
+}
 
 export interface CourseReviewIndicator {
   name?: string
@@ -60,29 +74,6 @@ function unwrapCourseReviewResult(data: unknown): CourseReviewResult | null {
   }
 
   return record as CourseReviewResult
-}
-
-export function buildCourseReviewArtifactPath(taskId: string): string {
-  return `${COURSE_REVIEW_ARTIFACT_PREFIX}${taskId.trim()}`
-}
-
-export function parseCourseReviewTaskId(rawValue: string): string | null {
-  const normalizedValue = rawValue.trim()
-
-  if (!normalizedValue) {
-    return null
-  }
-
-  if (normalizedValue.startsWith(COURSE_REVIEW_ARTIFACT_PREFIX)) {
-    const taskId = normalizedValue.slice(COURSE_REVIEW_ARTIFACT_PREFIX.length).trim()
-    return taskId || null
-  }
-
-  return normalizedValue
-}
-
-export function isCourseReviewArtifact(rawValue: string): boolean {
-  return Boolean(parseCourseReviewTaskId(rawValue))
 }
 
 export function extractCourseReviewReportOssUrls(result: CourseReviewResult): string[] {
@@ -171,7 +162,7 @@ export async function fetchCourseReviewResult(
   taskId: string,
   signal?: AbortSignal,
 ): Promise<CourseReviewResult> {
-  const normalizedTaskId = parseCourseReviewTaskId(taskId)
+  const normalizedTaskId = normalizeCourseReviewTaskId(taskId)
 
   if (!normalizedTaskId) {
     throw new Error('缺少评课任务 ID')

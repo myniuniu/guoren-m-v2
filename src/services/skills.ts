@@ -5,8 +5,40 @@ const SKILLS_PATH = '/api/v1/skills'
 const CUSTOM_SKILLS_PATH = '/api/v1/skills/custom'
 const CLAWHUB_BROWSE_PATH = '/api/v1/skills/clawhub/browse'
 const CLAWHUB_SEARCH_PATH = '/api/v1/skills/clawhub/search'
+const CLAWHUB_DETAIL_PATH = '/api/v1/skills/clawhub/{slug}'
+const CLAWHUB_INSTALL_PATH = '/api/v1/skills/clawhub/{slug}/install'
 
 export type SkillSource = 'official' | 'clawhub' | 'added' | 'created'
+
+export interface SkillConfigField {
+  key: string
+  label: string
+  type: string
+  required: boolean
+  default?: string | number
+  options?: Array<{ label: string; value: string | number }>
+  min?: number | null
+  max?: number | null
+  placeholder?: string | null
+}
+
+export interface SkillDetailItem {
+  skillName: string
+  title: string
+  description: string
+  source: SkillSource
+  skillType: string
+  skillMarkdown: string
+  template: string
+  placeholders: string[]
+  configFields: SkillConfigField[]
+  tags: string[]
+  owner: string
+  version: string
+  downloads: number
+  stars: number
+  summary: string
+}
 
 export interface SkillSummaryItem {
   id: string
@@ -17,6 +49,7 @@ export interface SkillSummaryItem {
   source: SkillSource
   tags: string[]
   countLabel?: string
+  isSelected: boolean
 }
 
 function buildSkillMergeKey(skill: Pick<SkillSummaryItem, 'id' | 'skillName'>): string {
@@ -38,6 +71,44 @@ type SkillListResponse = {
   total?: number
 }
 
+type SkillDetailResponse = {
+  success?: boolean
+  msg?: string
+  message?: string
+  data?: Record<string, unknown>
+}
+
+type ClawhubDetailResponse = {
+  success?: boolean
+  msg?: string
+  message?: string
+  data?: {
+    skill?: {
+      slug?: string
+      displayName?: string
+      summary?: string
+      tags?: unknown[]
+      stats?: {
+        downloads?: number
+        stars?: number
+      }
+    }
+    is_selected?: boolean
+    latestVersion?: {
+      version?: string
+    }
+    owner?: {
+      handle?: string
+      displayName?: string
+    }
+    metaContent?: {
+      DisplayDescription?: string
+      Keywords?: unknown[]
+      skillMd?: string
+    }
+  }
+}
+
 function readStringField(value: Record<string, unknown>, keys: string[]): string {
   const fieldKey = keys.find((key) => typeof value[key] === 'string' && value[key])
   return fieldKey ? String(value[fieldKey]).trim() : ''
@@ -55,6 +126,15 @@ function readTags(value: Record<string, unknown>): string[] {
 
     return [tag.trim()]
   })
+}
+
+function readBooleanField(value: Record<string, unknown>, keys: string[]): boolean {
+  const fieldKey = keys.find((key) => typeof value[key] === 'boolean')
+  return fieldKey ? Boolean(value[fieldKey]) : false
+}
+
+function replacePathParam(path: string, key: string, value: string): string {
+  return path.replace(`{${key}}`, encodeURIComponent(value))
 }
 
 function buildCountLabel(value: Record<string, unknown>): string | undefined {
@@ -92,11 +172,12 @@ function normalizeSkillItems(items: unknown[], source: SkillSource): SkillSummar
       skillName,
       title,
       description,
-      template,
-      source,
-      tags: readTags(record),
-      countLabel: buildCountLabel(record),
-    }]
+        template,
+        source,
+        tags: readTags(record),
+        countLabel: buildCountLabel(record),
+        isSelected: readBooleanField(record, ['is_selected', 'isSelected']),
+      }]
   })
 }
 
@@ -145,6 +226,106 @@ async function requestSkillList(
   }
 
   return extractSkillItems(payload, source)
+}
+
+function normalizeSkillConfigField(value: unknown): SkillConfigField | null {
+  if (!value || typeof value !== 'object') {
+    return null
+  }
+
+  const record = value as Record<string, unknown>
+  const key = readStringField(record, ['key', 'name'])
+
+  if (!key) {
+    return null
+  }
+
+  const optionValues = Array.isArray(record.options)
+    ? record.options.flatMap((option) => {
+        if (!option || typeof option !== 'object') {
+          return []
+        }
+
+        const optionRecord = option as Record<string, unknown>
+        const label = readStringField(optionRecord, ['label', 'name', 'title'])
+        const valueField = optionRecord.value
+
+        if (!label || (typeof valueField !== 'string' && typeof valueField !== 'number')) {
+          return []
+        }
+
+        return [{ label, value: valueField }]
+      })
+    : []
+
+  return {
+    key,
+    label: readStringField(record, ['label', 'title', 'description']) || key,
+    type: readStringField(record, ['type']) || 'string',
+    required: readBooleanField(record, ['required']),
+    default: typeof record.default === 'string' || typeof record.default === 'number'
+      ? record.default
+      : undefined,
+    options: optionValues.length > 0 ? optionValues : undefined,
+    min: typeof record.min === 'number' ? record.min : null,
+    max: typeof record.max === 'number' ? record.max : null,
+    placeholder: readStringField(record, ['placeholder']) || null,
+  }
+}
+
+function normalizeOfficialSkillDetail(payload: Record<string, unknown>, skillName: string): SkillDetailItem {
+  return {
+    skillName: readStringField(payload, ['skill_name', 'skillName']) || skillName,
+    title: readStringField(payload, ['chinese_name', 'chineseName', 'title']) || skillName,
+    description: readStringField(payload, ['description', 'summary']),
+    source: 'official',
+    skillType: readStringField(payload, ['skill_type', 'skillType']) || 'official',
+    skillMarkdown: readStringField(payload, ['skill_md', 'skillMd']),
+    template: readStringField(payload, ['template', 'prompt_template', 'promptTemplate']),
+    placeholders: Array.isArray(payload.placeholders)
+      ? payload.placeholders.flatMap((item) => typeof item === 'string' && item.trim() ? [item.trim()] : [])
+      : [],
+    configFields: Array.isArray(payload.config_fields)
+      ? payload.config_fields.flatMap((item) => {
+          const field = normalizeSkillConfigField(item)
+          return field ? [field] : []
+        })
+      : [],
+    tags: readTags(payload),
+    owner: '',
+    version: '',
+    downloads: 0,
+    stars: 0,
+    summary: readStringField(payload, ['description', 'summary']),
+  }
+}
+
+function normalizeClawhubSkillDetail(payload: ClawhubDetailResponse['data'], slug: string): SkillDetailItem {
+  const skill = payload?.skill
+  const metaContent = payload?.metaContent
+  const keywords = Array.isArray(metaContent?.Keywords)
+    ? metaContent.Keywords.flatMap((item) => typeof item === 'string' && item.trim() ? [item.trim()] : [])
+    : []
+
+  return {
+    skillName: skill?.slug?.trim() || slug,
+    title: skill?.displayName?.trim() || slug,
+    description: metaContent?.DisplayDescription?.trim() || skill?.summary?.trim() || '',
+    source: 'clawhub',
+    skillType: 'clawhub',
+    skillMarkdown: metaContent?.skillMd?.trim() || '',
+    template: metaContent?.skillMd?.trim() || '',
+    placeholders: [],
+    configFields: [],
+    tags: Array.isArray(skill?.tags)
+      ? skill.tags.flatMap((item) => typeof item === 'string' && item.trim() ? [item.trim()] : [])
+      : keywords,
+    owner: payload?.owner?.displayName?.trim() || payload?.owner?.handle?.trim() || '',
+    version: payload?.latestVersion?.version?.trim() || '',
+    downloads: skill?.stats?.downloads || 0,
+    stars: skill?.stats?.stars || 0,
+    summary: skill?.summary?.trim() || '',
+  }
 }
 
 export function buildSkillDisplayName(skillName: string): string {
@@ -224,6 +405,177 @@ export async function fetchClawhubSkills(
   })
 
   return requestSkillList(requestUrl, 'clawhub', options.signal)
+}
+
+export async function fetchOfficialSkillDetail(skillName: string, signal?: AbortSignal): Promise<SkillDetailItem> {
+  const userId = getRequiredUserId()
+  const requestUrl = buildAiApiUrl(replacePathParam(SKILLS_PATH + '/{skill_name}', 'skill_name', skillName), {
+    user_id: userId,
+  })
+
+  const response = await authorizedFetch(requestUrl, {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json',
+    },
+    signal,
+  })
+
+  if (!response.ok) {
+    throw new Error('获取技能详情失败')
+  }
+
+  const payload = (await response.json()) as SkillDetailResponse
+
+  if (payload.success === false || !payload.data) {
+    throw new Error(payload.msg || payload.message || '获取技能详情失败')
+  }
+
+  return normalizeOfficialSkillDetail(payload.data, skillName)
+}
+
+export async function fetchClawhubSkillDetail(skillName: string, signal?: AbortSignal): Promise<SkillDetailItem> {
+  const userId = getRequiredUserId()
+  const requestUrl = buildAiApiUrl(replacePathParam(CLAWHUB_DETAIL_PATH, 'slug', skillName), {
+    user_id: userId,
+  })
+
+  const response = await authorizedFetch(requestUrl, {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json',
+    },
+    signal,
+  })
+
+  if (!response.ok) {
+    throw new Error('获取技能详情失败')
+  }
+
+  const payload = (await response.json()) as ClawhubDetailResponse
+
+  if (payload.success === false || !payload.data?.skill) {
+    throw new Error(payload.msg || payload.message || '获取技能详情失败')
+  }
+
+  return normalizeClawhubSkillDetail(payload.data, skillName)
+}
+
+export async function addOfficialSkill(skillName: string, signal?: AbortSignal): Promise<void> {
+  const userId = getRequiredUserId()
+  const requestUrl = buildAiApiUrl(`/api/v1/users/${encodeURIComponent(userId)}/skills`, {
+    user_id: userId,
+  })
+
+  const response = await authorizedFetch(requestUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    },
+    body: JSON.stringify({
+      skill_name: skillName,
+    }),
+    signal,
+  })
+
+  if (!response.ok) {
+    throw new Error('添加技能失败')
+  }
+
+  const payload = (await response.json()) as { success?: boolean; msg?: string; message?: string }
+
+  if (payload.success === false) {
+    throw new Error(payload.msg || payload.message || '添加技能失败')
+  }
+}
+
+export async function removeAddedSkill(skillName: string, signal?: AbortSignal): Promise<void> {
+  const userId = getRequiredUserId()
+  const requestUrl = buildAiApiUrl(`/api/v1/users/${encodeURIComponent(userId)}/skills/${encodeURIComponent(skillName)}`, {
+    user_id: userId,
+    skill_name: skillName,
+  })
+
+  const response = await authorizedFetch(requestUrl, {
+    method: 'DELETE',
+    headers: {
+      Accept: 'application/json',
+    },
+    signal,
+  })
+
+  if (!response.ok) {
+    throw new Error('移除技能失败')
+  }
+
+  const responseText = await response.text()
+
+  if (!responseText) {
+    return
+  }
+
+  const payload = JSON.parse(responseText) as { success?: boolean; msg?: string; message?: string }
+
+  if (payload.success === false) {
+    throw new Error(payload.msg || payload.message || '移除技能失败')
+  }
+}
+
+export async function installClawhubSkill(skillName: string, signal?: AbortSignal): Promise<void> {
+  const userId = getRequiredUserId()
+  const requestUrl = buildAiApiUrl(replacePathParam(CLAWHUB_INSTALL_PATH, 'slug', skillName), {
+    user_id: userId,
+  })
+
+  const response = await authorizedFetch(requestUrl, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+    },
+    signal,
+  })
+
+  if (!response.ok) {
+    throw new Error('添加技能失败')
+  }
+
+  const payload = (await response.json()) as { success?: boolean; msg?: string; message?: string }
+
+  if (payload.success === false) {
+    throw new Error(payload.msg || payload.message || '添加技能失败')
+  }
+}
+
+export async function deleteCreatedSkill(skillName: string, signal?: AbortSignal): Promise<void> {
+  const userId = getRequiredUserId()
+  const requestUrl = buildAiApiUrl(replacePathParam(`${CUSTOM_SKILLS_PATH}/{skill_name}`, 'skill_name', skillName), {
+    user_id: userId,
+  })
+
+  const response = await authorizedFetch(requestUrl, {
+    method: 'DELETE',
+    headers: {
+      Accept: 'application/json',
+    },
+    signal,
+  })
+
+  if (!response.ok) {
+    throw new Error('删除技能失败')
+  }
+
+  const responseText = await response.text()
+
+  if (!responseText) {
+    return
+  }
+
+  const payload = JSON.parse(responseText) as { success?: boolean; msg?: string; message?: string }
+
+  if (payload.success === false) {
+    throw new Error(payload.msg || payload.message || '删除技能失败')
+  }
 }
 
 export async function searchClawhubSkills(
