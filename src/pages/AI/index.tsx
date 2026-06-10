@@ -72,6 +72,7 @@ import './index.css'
 const LUCKY_AVATAR_URL = 'https://guoren-skills-hb-test.oss-cn-beijing.aliyuncs.com/system/images/avatar/73799dbfdc2c495c8c0e1d86ffd2bf23.png'
 const BRAND_NAME = 'lucky'
 const MAX_CHAT_UPLOAD_FILES = 5
+const AUTO_SCROLL_RESUME_THRESHOLD = 48
 
 const fallbackFeatureCards: CommandPromptItem[] = [
   {
@@ -142,6 +143,10 @@ function getSkillCardTags(skill: SkillSummaryItem): string[] {
 function getAgentAvatarLetter(name: string): string {
   const normalizedName = name.trim()
   return normalizedName ? normalizedName[0] : '智'
+}
+
+function isScrollerNearBottom(scroller: HTMLDivElement): boolean {
+  return scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight <= AUTO_SCROLL_RESUME_THRESHOLD
 }
 
 function formatAgentMeta(agent: DiscoverAgentItem): string {
@@ -583,6 +588,7 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
   const currentUserId = useMemo(() => getChatUserId(), [])
   const artifactPreviewEntry = useMemo(() => buildArtifactPreviewEntry(selectedArtifact), [selectedArtifact])
   const scrollerRef = useRef<HTMLDivElement | null>(null)
+  const autoScrollEnabledRef = useRef(true)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const partnerAvatarInputRef = useRef<HTMLInputElement | null>(null)
   const uploadAbortControllersRef = useRef<Map<string, AbortController>>(new Map())
@@ -1038,11 +1044,42 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
   }, [])
 
   useEffect(() => {
-    scrollerRef.current?.scrollTo({
-      top: scrollerRef.current.scrollHeight,
+    const scroller = scrollerRef.current
+
+    if (!scroller || !autoScrollEnabledRef.current) {
+      return
+    }
+
+    scroller.scrollTo({
+      top: scroller.scrollHeight,
       behavior: 'smooth',
     })
   }, [messages])
+
+  useEffect(() => {
+    const scroller = scrollerRef.current
+
+    if (!scroller) {
+      return
+    }
+
+    // 用户主动把列表滚离底部后，暂停流式回复的自动跟随；滚回到底部再恢复。
+    const handleScroll = () => {
+      autoScrollEnabledRef.current = isScrollerNearBottom(scroller)
+    }
+
+    scroller.addEventListener('scroll', handleScroll, { passive: true })
+
+    return () => {
+      scroller.removeEventListener('scroll', handleScroll)
+    }
+  }, [routeSessionId])
+
+  useEffect(() => {
+    if (!routeSessionId || messages.length === 0) {
+      autoScrollEnabledRef.current = true
+    }
+  }, [messages.length, routeSessionId])
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
