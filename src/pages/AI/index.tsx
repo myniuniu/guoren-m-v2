@@ -55,6 +55,7 @@ import {
 import { AiConversationThread } from './components/AiConversationThread'
 import AiCommandsPage, { type AiCommandsPageTabKey } from './components/AiCommandsPage'
 import AiLibraryFilePreview from './components/AiLibraryFilePreview'
+import { AI_DRAWER_MENU_ITEMS, renderAiDrawerMenuIcon } from './components/AiDrawerMenuIcons'
 import AiSidebarLibraryPage from './components/AiSidebarLibraryPage'
 import AiSkillDetailPage from './components/AiSkillDetailPage'
 import { resolveArtifactPreviewUrl, useAiChatRuntime, type ActiveAgentContext } from './hooks/useAiChatRuntime'
@@ -442,42 +443,6 @@ function getPartnerWorkspaceValue(config: PartnerConfig | null, fileKey: Partner
   return config[getPartnerWorkspaceField(fileKey)] ?? ''
 }
 
-function renderDrawerIcon(type: string) {
-  switch (type) {
-    case 'new':
-      return (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-          <line x1="12" y1="5" x2="12" y2="19" />
-          <line x1="5" y1="12" x2="19" y2="12" />
-        </svg>
-      )
-    case 'library':
-      return (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M5 6.5C5 5.67 5.67 5 6.5 5h2.2c.46 0 .9.21 1.19.57l1.22 1.56c.28.36.72.57 1.18.57H17.5c.83 0 1.5.67 1.5 1.5v8.3c0 .83-.67 1.5-1.5 1.5h-11c-.83 0-1.5-.67-1.5-1.5z" />
-          <path d="M9 5v14" />
-        </svg>
-      )
-    case 'skills':
-      return (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M14.5 4.5a3 3 0 0 1 4.24 4.24l-1.42 1.42-4.24-4.24z" />
-          <path d="M13.09 5.91 5.3 13.7a2 2 0 0 0 0 2.83l2.17 2.17a2 2 0 0 0 2.83 0l7.79-7.79" />
-          <path d="m8.5 11.5 4 4" />
-        </svg>
-      )
-    case 'discover':
-      return (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="12" cy="12" r="6.5" />
-          <path d="M4 13.5c2.5-1.2 4.87-1.8 8-1.8 3.12 0 5.5.6 8 1.8" />
-        </svg>
-      )
-    default:
-      return null
-  }
-}
-
 export default function AIPage({ onClose }: { onClose: () => void }) {
   const location = useLocation()
   const navigate = useNavigate()
@@ -598,13 +563,6 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
   const hasGroupedSessions = groupedSessions.today.length > 0
     || groupedSessions.within7Days.length > 0
     || groupedSessions.beyond7Days.length > 0
-
-  const menuItems = [
-    { key: 'new', label: '新建' },
-    { key: 'library', label: '库' },
-    { key: 'skills', label: '技能' },
-    { key: 'discover', label: '发现' },
-  ]
 
   const builtInAgent = useMemo(() => {
     const agentName = partnerConfig?.agentName?.trim() || '建国'
@@ -2098,7 +2056,7 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
                 </div>
 
                 <div className="ai-drawer-menu">
-                  {menuItems.map((item) => (
+                  {AI_DRAWER_MENU_ITEMS.map((item) => (
                     <div className={`ai-drawer-menu-item ${(item.key === 'library' && showSidebarLibrary) || (item.key === 'new' && !showSidebarLibrary && !showDiscoverPage && !showSkillsPage) || (item.key === 'discover' && showDiscoverPage) || (item.key === 'skills' && showSkillsPage) ? 'is-highlighted' : ''}`} key={item.key} onClick={() => {
                       if (item.key === 'library') {
                         openSidebarLibraryPage()
@@ -2120,7 +2078,7 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
                         openSkillsPage()
                       }
                     }}>
-                      <span className="ai-drawer-menu-icon">{renderDrawerIcon(item.key)}</span>
+                      <span className="ai-drawer-menu-icon">{renderAiDrawerMenuIcon(item.key)}</span>
                       <span className="ai-drawer-menu-label">{item.label}</span>
                     </div>
                   ))}
