@@ -676,6 +676,17 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
     setShowSidebarLibrary(true)
   }
 
+  // 从抽屉切回会话页时，需要把当前全屏页一起收起，否则视觉上会停留在原页面。
+  const closeNavigationOverlays = () => {
+    setShowDrawer(false)
+    setShowSidebarLibrary(false)
+    setShowDiscoverPage(false)
+    setShowSkillsPage(false)
+    setShowMySkillsPage(false)
+    setShowSkillSelectorPage(false)
+    setShowLibraryPage(false)
+  }
+
   const openPartnerPage = () => {
     setShowDrawer(false)
     setShowDiscoverPage(false)
@@ -1499,8 +1510,7 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
 
     activateAgent(buildAgentContext(agent))
     startNewChat({ keepAgent: true })
-    setShowDiscoverPage(false)
-    setShowDrawer(false)
+    closeNavigationOverlays()
   }
 
   const openAgentUsageLogChat = (agent: AgentUsageLog) => {
@@ -1517,8 +1527,7 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
       description: '',
     })
     startNewChat({ keepAgent: true })
-    setShowDiscoverPage(false)
-    setShowDrawer(false)
+    closeNavigationOverlays()
   }
 
   const openDeleteAgentUsageDialog = (agent: AgentUsageLog) => {
@@ -1613,7 +1622,7 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
               type="button"
               onClick={() => {
                 openSession(session.session_id)
-                setShowDrawer(false)
+                closeNavigationOverlays()
               }}
             >
               <div className="ai-drawer-chat-icon">
