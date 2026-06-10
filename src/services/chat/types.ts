@@ -39,6 +39,20 @@ export interface ChatToolCall {
   timestamp?: string
 }
 
+export type ChatProcessingStep =
+  | {
+      id: string
+      type: 'reasoning'
+      reasoning: string
+      timestamp: string
+    }
+  | {
+      id: string
+      type: 'tool'
+      toolCall: ChatToolCall
+      timestamp: string
+    }
+
 export interface ChatMessage {
   id: string
   role: ChatRole
@@ -49,6 +63,7 @@ export interface ChatMessage {
   reasoningContent?: string | null
   reasoningTimestamp?: string | null
   toolCalls: ChatToolCall[]
+  processingSteps?: ChatProcessingStep[]
   references: ChatReference[]
   skillOutput: ChatArtifactItem[]
   attachments: ChatAttachment[]

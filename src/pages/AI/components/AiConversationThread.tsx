@@ -1,6 +1,5 @@
 import { type ReactNode, type RefObject, useMemo, useState } from 'react'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
+import { Toast } from 'antd-mobile'
 import type {
   ChatArtifactItem,
   ChatMessage,
@@ -8,6 +7,11 @@ import type {
   ChatToolCall,
 } from '../../../services/chat/types'
 import type { SelectedArtifact } from '../hooks/useAiChatRuntime'
+import { AiMarkdownContent } from './AiMarkdownContent'
+import {
+  extractAssistantOutputText,
+  resolveAssistantCopyTargets,
+} from './assistantRenderUtils'
 
 type AiConversationThreadProps = {
   messages: ChatMessage[]
@@ -66,7 +70,7 @@ function hasTextContent(message: ChatMessage): boolean {
 }
 
 function hasProcessingSteps(message: ChatMessage): boolean {
-  return Boolean(message.reasoningContent?.trim()) || message.toolCalls.length > 0
+  return (message.processingSteps?.length ?? 0) > 0 || Boolean(message.reasoningContent?.trim()) || message.toolCalls.length > 0
 }
 
 function hasAssistantOutput(message: ChatMessage): boolean {
@@ -124,6 +128,32 @@ function groupMessages(messages: ChatMessage[]): PresentationGroup[] {
 
 function buildProcessSteps(messages: ChatMessage[]): ProcessStep[] {
   const steps = messages.flatMap((message, messageIndex) => {
+    const processingSteps = message.processingSteps ?? []
+
+    if (processingSteps.length > 0) {
+      return processingSteps.map((step, stepIndex) => {
+        if (step.type === 'reasoning') {
+          return {
+            id: step.id,
+            type: 'reasoning' as const,
+            reasoning: step.reasoning.trim(),
+            stepTimestamp: step.timestamp,
+            sortOrder: messageIndex * 1000 + stepIndex,
+          }
+        }
+
+        return {
+          id: step.id,
+          type: 'tool' as const,
+          toolCall: step.toolCall,
+          stepTimestamp: step.timestamp,
+          sortOrder: messageIndex * 1000 + stepIndex,
+        }
+      }).filter((step) => {
+        return step.type === 'tool' || step.reasoning.trim().length > 0
+      })
+    }
+
     const steps: ProcessStep[] = []
     const stepOrderBase = messageIndex * 100
 
@@ -615,41 +645,16 @@ function ToolCallProcessStep({
 
 function ProcessingMessage({ messages }: { messages: ChatMessage[] }) {
   const [showAbove, setShowAbove] = useState(true)
-  const [showLastThinking, setShowLastThinking] = useState(true)
   const steps = useMemo(() => buildProcessSteps(messages), [messages])
-
-  const lastActionStep = useMemo(() => {
-    const actionSteps = steps.filter((step) => step.type !== 'reasoning')
-    return actionSteps[actionSteps.length - 1] ?? null
-  }, [steps])
-
-  const aboveLastActionSteps = useMemo(() => {
-    if (!lastActionStep) {
-      return []
-    }
-
-    const index = steps.indexOf(lastActionStep)
-    return index > 0 ? steps.slice(0, index) : []
-  }, [lastActionStep, steps])
-
-  const lastReasoningStep = useMemo(() => {
-    if (lastActionStep) {
-      const index = steps.indexOf(lastActionStep)
-      return steps.slice(index + 1).find((step) => step.type === 'reasoning') ?? null
-    }
-
-    const reasoningSteps = steps.filter((step) => step.type === 'reasoning')
-    return reasoningSteps[reasoningSteps.length - 1] ?? null
-  }, [lastActionStep, steps])
+  const latestStep = steps[steps.length - 1] ?? null
+  const aboveLatestSteps = latestStep ? steps.slice(0, -1) : []
 
   const renderProcessStep = (step: ProcessStep, isLast: boolean) => {
     if (step.type === 'reasoning') {
       return (
         <ProcessStepShell icon="💡" isLast={isLast} key={step.id} label={(
           <div className="ai-cot-reasoning-markdown">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-              {step.reasoning}
-            </ReactMarkdown>
+            <AiMarkdownContent content={step.reasoning} />
           </div>
         )} />
       )
@@ -661,72 +666,73 @@ function ProcessingMessage({ messages }: { messages: ChatMessage[] }) {
   return (
     <div className="ai-processing-panel">
       <div className="ai-cot">
-        {aboveLastActionSteps.length > 0 ? (
+        {aboveLatestSteps.length > 0 ? (
           <button
             className="ai-cot-toggle"
             onClick={() => setShowAbove((value) => !value)}
             type="button"
           >
             <div className="ai-cot-toggle-row">
-              <span className="ai-cot-toggle-label">{showAbove ? '隐藏步骤' : `查看其他 ${aboveLastActionSteps.length} 个步骤`}</span>
+              <span className="ai-cot-toggle-label">{showAbove ? '隐藏步骤' : `查看其他 ${aboveLatestSteps.length} 个步骤`}</span>
               <span className={`ai-cot-toggle-arrow ${showAbove ? 'is-open' : ''}`}>⌃</span>
             </div>
           </button>
         ) : null}
 
-        {lastActionStep ? (
+        {latestStep ? (
           <div className="ai-cot-content">
-            {showAbove ? aboveLastActionSteps.map((step, index) => renderProcessStep(
+            {showAbove ? aboveLatestSteps.map((step, index) => renderProcessStep(
               step,
-              index === aboveLastActionSteps.length - 1 && !lastReasoningStep,
+              index === aboveLatestSteps.length - 1 && !latestStep,
             )) : null}
-            {renderProcessStep(lastActionStep, !lastReasoningStep)}
+            {renderProcessStep(latestStep, true)}
           </div>
-        ) : null}
-
-        {lastReasoningStep ? (
-          <>
-            <button
-              className="ai-cot-toggle"
-              onClick={() => setShowLastThinking((value) => !value)}
-              type="button"
-            >
-              <div className="ai-cot-toggle-row">
-                <div className="ai-cot-toggle-thinking">💡 思考</div>
-                <span className={`ai-cot-toggle-arrow ${showLastThinking ? 'is-open' : ''}`}>⌃</span>
-              </div>
-            </button>
-            {showLastThinking ? (
-              <div className="ai-cot-content">
-                {renderProcessStep(lastReasoningStep, true)}
-              </div>
-            ) : null}
-          </>
         ) : null}
       </div>
     </div>
   )
 }
 
+async function copyAssistantContent(content: string): Promise<boolean> {
+  if (!content.trim()) {
+    return false
+  }
+
+  try {
+    await navigator.clipboard.writeText(content)
+    return true
+  } catch {
+    return false
+  }
+}
+
 function AssistantOutputMessage({
   message,
   messageSessionId,
+  copiedMessageId,
+  copyContent,
+  onCopy,
   onSelectArtifact,
 }: {
   message: ChatMessage
   messageSessionId: string | null
+  copiedMessageId: string | null
+  copyContent: string
+  onCopy: (messageId: string, content: string) => void
   onSelectArtifact: (artifact: SelectedArtifact) => void
 }) {
+  const textContent = extractAssistantOutputText(message)
+
   return (
     <div className="ai-chat-row is-assistant">
       <div className="ai-chat-assistant-stack">
         <div className="ai-chat-bubble is-assistant">
-          {message.content ? (
-            <div className="ai-chat-markdown">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                {message.content}
-              </ReactMarkdown>
-            </div>
+          {textContent ? (
+            <AiMarkdownContent
+              className="ai-chat-markdown"
+              content={textContent}
+              isStreaming={Boolean(message.loading)}
+            />
           ) : null}
 
           {message.references.length > 0 && (
@@ -766,6 +772,16 @@ function AssistantOutputMessage({
         </div>
         <div className="ai-chat-message-meta is-assistant is-outside">
           <span>{formatMessageTime(message.createdAt)}</span>
+          {copyContent ? (
+            <button
+              aria-label="复制"
+              className="ai-chat-copy-button"
+              onClick={() => onCopy(message.id, copyContent)}
+              type="button"
+            >
+              {copiedMessageId === message.id ? '已复制' : '复制'}
+            </button>
+          ) : null}
           {message.loading ? <span className="ai-chat-message-loading">流式中</span> : null}
         </div>
       </div>
@@ -820,6 +836,27 @@ export function AiConversationThread({
   onSelectArtifact,
 }: AiConversationThreadProps) {
   const groups = useMemo(() => groupMessages(messages), [messages])
+  const isResponding = useMemo(
+    () => messages.some((message) => message.role === 'assistant' && Boolean(message.loading)),
+    [messages],
+  )
+  const assistantCopyTargets = useMemo(
+    () => resolveAssistantCopyTargets(messages, { excludeLastTurn: isResponding }),
+    [messages, isResponding],
+  )
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null)
+
+  const handleCopy = async (messageId: string, content: string) => {
+    const copied = await copyAssistantContent(content)
+
+    if (!copied) {
+      Toast.show({ content: '复制失败，请稍后重试' })
+      return
+    }
+
+    setCopiedMessageId(messageId)
+    Toast.show({ content: '已复制' })
+  }
 
   return (
     <div className="ai-chat-thread" ref={scrollRef}>
@@ -845,9 +882,12 @@ export function AiConversationThread({
 
           return (
             <AssistantOutputMessage
+              copiedMessageId={copiedMessageId}
+              copyContent={assistantCopyTargets[message.id] ?? ''}
               key={message.id}
               message={message}
               messageSessionId={messageSessionId}
+              onCopy={handleCopy}
               onSelectArtifact={onSelectArtifact}
             />
           )

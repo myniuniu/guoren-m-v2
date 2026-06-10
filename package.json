@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "test": "vitest run"
   },
   "dependencies": {
     "@tencentcloud/lite-chat": "^4.4.0",
@@ -15,14 +16,23 @@
     "antd-mobile": "^5.38.1",
     "antd-mobile-icons": "^0.3.0",
     "dompurify": "^3.4.8",
+    "katex": "^0.16.44",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-markdown": "^10.1.0",
     "react-router-dom": "^7.17.0",
-    "remark-gfm": "^4.0.1"
+    "rehype-katex": "^7.0.1",
+    "rehype-raw": "^7.0.0",
+    "remark-gfm": "^4.0.1",
+    "remark-math": "^6.0.0",
+    "streamdown": "^2.5.0",
+    "unist-util-visit": "^5.1.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.0",
+    "@types/hast": "^3.0.4",
     "@types/node": "^24.0.0",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
@@ -32,9 +42,11 @@
     "eslint-plugin-react-hooks": "^5.0.0",
     "eslint-plugin-react-refresh": "^0.4.16",
     "globals": "^15.14.0",
+    "jsdom": "^27.0.0",
     "typescript": "~5.6.2",
     "typescript-eslint": "^8.18.2",
     "vite": "^6.0.5",
+    "vitest": "^2.1.8",
     "vite-plugin-pwa": "^0.21.1"
   }
 }

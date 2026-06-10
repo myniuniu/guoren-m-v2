@@ -64,6 +64,7 @@ function buildUserMessage(
     reasoningContent: null,
     reasoningTimestamp: null,
     toolCalls: [],
+    processingSteps: [],
     references: [],
     skillOutput: [],
     attachments,
@@ -81,6 +82,7 @@ function buildAssistantPlaceholder(sessionId: string | null): ChatMessage {
     reasoningContent: null,
     reasoningTimestamp: null,
     toolCalls: [],
+    processingSteps: [],
     references: [],
     skillOutput: [],
     attachments: [],
@@ -157,6 +159,7 @@ function mapServerMessage(message: ChatSessionDetail['messages'][number]): ChatM
           toolDisplay: toolCall.tool_display,
         }))
       : [],
+    processingSteps: [],
     references: Array.isArray(message.references) ? message.references : [],
     skillOutput: normalizeSkillOutput(message.skill_output),
     attachments: normalizeAttachments(message.attachments),

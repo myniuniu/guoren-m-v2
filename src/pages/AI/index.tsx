@@ -548,7 +548,7 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
   const [partnerError, setPartnerError] = useState('')
   const [partnerSaving, setPartnerSaving] = useState(false)
   const [partnerAvatarUploading, setPartnerAvatarUploading] = useState(false)
-  const [webSearchEnabled, setWebSearchEnabled] = useState(false)
+  const [webSearchEnabled, setWebSearchEnabled] = useState(true)
   const [selectedSkillName, setSelectedSkillName] = useState<string | null>(null)
 
   const {

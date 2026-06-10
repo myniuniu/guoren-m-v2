@@ -1,12 +1,89 @@
-import type { ChatArtifactItem, ChatMessage, ChatReference, ChatToolCall } from './types'
+import type {
+  ChatArtifactItem,
+  ChatMessage,
+  ChatProcessingStep,
+  ChatReference,
+  ChatToolCall,
+} from './types'
 
 export type MessageMutationResult = {
   messages: ChatMessage[]
   activeMessageId: string
 }
 
-function hasProcessingSteps(message: Pick<ChatMessage, 'toolCalls' | 'skillOutput'>): boolean {
-  return (message.toolCalls?.length ?? 0) > 0 || (message.skillOutput?.length ?? 0) > 0
+function hasProcessingSteps(message: Pick<ChatMessage, 'toolCalls' | 'processingSteps' | 'skillOutput'>): boolean {
+  return (message.processingSteps?.some((step) => step.type === 'tool') ?? false)
+    || (message.toolCalls?.length ?? 0) > 0
+    || (message.skillOutput?.length ?? 0) > 0
+}
+
+function appendReasoningStep(
+  processingSteps: ChatProcessingStep[],
+  messageId: string,
+  chunk: string,
+  timestamp: string,
+): ChatProcessingStep[] {
+  const nextSteps = [...processingSteps]
+  const lastStep = nextSteps[nextSteps.length - 1]
+
+  if (lastStep?.type === 'reasoning') {
+    nextSteps[nextSteps.length - 1] = {
+      ...lastStep,
+      reasoning: `${lastStep.reasoning}${chunk}`,
+    }
+    return nextSteps
+  }
+
+  const reasoningCount = nextSteps.filter((step) => step.type === 'reasoning').length + 1
+  nextSteps.push({
+    id: `${messageId}-reasoning-${reasoningCount}`,
+    type: 'reasoning',
+    reasoning: chunk,
+    timestamp,
+  })
+
+  return nextSteps
+}
+
+function upsertToolProcessingStep(
+  processingSteps: ChatProcessingStep[],
+  toolCall: ChatToolCall,
+  timestamp: string,
+): ChatProcessingStep[] {
+  const nextSteps = [...processingSteps]
+  const existingIndex = nextSteps.findIndex((step) => step.type === 'tool' && step.toolCall.runId === toolCall.runId)
+
+  if (existingIndex === -1) {
+    nextSteps.push({
+      id: toolCall.runId,
+      type: 'tool',
+      toolCall: {
+        ...toolCall,
+        timestamp: toolCall.timestamp ?? timestamp,
+      },
+      timestamp: toolCall.timestamp ?? timestamp,
+    })
+    return nextSteps
+  }
+
+  const existingStep = nextSteps[existingIndex]
+
+  if (existingStep.type !== 'tool') {
+    return nextSteps
+  }
+
+  nextSteps[existingIndex] = {
+    ...existingStep,
+    toolCall: {
+      ...existingStep.toolCall,
+      ...toolCall,
+      input: Object.keys(toolCall.input).length ? toolCall.input : existingStep.toolCall.input,
+      timestamp: existingStep.toolCall.timestamp ?? toolCall.timestamp ?? timestamp,
+    },
+    timestamp: existingStep.timestamp,
+  }
+
+  return nextSteps
 }
 
 function buildFollowupMessageId(messages: ChatMessage[], activeMessageId: string): string {
@@ -29,6 +106,7 @@ function createFollowupAssistantMessage(
     reasoningContent: null,
     reasoningTimestamp: null,
     toolCalls: [],
+    processingSteps: [],
     references: [],
     skillOutput: [],
     attachments: [],
@@ -137,6 +215,7 @@ export function appendReasoningDeltaToMessages(
       createdAt: timestamp,
       reasoningContent: `${message.reasoningContent ?? ''}${chunk}`,
       reasoningTimestamp: message.reasoningTimestamp ?? timestamp,
+      processingSteps: appendReasoningStep(message.processingSteps ?? [], message.id, chunk, timestamp),
     }
   })
 }
@@ -172,6 +251,7 @@ export function upsertToolCallInMessages(
       ...message,
       createdAt: timestamp,
       toolCalls: nextToolCalls,
+      processingSteps: upsertToolProcessingStep(message.processingSteps ?? [], toolCall, timestamp),
     }
   })
 }

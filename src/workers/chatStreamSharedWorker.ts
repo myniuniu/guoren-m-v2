@@ -109,6 +109,19 @@ function cloneSnapshot(snapshot: ChatStreamSnapshot): ChatStreamSnapshot {
     messages: snapshot.messages.map((message) => ({
       ...message,
       toolCalls: [...message.toolCalls],
+      processingSteps: (message.processingSteps ?? []).map((step) => {
+        if (step.type === 'reasoning') {
+          return { ...step }
+        }
+
+        return {
+          ...step,
+          toolCall: {
+            ...step.toolCall,
+            input: { ...step.toolCall.input },
+          },
+        }
+      }),
       references: [...message.references],
       skillOutput: [...message.skillOutput],
       attachments: [...message.attachments],
