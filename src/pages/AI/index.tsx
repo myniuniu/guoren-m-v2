@@ -53,7 +53,15 @@ import {
   type SkillSummaryItem,
 } from '../../services/skills'
 import { AiConversationThread } from './components/AiConversationThread'
+import {
+  AiAgentConfigPage,
+  createEmptyAiAgentConfigDraft,
+  type AiAgentConfigDraft,
+  type AiAgentPublishSuccessPayload,
+} from './components/AiAgentConfigPage'
 import AiCommandsPage, { type AiCommandsPageTabKey } from './components/AiCommandsPage'
+import { AiCreateAgentModal } from './components/AiCreateAgentModal'
+import { AiDiscoverPage } from './components/AiDiscoverPage'
 import AiLibraryFilePreview from './components/AiLibraryFilePreview'
 import { AI_DRAWER_MENU_ITEMS, renderAiDrawerMenuIcon } from './components/AiDrawerMenuIcons'
 import AiSidebarLibraryPage from './components/AiSidebarLibraryPage'
@@ -63,7 +71,6 @@ import {
   normalizeSessionArtifactPreviewFilePath,
   normalizeSessionArtifactPreviewFileType,
 } from './utils/sessionArtifactPreview'
-import { useDisplayNamePrefetch } from '../IM/utils/displayNameHooks'
 import AppComposerInput from '../../components/AppComposerInput'
 import DisplayName from '../../components/DisplayName'
 import { APP_ROUTE_PATHS } from '../../routes'
@@ -150,138 +157,12 @@ function isScrollerNearBottom(scroller: HTMLDivElement): boolean {
   return scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight <= AUTO_SCROLL_RESUME_THRESHOLD
 }
 
-function formatAgentMeta(agent: DiscoverAgentItem): string {
-  if (agent.publishScope === 'specified') {
-    return '协作'
-  }
-
-  if (agent.tenantId === null) {
-    return '官方'
-  }
-
-  return '企业'
-}
-
 function buildAgentContext(agent: DiscoverAgentItem): ActiveAgentContext {
   return {
     agentId: agent.agentId,
     agentName: agent.agentName,
     description: agent.description,
   }
-}
-
-// 发现页智能体卡片（独立组件，内部使用 useDisplayName）
-function DiscoverAgentCard({
-  agent,
-  onClick,
-}: {
-  agent: DiscoverAgentItem
-  onClick: () => void
-}) {
-  return (
-    <button className="ai-discover-card" key={agent.agentId} type="button" onClick={onClick}>
-      <div
-        className="ai-discover-card-avatar"
-        style={agent.avatarUrl ? {
-          backgroundImage: `url(${agent.avatarUrl})`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          backgroundColor: 'transparent',
-        } : { backgroundColor: '#4A7CFF' }}
-      >
-        {!agent.avatarUrl && getAgentAvatarLetter(agent.agentName)}
-      </div>
-      <div className="ai-discover-card-body">
-        <div className="ai-discover-card-title">{agent.agentName}</div>
-        <div className="ai-discover-card-desc">{agent.description || '暂无描述'}</div>
-        <div className="ai-discover-card-meta">
-          <DisplayName userId={agent.creatorUserId} prefix="@" />
-          <span className="ai-discover-card-chats">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-            </svg>
-            {formatAgentMeta(agent)}
-          </span>
-        </div>
-      </div>
-    </button>
-  )
-}
-
-// 发现页全屏组件
-interface DiscoverPageProps {
-  discoverLoading: boolean
-  discoverError: string
-  discoverSections: Array<{ key: AgentCategoryKey; title: string; items: DiscoverAgentItem[] }>
-  onOpenAgentChat: (agent: DiscoverAgentItem) => void
-  onOpenDrawer: () => void
-  onClose: () => void
-}
-
-function DiscoverPage({
-  discoverLoading,
-  discoverError,
-  discoverSections,
-  onOpenAgentChat,
-  onOpenDrawer,
-  onClose,
-}: DiscoverPageProps) {
-  // 预热所有智能体创建者的 displayName 缓存
-  const allCreatorIds = useMemo(
-    () => discoverSections.flatMap((s) => s.items.map((a) => a.creatorUserId)),
-    [discoverSections],
-  )
-  useDisplayNamePrefetch(allCreatorIds)
-
-  return (
-    <div className="ai-discover-page">
-      <div className="ai-discover-header">
-        <div className="ai-discover-header-menu" onClick={onOpenDrawer}>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round">
-            <line x1="3" y1="6" x2="21" y2="6" />
-            <line x1="3" y1="12" x2="21" y2="12" />
-            <line x1="3" y1="18" x2="21" y2="18" />
-          </svg>
-        </div>
-        <div className="ai-discover-header-title">发现</div>
-        <div className="ai-discover-header-actions">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round">
-            <circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /><circle cx="5" cy="12" r="1" />
-          </svg>
-          <div className="ai-discover-header-close" onClick={onClose}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round">
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          </div>
-        </div>
-      </div>
-
-      <div className="ai-discover-content">
-        {discoverLoading ? <div className="ai-data-status">智能体列表加载中…</div> : null}
-        {!discoverLoading && discoverError ? <div className="ai-data-status">{discoverError}</div> : null}
-        {!discoverLoading && !discoverError && discoverSections.every((section) => section.items.length === 0) ? (
-          <div className="ai-data-status">暂无可见智能体</div>
-        ) : null}
-        {!discoverLoading && !discoverError && discoverSections.map((section) => (
-          section.items.length > 0 ? (
-            <div key={section.key}>
-              <div className="ai-discover-section-title">{section.title}</div>
-              <div className="ai-discover-list">
-                {section.items.map((agent) => (
-                  <DiscoverAgentCard
-                    key={agent.agentId}
-                    agent={agent}
-                    onClick={() => { onOpenAgentChat(agent) }}
-                  />
-                ))}
-              </div>
-            </div>
-          ) : null
-        ))}
-      </div>
-    </div>
-  )
 }
 
 function resolveLibrarySpaceName(
@@ -456,6 +337,8 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
   const [showLibraryPage, setShowLibraryPage] = useState(false)
   const [showSidebarLibrary, setShowSidebarLibrary] = useState(false)
   const [showDiscoverPage, setShowDiscoverPage] = useState(false)
+  const [showAgentConfigPage, setShowAgentConfigPage] = useState(false)
+  const [showCreateAgentModal, setShowCreateAgentModal] = useState(false)
   const [showCommandsPage, setShowCommandsPage] = useState(false)
   const [commandsPageTab, setCommandsPageTab] = useState<AiCommandsPageTabKey>('best-practice')
   const [showMySkillsPage, setShowMySkillsPage] = useState(false)
@@ -520,6 +403,10 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
   const [partnerAvatarUploading, setPartnerAvatarUploading] = useState(false)
   const [webSearchEnabled, setWebSearchEnabled] = useState(true)
   const [selectedSkillName, setSelectedSkillName] = useState<string | null>(null)
+  const [agentConfigDraft, setAgentConfigDraft] = useState<AiAgentConfigDraft>(() => createEmptyAiAgentConfigDraft())
+  const [agentConfigMode, setAgentConfigMode] = useState<'create' | 'edit'>('create')
+  const [agentConfigAgentId, setAgentConfigAgentId] = useState('')
+  const [agentConfigAvatarUrl, setAgentConfigAvatarUrl] = useState<string | null>(null)
 
   const {
     activeAgent,
@@ -600,6 +487,8 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
     setShowDiscoverPage(false)
     setShowMySkillsPage(false)
     setShowSkillSelectorPage(false)
+    setShowAgentConfigPage(false)
+    setShowCreateAgentModal(false)
     setShowDrawer(false)
     setShowSkillsPage(true)
   }
@@ -611,6 +500,8 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
     setShowSkillsPage(false)
     setShowMySkillsPage(false)
     setShowSkillSelectorPage(false)
+    setShowAgentConfigPage(false)
+    setShowCreateAgentModal(false)
     setSelectedSkillDetail(null)
     setInputValue(SKILL_CREATOR_INITIAL_PROMPT)
     setActiveToolType(SKILL_CREATOR_TOOL_TYPE)
@@ -621,6 +512,8 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
     setShowPlusSheet(false)
     setShowFileMenu(false)
     setSkillSelectorSearchValue('')
+    setShowAgentConfigPage(false)
+    setShowCreateAgentModal(false)
     setShowSkillSelectorPage(true)
   }
 
@@ -630,6 +523,8 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
     setShowOrgSpacePicker(false)
     setLibrarySearchValue('')
     setSelectedLibraryIds([])
+    setShowAgentConfigPage(false)
+    setShowCreateAgentModal(false)
     setShowLibraryPage(true)
   }
 
@@ -638,6 +533,8 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
     setShowDiscoverPage(false)
     setShowSkillsPage(false)
     setShowMySkillsPage(false)
+    setShowAgentConfigPage(false)
+    setShowCreateAgentModal(false)
     setShowSidebarLibrary(true)
   }
 
@@ -650,6 +547,8 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
     setShowMySkillsPage(false)
     setShowSkillSelectorPage(false)
     setShowLibraryPage(false)
+    setShowAgentConfigPage(false)
+    setShowCreateAgentModal(false)
   }
 
   const openPartnerPage = () => {
@@ -657,10 +556,105 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
     setShowDiscoverPage(false)
     setShowSkillsPage(false)
     setShowSidebarLibrary(false)
+    setShowAgentConfigPage(false)
+    setShowCreateAgentModal(false)
     clearActiveAgent()
     startNewChat()
     navigate(APP_ROUTE_PATHS.partner)
   }
+
+  const openAgentConfigPage = (
+    initialDraft?: Partial<AiAgentConfigDraft>,
+    options: {
+      mode?: 'create' | 'edit'
+      agentId?: string
+      avatarUrl?: string | null
+    } = {},
+  ) => {
+    setAgentConfigDraft(createEmptyAiAgentConfigDraft(initialDraft))
+    setAgentConfigMode(options.mode ?? 'create')
+    setAgentConfigAgentId(options.agentId ?? '')
+    setAgentConfigAvatarUrl(options.avatarUrl ?? null)
+    setShowCreateAgentModal(false)
+    setShowAgentConfigPage(true)
+  }
+
+  const refreshVisibleAgents = useCallback(async (signal?: AbortSignal) => {
+    setDiscoverLoading(true)
+    setDiscoverError('')
+
+    try {
+      setVisibleAgents(await listVisibleAgents({ limit: 100, skip: 0, signal }))
+    } catch (error) {
+      if (!signal?.aborted) {
+        setDiscoverError(error instanceof Error ? error.message : '智能体列表加载失败')
+      }
+    } finally {
+      if (!signal?.aborted) {
+        setDiscoverLoading(false)
+      }
+    }
+  }, [])
+
+  const refreshAgentUsageLogs = useCallback(async (signal?: AbortSignal) => {
+    setAgentUsageLogsLoading(true)
+    setAgentUsageLogsError('')
+
+    try {
+      setAgentUsageLogs(await getAgentUsageLogs(signal))
+    } catch (error) {
+      if (!signal?.aborted) {
+        setAgentUsageLogs([])
+        setAgentUsageLogsError(error instanceof Error ? error.message : '智能体使用记录加载失败')
+      }
+    } finally {
+      if (!signal?.aborted) {
+        setAgentUsageLogsLoading(false)
+      }
+    }
+  }, [])
+
+  const handleAgentPublishSuccess = useCallback(async (payload: AiAgentPublishSuccessPayload) => {
+    let createdUsageLog = false
+
+    try {
+      createdUsageLog = await ensureAgentUsageLog(payload.agentId)
+    } catch (error) {
+      console.warn('[ai-page] 发布后补写智能体使用记录失败：', error)
+    }
+
+    setAgentUsageLogs((current) => {
+      const nextEntry: AgentUsageLog = {
+        agentId: payload.agentId,
+        userId: currentUserId,
+        agentName: payload.agentName,
+        avatarUrl: payload.avatarUrl || null,
+        usedAt: new Date().toISOString(),
+      }
+
+      if (createdUsageLog || !current.some((item) => item.agentId === payload.agentId)) {
+        return [nextEntry, ...current.filter((item) => item.agentId !== payload.agentId)]
+      }
+
+      return current.map((item) => item.agentId === payload.agentId ? nextEntry : item)
+    })
+
+    activateAgent({
+      agentId: payload.agentId,
+      agentName: payload.agentName,
+      description: payload.description,
+    })
+    startNewChat({ keepAgent: true })
+    setShowCreateAgentModal(false)
+    setShowAgentConfigPage(false)
+    setLocalBannerMessage(payload.mode === 'edit' ? '智能体已更新。' : '智能体已发布，可继续对话。')
+
+    void refreshVisibleAgents()
+
+    if (showDrawer) {
+      void refreshAgentUsageLogs()
+    }
+  }, [activateAgent, currentUserId, refreshAgentUsageLogs, refreshVisibleAgents, showDrawer, startNewChat])
 
   const openLocalFilePicker = (mode: 'all' | 'image' | 'camera') => {
     setShowFileMenu(false)
@@ -871,7 +865,7 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
   }>>(() => ([
     { key: 'official', title: '官方智能体', items: groupedDiscoverAgents.official },
     { key: 'enterprise', title: '企业智能体', items: groupedDiscoverAgents.enterprise },
-    { key: 'collaboration', title: '协作智能体', items: groupedDiscoverAgents.collaboration },
+    { key: 'collaboration', title: '共创', items: groupedDiscoverAgents.collaboration },
     { key: 'mine', title: '我的智能体', items: groupedDiscoverAgents.mine },
   ]), [groupedDiscoverAgents])
   const selectedOrgSpaceName = useMemo(() => resolveLibrarySpaceName(knowledgeSpaces, selectedOrgSpaceId), [knowledgeSpaces, selectedOrgSpaceId])
@@ -1183,54 +1177,21 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
     }
 
     const controller = new AbortController()
-
-    void (async () => {
-      setAgentUsageLogsLoading(true)
-      setAgentUsageLogsError('')
-
-      try {
-        setAgentUsageLogs(await getAgentUsageLogs(controller.signal))
-      } catch (error) {
-        if (!controller.signal.aborted) {
-          setAgentUsageLogs([])
-          setAgentUsageLogsError(error instanceof Error ? error.message : '智能体使用记录加载失败')
-        }
-      } finally {
-        if (!controller.signal.aborted) {
-          setAgentUsageLogsLoading(false)
-        }
-      }
-    })()
+    void refreshAgentUsageLogs(controller.signal)
 
     return () => {
       controller.abort()
     }
-  }, [showDrawer])
+  }, [refreshAgentUsageLogs, showDrawer])
 
   useEffect(() => {
     const controller = new AbortController()
-
-    void (async () => {
-      setDiscoverLoading(true)
-      setDiscoverError('')
-
-      try {
-        setVisibleAgents(await listVisibleAgents({ limit: 100, skip: 0, signal: controller.signal }))
-      } catch (error) {
-        if (!controller.signal.aborted) {
-          setDiscoverError(error instanceof Error ? error.message : '智能体列表加载失败')
-        }
-      } finally {
-        if (!controller.signal.aborted) {
-          setDiscoverLoading(false)
-        }
-      }
-    })()
+    void refreshVisibleAgents(controller.signal)
 
     return () => {
       controller.abort()
     }
-  }, [])
+  }, [refreshVisibleAgents])
 
   useEffect(() => {
     if (!showLibraryPage) {
@@ -2617,15 +2578,33 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
 
       {/* 发现全屏页 */}
       {showDiscoverPage && (
-        <DiscoverPage
+        <AiDiscoverPage
           discoverLoading={discoverLoading}
           discoverError={discoverError}
           discoverSections={discoverSections}
           onOpenAgentChat={openAgentChat}
+          onOpenCreateAgent={() => setShowCreateAgentModal(true)}
           onOpenDrawer={() => setShowDrawer(true)}
-          onClose={onClose}
         />
       )}
+
+      {showAgentConfigPage && (
+        <AiAgentConfigPage
+          agentId={agentConfigAgentId || undefined}
+          avatarUrl={agentConfigAvatarUrl}
+          draft={agentConfigDraft}
+          mode={agentConfigMode}
+          onBack={() => setShowAgentConfigPage(false)}
+          onDraftChange={setAgentConfigDraft}
+          onPublishSuccess={handleAgentPublishSuccess}
+        />
+      )}
+
+      <AiCreateAgentModal
+        visible={showCreateAgentModal}
+        onClose={() => setShowCreateAgentModal(false)}
+        onUseTemplate={openAgentConfigPage}
+      />
 
       {showSkillSelectorPage && (
         <div className="ai-chat-skill-picker-page">
