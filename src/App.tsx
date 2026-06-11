@@ -219,7 +219,6 @@ const allEditableTabs: TabItem[] = [...defaultMainTabs, ...optionalSystemTabs, .
 const AI_VOICE_TOOLTIP_STORAGE_KEY = 'guoren-ai-voice-tooltip-seen'
 const AI_LONG_PRESS_MS = 420
 const EDGE_BACK_COMMIT_PX = 72
-const PAGE_SWIPE_COMMIT_PX = 68
 const PAGE_TRANSITION_MS = 260
 const SWIPE_MAX_VERTICAL_PX = 56
 const SWIPE_DIRECTION_RATIO = 1.2
@@ -237,37 +236,12 @@ type PageMotionState = {
   fromContent: React.ReactNode
   toContent: React.ReactNode
 }
-type PageSwipeSession = {
-  startX: number
-  startY: number
-  mode: 'pending' | 'horizontal' | 'vertical'
-  direction: PageTransitionDirection | null
-  targetKey: string | null
-}
 type EdgeSwipeSession = {
   startX: number
   startY: number
   mode: 'pending' | 'horizontal' | 'vertical'
   targetKey: string | null
-  intent: 'tab' | 'history' | 'overlay' | 'internal'
-}
-
-function hasHorizontalScrollableAncestor(target: EventTarget | null, boundary: HTMLElement | null) {
-  let current = target instanceof HTMLElement ? target : null
-
-  while (current && current !== boundary) {
-    if (current.dataset.pageSwipeIgnore === 'true') return true
-
-    const style = window.getComputedStyle(current)
-    const overflowX = style.overflowX
-    if ((overflowX === 'auto' || overflowX === 'scroll') && current.scrollWidth > current.clientWidth + 4) {
-      return true
-    }
-
-    current = current.parentElement
-  }
-
-  return false
+  intent: 'history' | 'overlay' | 'internal'
 }
 
 function getInternalBackButton(boundary: HTMLElement | null) {
@@ -298,7 +272,6 @@ function App() {
   const suppressHistoryRef = useRef(false)
   const pageMotionRef = useRef<PageMotionState | null>(null)
   const edgeSwipeRef = useRef<EdgeSwipeSession | null>(null)
-  const pageSwipeRef = useRef<PageSwipeSession | null>(null)
 
   const clearAILongPressTimer = () => {
     if (aiLongPressTimerRef.current !== null) {
@@ -589,22 +562,29 @@ function App() {
 
     const internalBackButton = getInternalBackButton(appContentRef.current)
     const canPreviewBack = !showAI && !showMoreDrawer && !showMoreEdit && !showSettings
-    const previousSwipeableTabKey = resolvePreviousSwipeableTabKey(activeKey)
-    const targetKey = internalBackButton
-      ? null
-      : canPreviewBack
-        ? (previousSwipeableTabKey ?? (swipeableTabKeys.includes(activeKey) ? null : (peekPreviousActiveKey() ?? (activeKey !== 'home' ? 'home' : null))))
-        : null
-    const intent: EdgeSwipeSession['intent'] = canPreviewBack
-      ? (internalBackButton ? 'internal' : previousSwipeableTabKey ? 'tab' : 'history')
-      : 'overlay'
+    const isRootMenuPage = mainTabs.some((tab) => tab.key === activeKey)
+    const historyTargetKey = canPreviewBack && !isRootMenuPage
+      ? (peekPreviousActiveKey() ?? (activeKey !== 'home' ? 'home' : null))
+      : null
+    const intent: EdgeSwipeSession['intent'] | null = !canPreviewBack
+      ? 'overlay'
+      : internalBackButton
+        ? 'internal'
+        : historyTargetKey
+          ? 'history'
+          : null
+
+    if (!intent) {
+      edgeSwipeRef.current = null
+      return
+    }
 
     const touch = event.touches[0]
     edgeSwipeRef.current = {
       startX: touch.clientX,
       startY: touch.clientY,
       mode: 'pending',
-      targetKey,
+      targetKey: intent === 'history' ? historyTargetKey : null,
       intent,
     }
   }
@@ -679,12 +659,7 @@ function App() {
 
   const handleEdgeTouchEnd = (event: React.TouchEvent<HTMLDivElement>) => {
     const swipe = edgeSwipeRef.current
-    if (!swipe) {
-      if (pageSwipeRef.current?.mode === 'horizontal' && pageSwipeRef.current.direction === 'left') {
-        finishContentSwipe()
-      }
-      return
-    }
+    if (!swipe) return
     clearInteractiveMotionFallback()
 
     const touch = event.changedTouches[0]
@@ -735,39 +710,6 @@ function App() {
     handleEdgeBack()
   }
 
-  const handleContentTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
-    if (pageMotion) {
-      if (!pageMotion.animate) {
-        clearInteractiveMotionFallback()
-        updatePageMotionState(null)
-      } else {
-        pageSwipeRef.current = null
-        return
-      }
-    }
-
-    if (showAI || showMoreDrawer || showMoreEdit || showSettings) {
-      pageSwipeRef.current = null
-      return
-    }
-
-    if (event.touches.length !== 1) return
-
-    if (hasHorizontalScrollableAncestor(event.target, appContentRef.current)) {
-      pageSwipeRef.current = null
-      return
-    }
-
-    const touch = event.touches[0]
-    pageSwipeRef.current = {
-      startX: touch.clientX,
-      startY: touch.clientY,
-      mode: 'pending',
-      direction: null,
-      targetKey: null,
-    }
-  }
-
   const settleInteractivePageMotion = (shouldCommit: boolean, options?: { suppressHistory?: boolean }) => {
     const currentMotion = pageMotionRef.current
     if (!currentMotion || currentMotion.animate) return
@@ -800,7 +742,6 @@ function App() {
     clearInteractiveMotionFallback()
     interactiveMotionFallbackTimerRef.current = window.setTimeout(() => {
       edgeSwipeRef.current = null
-      pageSwipeRef.current = null
       settleInteractivePageMotion(false)
       interactiveMotionFallbackTimerRef.current = null
     }, 220)
@@ -813,8 +754,6 @@ function App() {
     if (cancelInteractiveMotion) {
       settleInteractivePageMotion(false)
     }
-
-    pageSwipeRef.current = null
   }
 
   useEffect(() => {
@@ -884,117 +823,6 @@ function App() {
     return null
   }
 
-  const resolvePreviousSwipeableTabKey = (key: string) => {
-    const currentIndex = swipeableTabKeys.indexOf(key)
-    if (currentIndex <= 0) return null
-    return swipeableTabKeys[currentIndex - 1] ?? null
-  }
-
-  const handleContentTouchMove = (event: React.TouchEvent<HTMLDivElement>) => {
-    const swipe = pageSwipeRef.current
-    if (!swipe || event.touches.length !== 1) return
-
-    const touch = event.touches[0]
-    const deltaX = touch.clientX - swipe.startX
-    const deltaY = touch.clientY - swipe.startY
-
-    if (swipe.mode === 'pending') {
-      if (Math.abs(deltaY) > SWIPE_ACTIVATE_PX && Math.abs(deltaY) > Math.abs(deltaX) * SWIPE_DIRECTION_RATIO) {
-        pageSwipeRef.current = { ...swipe, mode: 'vertical' }
-        return
-      }
-
-      if (Math.abs(deltaX) < SWIPE_ACTIVATE_PX) return
-      if (Math.abs(deltaX) < Math.abs(deltaY) * SWIPE_DIRECTION_RATIO) return
-
-      const currentIndex = swipeableTabKeys.indexOf(activeKey)
-      if (currentIndex < 0) {
-        pageSwipeRef.current = { ...swipe, mode: 'vertical' }
-        return
-      }
-
-      const direction: PageTransitionDirection = deltaX < 0 ? 'left' : 'right'
-      const nextIndex = direction === 'left' ? currentIndex + 1 : currentIndex - 1
-      const targetKey = swipeableTabKeys[nextIndex]
-
-      if (!targetKey) {
-        pageSwipeRef.current = { ...swipe, mode: 'vertical' }
-        return
-      }
-
-      pageSwipeRef.current = {
-        ...swipe,
-        mode: 'horizontal',
-        direction,
-        targetKey,
-      }
-    }
-
-    const activeSwipe = pageSwipeRef.current
-    if (!activeSwipe || activeSwipe.mode !== 'horizontal' || !activeSwipe.direction || !activeSwipe.targetKey) return
-    const { direction, targetKey } = activeSwipe
-
-    const width = getAppContentWidth()
-    const fromX = direction === 'left'
-      ? Math.min(0, Math.max(deltaX, -width))
-      : Math.max(0, Math.min(deltaX, width))
-    const toX = direction === 'left' ? width + fromX : fromX - width
-
-    event.preventDefault()
-    scheduleInteractiveMotionFallback()
-
-    updatePageMotionState((current) => {
-      if (
-        current &&
-        !current.animate &&
-        current.fromKey === activeKey &&
-        current.toKey === targetKey &&
-        current.direction === direction
-      ) {
-        if (current.fromX === fromX && current.toX === toX && current.width === width) {
-          return current
-        }
-
-        return {
-          ...current,
-          width,
-          fromX,
-          toX,
-        }
-      }
-
-      return {
-        fromKey: activeKey,
-        toKey: targetKey,
-        direction,
-        width,
-        fromX,
-        toX,
-        animate: false,
-        fromContent: renderPageContent(activeKey),
-        toContent: renderPageContent(targetKey),
-      }
-    })
-  }
-
-  const finishContentSwipe = () => {
-    const swipe = pageSwipeRef.current
-    pageSwipeRef.current = null
-    clearInteractiveMotionFallback()
-
-    if (!swipe || swipe.mode !== 'horizontal') return false
-
-    const currentMotion = pageMotionRef.current
-    if (!currentMotion || currentMotion.animate) return false
-
-    const shouldCommit = Math.abs(currentMotion.fromX) >= PAGE_SWIPE_COMMIT_PX
-    settleInteractivePageMotion(shouldCommit)
-    return true
-  }
-
-  const handleContentTouchEndWithCommit = () => {
-    finishContentSwipe()
-  }
 
   const sliderMotionIndex = (() => {
     const baseIndex = resolveSliderIndexForKey(activeKey)
@@ -1033,10 +861,6 @@ function App() {
       <div
         className={`app-content ${pageMotion ? `is-page-motion motion-${pageMotion.direction} ${pageMotion.animate ? 'motion-animate' : 'motion-dragging'}` : ''}`}
         ref={appContentRef}
-        onTouchStart={handleContentTouchStart}
-        onTouchMove={handleContentTouchMove}
-        onTouchEnd={handleContentTouchEndWithCommit}
-        onTouchCancel={() => clearSwipeGestures(true)}
       >
         {pageMotion ? (
           <div className="app-page-transition-shell" aria-hidden="true">
