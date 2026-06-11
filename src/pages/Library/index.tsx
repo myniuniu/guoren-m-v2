@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type ChangeEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent } from 'react'
 import './index.css'
 
 type LibraryScope = 'personal' | 'org'
@@ -79,6 +79,32 @@ const filterSheetSections: Array<{
   },
 ]
 
+const addMaterialSections = [
+  {
+    title: '从应用中选择',
+    items: [
+      { key: 'lucky', label: 'Lucky', tone: 'orange', icon: 'gift' },
+      { key: 'form', label: '表单', tone: 'blue', icon: 'form' },
+      { key: 'bilibili', label: 'bilibili', tone: 'pink', icon: 'play' },
+    ],
+  },
+  {
+    title: '任务资源',
+    items: [
+      { key: 'task', label: '实训任务', tone: 'green', icon: 'flask' },
+    ],
+  },
+  {
+    title: '其它方式',
+    items: [
+      { key: 'clip', label: '网页剪存', tone: 'indigo', icon: 'clip' },
+      { key: 'paste', label: '粘贴文本', tone: 'slate', icon: 'copy' },
+      { key: 'whiteboard', label: '白板', tone: 'purple', icon: 'image' },
+      { key: 'note', label: '笔记', tone: 'blue', icon: 'note' },
+    ],
+  },
+] as const
+
 function buildFolderPath(folderId: string, entries: LibraryEntry[]) {
   const path: string[] = []
   const visited = new Set<string>()
@@ -129,11 +155,114 @@ function SearchIcon() {
   )
 }
 
+function CloseIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M18 6 6 18" />
+      <path d="m6 6 12 12" />
+    </svg>
+  )
+}
+
 function PlusIcon() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
       <path d="M12 5v14" />
       <path d="M5 12h14" />
+    </svg>
+  )
+}
+
+function UploadTrayIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 15V4" />
+      <path d="m8 8 4-4 4 4" />
+      <path d="M4 15.5v2A2.5 2.5 0 0 0 6.5 20h11a2.5 2.5 0 0 0 2.5-2.5v-2" />
+    </svg>
+  )
+}
+
+function MaterialShortcutIcon({
+  icon,
+}: {
+  icon: (typeof addMaterialSections)[number]['items'][number]['icon']
+}) {
+  if (icon === 'gift') {
+    return (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M20 12v7a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-7" />
+        <path d="M2 7h20v5H2z" />
+        <path d="M12 22V7" />
+        <path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C10.2 2 12 7 12 7Z" />
+        <path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13.8 2 12 7 12 7Z" />
+      </svg>
+    )
+  }
+
+  if (icon === 'form') {
+    return (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M16 3h5v5" />
+        <path d="M21 3 10 14" />
+        <path d="M19 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h6" />
+      </svg>
+    )
+  }
+
+  if (icon === 'play') {
+    return (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M23 7 16 12l7 5V7Z" />
+        <rect x="1" y="5" width="15" height="14" rx="3" />
+      </svg>
+    )
+  }
+
+  if (icon === 'flask') {
+    return (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M10 2v7.3L4.8 18a2 2 0 0 0 1.7 3h11a2 2 0 0 0 1.7-3L14 9.3V2" />
+        <path d="M8.5 2h7" />
+        <path d="M7 15h10" />
+      </svg>
+    )
+  }
+
+  if (icon === 'clip') {
+    return (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+        <path d="m9 18 6-6" />
+        <path d="m15 18 3-3a4.2 4.2 0 0 0-6-6l-7 7a3 3 0 1 0 4.3 4.2L16 13" />
+      </svg>
+    )
+  }
+
+  if (icon === 'copy') {
+    return (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="9" y="9" width="13" height="13" rx="2" />
+        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+      </svg>
+    )
+  }
+
+  if (icon === 'image') {
+    return (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="5" width="18" height="14" rx="2" />
+        <circle cx="9" cy="10" r="1.4" />
+        <path d="m21 16-4.2-4.2a1.6 1.6 0 0 0-2.3 0L7 19" />
+      </svg>
+    )
+  }
+
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14 2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7z" />
+      <path d="M14 2v5h5" />
+      <path d="M9 13h6" />
+      <path d="M9 17h4" />
     </svg>
   )
 }
@@ -292,6 +421,8 @@ export default function LibraryPage() {
   const [selectedOrgSpace, setSelectedOrgSpace] = useState('果仁集团')
   const [keyword, setKeyword] = useState('')
   const [showSearch, setShowSearch] = useState(false)
+  const [showAddMaterialDialog, setShowAddMaterialDialog] = useState(false)
+  const [isAddMaterialDragActive, setIsAddMaterialDragActive] = useState(false)
   const [showFilterSheet, setShowFilterSheet] = useState(false)
   const [showOrgSpaceSheet, setShowOrgSpaceSheet] = useState(false)
   const [showCreateFolderSheet, setShowCreateFolderSheet] = useState(false)
@@ -301,6 +432,7 @@ export default function LibraryPage() {
   const [actionTarget, setActionTarget] = useState<LibraryEntry | null>(null)
   const listRef = useRef<HTMLDivElement | null>(null)
   const uploadInputRef = useRef<HTMLInputElement | null>(null)
+  const folderInputRef = useRef<HTMLInputElement | null>(null)
   const currentFolderId = folderPath[folderPath.length - 1] ?? null
 
   const rootPathLabel = scope === 'personal' ? '个人资料库' : selectedOrgSpace
@@ -371,6 +503,15 @@ export default function LibraryPage() {
   )
   const showHeaderPath = pathItems.length > 1
   const currentLocationLabel = pathItems.map((item) => item.label).join(' / ')
+  useEffect(() => {
+    if (!folderInputRef.current) {
+      return
+    }
+
+    folderInputRef.current.setAttribute('webkitdirectory', '')
+    folderInputRef.current.setAttribute('directory', '')
+  }, [])
+
   const handleJumpToFolder = (folderId: string | null) => {
     setPreviewFile(null)
     if (folderId === null) {
@@ -401,6 +542,100 @@ export default function LibraryPage() {
     setShowCreateFolderSheet(false)
     setNewFolderName('')
     setNewFolderError('')
+  }
+  const closeAddMaterialDialog = () => {
+    setShowAddMaterialDialog(false)
+    setIsAddMaterialDragActive(false)
+  }
+  const appendEntriesToLibrary = (nextEntries: LibraryEntry[]) => {
+    if (nextEntries.length === 0) {
+      return
+    }
+
+    setEntries((current) => [...nextEntries, ...current])
+    setSelectedFilter('all')
+    setKeyword('')
+    closeAddMaterialDialog()
+    requestAnimationFrame(() => {
+      listRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
+    })
+  }
+  const buildImportedFileEntries = (files: File[], parentId: string | null) =>
+    files.map((file, index) => ({
+      id: `file-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 6)}`,
+      name: file.name,
+      type: inferLibraryEntryType(file.name),
+      scope,
+      orgSpace: scope === 'org' ? selectedOrgSpace : undefined,
+      parentId,
+      updatedAt: formatLibraryNow(),
+      owner: '我',
+      size: formatFileSize(file.size),
+      starred: false,
+      shared: false,
+      tags: [],
+    }))
+  const buildImportedFolderEntries = (files: File[]) => {
+    const stamp = Date.now()
+    const nextEntries: LibraryEntry[] = []
+    const folderIdMap = new Map<string, string>()
+
+    files.forEach((file, index) => {
+      const relativePath = file.webkitRelativePath || file.name
+      const segments = relativePath.split('/').filter(Boolean)
+
+      if (segments.length === 0) {
+        return
+      }
+
+      const fileName = segments.pop() ?? file.name
+      let parentId = currentFolderId
+      let currentPath = ''
+
+      segments.forEach((segment) => {
+        currentPath = currentPath ? `${currentPath}/${segment}` : segment
+        const cachedFolderId = folderIdMap.get(currentPath)
+
+        if (cachedFolderId) {
+          parentId = cachedFolderId
+          return
+        }
+
+        const folderId = `folder-import-${stamp}-${folderIdMap.size}-${Math.random().toString(36).slice(2, 6)}`
+        folderIdMap.set(currentPath, folderId)
+        nextEntries.push({
+          id: folderId,
+          name: segment,
+          type: 'folder',
+          scope,
+          orgSpace: scope === 'org' ? selectedOrgSpace : undefined,
+          parentId,
+          updatedAt: formatLibraryNow(),
+          owner: '我',
+          starred: false,
+          shared: false,
+          tags: [],
+        })
+        parentId = folderId
+      })
+
+      nextEntries.push({
+        id: `file-import-${stamp}-${index}-${Math.random().toString(36).slice(2, 6)}`,
+        name: fileName,
+        type: inferLibraryEntryType(fileName),
+        scope,
+        orgSpace: scope === 'org' ? selectedOrgSpace : undefined,
+        parentId,
+        updatedAt: formatLibraryNow(),
+        owner: '我',
+        size: formatFileSize(file.size),
+        starred: false,
+        shared: false,
+        tags: [],
+      })
+    })
+
+    return nextEntries
   }
   const handleCreateFolder = () => {
     const nextName = newFolderName.trim()
@@ -445,7 +680,13 @@ export default function LibraryPage() {
     })
   }
   const handleOpenAddMaterial = () => {
+    setShowAddMaterialDialog(true)
+  }
+  const handleOpenMaterialFiles = () => {
     uploadInputRef.current?.click()
+  }
+  const handleOpenMaterialFolder = () => {
+    folderInputRef.current?.click()
   }
   const handleMaterialFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? [])
@@ -454,28 +695,42 @@ export default function LibraryPage() {
       return
     }
 
-    const createdEntries: LibraryEntry[] = files.map((file, index) => ({
-      id: `file-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 6)}`,
-      name: file.name,
-      type: inferLibraryEntryType(file.name),
-      scope,
-      orgSpace: scope === 'org' ? selectedOrgSpace : undefined,
-      parentId: currentFolderId,
-      updatedAt: formatLibraryNow(),
-      owner: '我',
-      size: formatFileSize(file.size),
-      starred: false,
-      shared: false,
-      tags: [],
-    }))
-
-    setEntries((current) => [...createdEntries, ...current])
-    setSelectedFilter('all')
-    setKeyword('')
+    appendEntriesToLibrary(buildImportedFileEntries(files, currentFolderId))
     event.target.value = ''
-    requestAnimationFrame(() => {
-      listRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
-    })
+  }
+  const handleMaterialFolderChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files ?? [])
+
+    if (files.length === 0) {
+      return
+    }
+
+    appendEntriesToLibrary(buildImportedFolderEntries(files))
+    event.target.value = ''
+  }
+  const handleAddMaterialDragOver = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    if (!isAddMaterialDragActive) {
+      setIsAddMaterialDragActive(true)
+    }
+  }
+  const handleAddMaterialDragLeave = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    const relatedTarget = event.relatedTarget as Node | null
+    if (!relatedTarget || !event.currentTarget.contains(relatedTarget)) {
+      setIsAddMaterialDragActive(false)
+    }
+  }
+  const handleAddMaterialDrop = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    setIsAddMaterialDragActive(false)
+    const files = Array.from(event.dataTransfer.files ?? [])
+
+    if (files.length === 0) {
+      return
+    }
+
+    appendEntriesToLibrary(buildImportedFileEntries(files, currentFolderId))
   }
 
   if (previewFile) {
@@ -640,6 +895,13 @@ export default function LibraryPage() {
           multiple
           onChange={handleMaterialFileChange}
         />
+        <input
+          ref={folderInputRef}
+          className="library-file-input"
+          type="file"
+          multiple
+          onChange={handleMaterialFolderChange}
+        />
         <div className="library-list" ref={listRef}>
           {visibleItems.length > 0 ? (
             visibleItems.map((item) => {
@@ -743,6 +1005,58 @@ export default function LibraryPage() {
                 >
                   <span>{space}</span>
                 </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showAddMaterialDialog && (
+        <div className="library-add-dialog-overlay" onClick={closeAddMaterialDialog}>
+          <div className="library-add-dialog" onClick={(e) => e.stopPropagation()}>
+            <div
+              className={`library-add-dialog-dropzone ${isAddMaterialDragActive ? 'is-dragover' : ''}`}
+              onDragOver={handleAddMaterialDragOver}
+              onDragEnter={handleAddMaterialDragOver}
+              onDragLeave={handleAddMaterialDragLeave}
+              onDrop={handleAddMaterialDrop}
+            >
+              <button className="library-add-dialog-close" type="button" onClick={closeAddMaterialDialog} aria-label="关闭">
+                <CloseIcon />
+              </button>
+              <div className="library-add-dialog-dropzone-title">上传文件到资料库</div>
+              <div className="library-add-dialog-dropzone-desc">
+                支持上传文档、图片、音视频、压缩包等资料，也可以直接导入整个文件夹
+              </div>
+              <div className="library-add-dialog-upload-row">
+                <div className="library-add-dialog-upload-visual">
+                  <UploadTrayIcon />
+                </div>
+                <button className="library-add-dialog-upload-button" type="button" onClick={handleOpenMaterialFiles}>
+                  <UploadTrayIcon />
+                  <span>选择文件上传</span>
+                </button>
+              </div>
+              <button className="library-add-dialog-folder-link" type="button" onClick={handleOpenMaterialFolder}>
+                选择文件夹
+              </button>
+            </div>
+
+            <div className="library-add-dialog-sections">
+              {addMaterialSections.map((section) => (
+                <div className="library-add-dialog-section" key={section.title}>
+                  <div className="library-add-dialog-section-title">{section.title}</div>
+                  <div className="library-add-dialog-chip-list">
+                    {section.items.map((item) => (
+                      <div className="library-add-dialog-chip" key={item.key}>
+                        <span className={`library-add-dialog-chip-icon is-${item.tone}`}>
+                          <MaterialShortcutIcon icon={item.icon} />
+                        </span>
+                        <span>{item.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               ))}
             </div>
           </div>
