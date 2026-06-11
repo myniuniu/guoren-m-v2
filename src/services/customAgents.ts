@@ -1,6 +1,11 @@
 import { type AgentPublishScope } from './agents'
 import { getChatUserId } from './chat/api'
-import { authorizedFetch, buildAiApiUrl, buildAuthorizedHeaders } from '../utils/request'
+import {
+  authorizedFetch,
+  buildAiApiUrl,
+  buildAuthorizedHeaders,
+  handleUnauthorizedResponse,
+} from '../utils/request'
 
 const CUSTOM_AGENTS_PATH = '/api/v1/custom-agents'
 const CUSTOM_AGENT_AVATAR_UPLOAD_PATH = '/api/v1/admin/images/upload'
@@ -264,11 +269,18 @@ export async function uploadCustomAgentAvatar(file: File, signal?: AbortSignal):
     credentials: 'omit',
   })
 
-  if (!response.ok) {
-    throw new Error(`上传智能体头像失败（HTTP ${response.status}）`)
+  if (handleUnauthorizedResponse(response)) {
+    throw new Error('Token失效，请重新登录!')
   }
 
   const result = await response.json() as CustomAgentAvatarUploadResponse
+  if (handleUnauthorizedResponse(response, result)) {
+    throw new Error(result.msg || result.message || 'Token失效，请重新登录!')
+  }
+
+  if (!response.ok) {
+    throw new Error(`上传智能体头像失败（HTTP ${response.status}）`)
+  }
 
   if (result.success === false) {
     throw new Error(result.msg || result.message || '上传智能体头像失败')

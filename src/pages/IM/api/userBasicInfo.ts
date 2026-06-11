@@ -4,6 +4,8 @@
  * 接口地址: GET /sys/user/getBasicInfo?id={userID}
  */
 
+import { handleUnauthorizedResponse } from '../../../utils/request';
+
 // API 基础地址
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
@@ -60,6 +62,9 @@ export async function fetchUserBasicInfo(userID: string): Promise<UserBasicInfo 
     });
 
     const data: any = await response.json();
+    if (handleUnauthorizedResponse(response, data)) {
+      throw new Error(data?.message || data?.msg || 'Token失效，请重新登录!');
+    }
 
     const result = data?.result || data;
     if (!result) return null;

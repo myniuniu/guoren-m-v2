@@ -1,4 +1,9 @@
-import { authorizedFetch, buildAiApiUrl, buildAuthorizedHeaders } from '../utils/request'
+import {
+  authorizedFetch,
+  buildAiApiUrl,
+  buildAuthorizedHeaders,
+  handleUnauthorizedResponse,
+} from '../utils/request'
 import { getChatUserId } from './chat/api'
 
 const PARTNER_PATH = '/api/v1/agent'
@@ -171,11 +176,18 @@ export async function uploadPartnerAvatar(file: File, signal?: AbortSignal): Pro
     credentials: 'omit',
   })
 
-  if (!response.ok) {
-    throw new Error(`上传伙伴头像失败（HTTP ${response.status}）`)
+  if (handleUnauthorizedResponse(response)) {
+    throw new Error('Token失效，请重新登录!')
   }
 
   const payload = (await response.json()) as PartnerAvatarUploadResponse
+  if (handleUnauthorizedResponse(response, payload)) {
+    throw new Error(payload.message || payload.msg || 'Token失效，请重新登录!')
+  }
+
+  if (!response.ok) {
+    throw new Error(`上传伙伴头像失败（HTTP ${response.status}）`)
+  }
 
   if (payload.success === false) {
     throw new Error(payload.message || payload.msg || '上传伙伴头像失败')

@@ -102,7 +102,7 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputRetur
     const protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
     const proxyBasePath = url.pathname.replace(/\/+$/, '')
 
-    // 开发环境需要保留 /__ai_proxy 这类代理前缀，不然 WebSocket 会直接打到 Vite 本身，语音服务收不到请求。
+    // 开发环境和生产环境都直连 AI 域名，避免本地代理路径把语音链路和接口排查绕复杂。
     return `${protocol}//${url.host}${proxyBasePath}/api/v1/asr/realtime?user_id=${encodeURIComponent(userId)}&x_access_token=${encodeURIComponent(token)}`
   }, [])
 

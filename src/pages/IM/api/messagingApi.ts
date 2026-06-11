@@ -5,6 +5,8 @@
  * 鉴权方式: Query 参数 user_id + X-Access-Token 请求头
  */
 
+import { handleUnauthorizedResponse } from '../../../utils/request';
+
 // 镜像 API 基础地址（独立 Python 服务，不同于 jeecg-boot）
 const MESSAGING_BASE_URL = import.meta.env.VITE_IM_MESSAGING_BASE_URL || '';
 // jeecg-boot 基础地址（用于 OSS 预签名等需要走 Java 服务的接口）
@@ -126,7 +128,14 @@ async function messagingRequest<T = any>(
   try {
     data = await response.json();
   } catch {
+    if (handleUnauthorizedResponse(response)) {
+      throw new Error('Token失效，请重新登录!');
+    }
     throw new Error(`响应解析失败，状态码: ${response.status}`);
+  }
+
+  if (handleUnauthorizedResponse(response, data)) {
+    throw new Error(data?.message || data?.msg || 'Token失效，请重新登录!');
   }
 
   // 镜像 API 响应格式: { code: 0, msg: "ok", data: {...} }
@@ -137,24 +146,6 @@ async function messagingRequest<T = any>(
       throw new Error(data?.msg || '无权访问该会话');
     }
     throw new Error(data?.msg || `请求失败，code: ${data?.code}`);
-  }
-
-  // HTTP 401 处理
-  if (response.status === 401) {
-    const keysToRemove = [
-      'SUPERSONIC_TOKEN',
-      'SUPERSONIC_USERNAME',
-      'SUPERSONIC_ID',
-      'SUPERSONIC_TENANT_ID',
-      'SUPERSONIC_TENANT_NAME',
-      'isLoggedIn',
-      'userInfo',
-    ];
-    keysToRemove.forEach((key) => {
-      try { localStorage.removeItem(key); } catch { /* 忽略 */ }
-    });
-    window.location.reload();
-    throw new Error('Token 失效，请重新登录');
   }
 
   if (!response.ok) {
@@ -310,11 +301,19 @@ export async function requestOssSignUrl(
     }),
   });
 
+  if (handleUnauthorizedResponse(resp)) {
+    throw new Error('Token失效，请重新登录!');
+  }
+
+  const data = await resp.json();
+  if (handleUnauthorizedResponse(resp, data)) {
+    throw new Error(data?.message || data?.msg || 'Token失效，请重新登录!');
+  }
+
   if (!resp.ok) {
     throw new Error(`获取上传地址失败(HTTP ${resp.status})`);
   }
 
-  const data = await resp.json();
   if (!data?.success || !data?.result) {
     throw new Error(data?.message || '获取上传地址失败');
   }

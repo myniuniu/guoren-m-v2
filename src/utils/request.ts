@@ -13,12 +13,15 @@ import { buildHmacAuthHeaders } from './hmacSign';
 // API 基础地址，从环境变量读取
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://test-guoren-api.grtcloud.net/jeecg-boot';
 const AI_BASE_URL = import.meta.env.VITE_AI_API_BASE_URL || 'https://test-guoren-ai.grtcloud.net';
-const AI_DEV_PROXY_PREFIX = '/__ai_proxy';
 
 // 401 回调注册
 type UnauthorizedCallback = () => void;
 let onUnauthorized: UnauthorizedCallback | null = null;
 let isLoggingOut = false;
+
+interface AuthErrorPayload {
+  code?: string | number;
+}
 
 interface StoredAuthInfo {
   token: string;
@@ -121,6 +124,53 @@ function isAuthErrorCode(code: string | number): boolean {
   return authCodes.includes(String(code));
 }
 
+function isJsonResponse(response: Response): boolean {
+  const contentType = response.headers.get('content-type')?.toLowerCase() || '';
+  return contentType.includes('application/json') || contentType.includes('+json');
+}
+
+function isUnauthorizedPayload(payload: unknown): boolean {
+  if (!payload || typeof payload !== 'object') {
+    return false;
+  }
+
+  return isAuthErrorCode((payload as AuthErrorPayload).code ?? '');
+}
+
+/**
+ * 统一处理鉴权失败响应。
+ * 既兼容 HTTP 401，也兼容业务成功返回 200、但响应体 code=401 的场景。
+ */
+export function handleUnauthorizedResponse(
+  response: Pick<Response, 'status'>,
+  payload?: unknown,
+): boolean {
+  if (response.status === 401 || isUnauthorizedPayload(payload)) {
+    handleUnauthorized();
+    return true;
+  }
+
+  return false;
+}
+
+async function inspectUnauthorizedResponse(response: Response): Promise<void> {
+  if (handleUnauthorizedResponse(response)) {
+    return;
+  }
+
+  // 这里只用 clone 读取一份副本，不影响业务层继续读取原始响应体。
+  if (!isJsonResponse(response)) {
+    return;
+  }
+
+  try {
+    const payload = await response.clone().json();
+    handleUnauthorizedResponse(response, payload);
+  } catch {
+    // 非标准 JSON 响应直接忽略，交给调用方按原逻辑处理。
+  }
+}
+
 /**
  * 拼接完整请求 URL
  */
@@ -155,22 +205,11 @@ function getCanonicalAiApiBaseUrl(): string {
 }
 
 export function getAiBrowserBaseUrl(): string {
-  return import.meta.env.DEV ? AI_DEV_PROXY_PREFIX : getCanonicalAiApiBaseUrl();
+  return getCanonicalAiApiBaseUrl();
 }
 
 function resolveBrowserFetchUrl(url: string): string {
-  if (!import.meta.env.DEV || url.startsWith(AI_DEV_PROXY_PREFIX)) {
-    return url;
-  }
-
-  const normalizedAiBaseUrl = getCanonicalAiApiBaseUrl();
-
-  if (!url.startsWith(normalizedAiBaseUrl)) {
-    return url;
-  }
-
-  const urlObj = new URL(url);
-  return `${AI_DEV_PROXY_PREFIX}${urlObj.pathname}${urlObj.search}`;
+  return url;
 }
 
 /**
@@ -284,13 +323,17 @@ export async function authorizedFetch(
     Accept: 'application/json',
   }, options.headers));
 
-  return fetch(requestUrl, {
+  const response = await fetch(requestUrl, {
     ...options,
     method,
     body,
     headers,
     credentials: 'omit',
   });
+
+  await inspectUnauthorizedResponse(response);
+
+  return response;
 }
 
 /**
@@ -305,7 +348,6 @@ export async function apiRequest<T = any>(
 
   // 处理 HTTP 状态码 401
   if (response.status === 401) {
-    handleUnauthorized();
     throw new Error('未授权，请重新登录');
   }
 
@@ -319,7 +361,6 @@ export async function apiRequest<T = any>(
 
   // 处理响应体中的鉴权错误码
   if (data && isAuthErrorCode(data.code)) {
-    handleUnauthorized();
     const errorMsg = data.message || data.msg || '登录状态已失效，请重新登录';
     throw new Error(errorMsg);
   }

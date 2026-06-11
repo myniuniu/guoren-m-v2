@@ -8,6 +8,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import TencentCloudChat from '@tencentcloud/lite-chat';
 import { useAuth } from '../../../contexts/AuthContext';
+import { handleUnauthorizedResponse } from '../../../utils/request';
 
 // SDKAppID（从 public/config.yaml 读取，开发环境直接硬编码）
 const SDKAPPID = 1600139526;
@@ -35,11 +36,18 @@ async function getUserSig(userID: string, token: string): Promise<string> {
     },
   });
 
-  if (!response.ok) {
-    throw new Error(`获取 IM userSig 失败 (HTTP ${response.status})`);
+  if (handleUnauthorizedResponse(response)) {
+    throw new Error('Token失效，请重新登录!');
   }
 
   const payload = await response.json();
+  if (handleUnauthorizedResponse(response, payload)) {
+    throw new Error(payload?.message || payload?.msg || 'Token失效，请重新登录!');
+  }
+
+  if (!response.ok) {
+    throw new Error(`获取 IM userSig 失败 (HTTP ${response.status})`);
+  }
 
   const ok = payload?.success === true || String(payload?.code || '') === '200';
   const sig = ok ? String(payload?.result ?? '').trim() : '';
