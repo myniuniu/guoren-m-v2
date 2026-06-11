@@ -22,3 +22,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+doc/
+scripts/
+tests/
+.playwright-mcp/
+docs/
+CLAUDE.md
