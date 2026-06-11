@@ -125,17 +125,13 @@
   width: 52px;
   height: 52px;
   border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 1px;
   cursor: pointer;
   flex-shrink: 0;
   -webkit-tap-highlight-color: transparent;
-  transition: transform 0.15s, background 0.3s;
+  transition: transform 0.15s;
   position: relative;
   overflow: visible;
   isolation: isolate;
@@ -144,29 +140,22 @@
 .ai-tab::before {
   content: '';
   position: absolute;
-  inset: -5px;
+  inset: -1px;
   border-radius: 50%;
-  background: conic-gradient(
-    from 0deg,
-    rgba(118, 163, 255, 0.08) 0deg,
-    rgba(118, 163, 255, 0.68) 90deg,
-    rgba(171, 110, 255, 0.8) 190deg,
-    rgba(116, 235, 213, 0.2) 280deg,
-    rgba(118, 163, 255, 0.08) 360deg
-  );
-  animation: aiGlowSpin 5s linear infinite;
-  filter: blur(3px);
-  z-index: -2;
+  background: radial-gradient(circle at 50% 35%, rgba(255, 255, 255, 0.99) 0%, rgba(255, 255, 255, 0.96) 62%, rgba(243, 247, 255, 0.98) 100%);
+  box-shadow: 0 8px 18px rgba(93, 117, 172, 0.18), 0 1px 4px rgba(0, 0, 0, 0.08);
+  z-index: -1;
 }
 
 .ai-tab::after {
   content: '';
   position: absolute;
-  inset: 0;
+  inset: 2px;
   border-radius: 50%;
-  background:
-    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.98) 0%, rgba(255, 255, 255, 0.94) 68%, rgba(245, 248, 255, 0.96) 100%);
-  z-index: -1;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.32), rgba(255, 255, 255, 0));
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  z-index: 0;
+  pointer-events: none;
 }
 
 .ai-tab:active {
@@ -174,7 +163,21 @@
 }
 
 .ai-tab-active {
-  background: rgba(230, 230, 230, 0.6);
+  transform: translateY(-1px);
+}
+
+.ai-tab-active::before {
+  background: radial-gradient(circle at 50% 35%, rgba(255, 255, 255, 0.99) 0%, rgba(244, 247, 255, 0.98) 62%, rgba(232, 239, 255, 0.98) 100%);
+}
+
+.ai-tab-content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
 }
 
 .ai-tab .tab-label {
@@ -183,18 +186,144 @@
   font-weight: 500;
 }
 
-.ai-tab-active::before {
-  inset: -6px;
-  opacity: 1;
-  filter: blur(4px);
+.ai-tab-pulse {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
 }
 
-@keyframes aiGlowSpin {
+.ai-tab-pulse-outer {
+  inset: -5px;
+  z-index: -3;
+  border: 1.2px solid rgba(74, 124, 255, 0.24);
+  background: radial-gradient(circle, rgba(126, 166, 255, 0.16) 52%, rgba(126, 166, 255, 0.08) 70%, rgba(126, 166, 255, 0) 100%);
+  box-shadow:
+    0 0 0 1px rgba(74, 124, 255, 0.07),
+    0 0 10px rgba(74, 124, 255, 0.18),
+    0 0 16px rgba(124, 162, 255, 0.14);
+  filter: blur(1px);
+  opacity: 0.56;
+  animation: aiVoiceBreath 3s ease-in-out infinite;
+}
+
+.ai-tab-pulse-inner {
+  inset: -1px;
+  z-index: -2;
+  border: 1px solid rgba(110, 156, 255, 0.24);
+  background: radial-gradient(circle, rgba(148, 186, 255, 0.16) 48%, rgba(148, 186, 255, 0.06) 66%, rgba(148, 186, 255, 0) 88%);
+  box-shadow: 0 0 9px rgba(98, 144, 255, 0.16);
+  filter: blur(0.5px);
+  opacity: 0.62;
+  animation: aiVoiceBreathInner 3s ease-in-out infinite;
+}
+
+.ai-tab-active .ai-tab-pulse-outer {
+  opacity: 0.62;
+}
+
+.ai-tab-active .ai-tab-pulse-inner {
+  opacity: 0.7;
+}
+
+.ai-tab-mic-badge {
+  position: absolute;
+  top: -3px;
+  right: -1px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #7ab0ff 0%, #2f6bff 100%);
+  box-shadow: 0 4px 10px rgba(47, 107, 255, 0.28), 0 0 0 3px rgba(255, 255, 255, 0.94);
+  z-index: 3;
+  animation: aiMicPulse 2.8s ease-in-out infinite;
+  transform-origin: center;
+}
+
+.ai-tab-tooltip {
+  position: absolute;
+  right: -2px;
+  bottom: calc(100% + 12px);
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgba(36, 44, 60, 0.94);
+  color: #fff;
+  font-size: 12px;
+  line-height: 1.2;
+  white-space: nowrap;
+  box-shadow: 0 12px 24px rgba(24, 31, 46, 0.18);
+  z-index: 5;
+  pointer-events: none;
+  animation: aiTooltipIn 0.26s ease, aiTooltipFloat 2.8s ease-in-out infinite 0.26s;
+}
+
+.ai-tab-tooltip-arrow {
+  position: absolute;
+  top: 100%;
+  right: 16px;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  background: rgba(36, 44, 60, 0.94);
+  transform: translateY(-5px) rotate(45deg);
+}
+
+@keyframes aiVoiceBreath {
+  0%,
+  100% {
+    transform: scale(0.99);
+    opacity: 0.34;
+  }
+  50% {
+    transform: scale(1.035);
+    opacity: 0.64;
+  }
+}
+
+@keyframes aiVoiceBreathInner {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.42;
+  }
+  50% {
+    transform: scale(1.018);
+    opacity: 0.72;
+  }
+}
+
+@keyframes aiMicPulse {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 4px 10px rgba(47, 107, 255, 0.28), 0 0 0 3px rgba(255, 255, 255, 0.94);
+  }
+  50% {
+    transform: scale(1.08);
+    box-shadow: 0 5px 12px rgba(47, 107, 255, 0.34), 0 0 0 3px rgba(255, 255, 255, 0.96), 0 0 0 7px rgba(86, 136, 255, 0.12);
+  }
+}
+
+@keyframes aiTooltipIn {
   from {
-    transform: rotate(0deg);
+    opacity: 0;
+    transform: translateY(8px) scale(0.94);
   }
   to {
-    transform: rotate(360deg);
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes aiTooltipFloat {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-2px);
   }
 }
 

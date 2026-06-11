@@ -74,6 +74,16 @@ function AIIcon({ active }: { active: boolean }) {
   )
 }
 
+function AIMicBadgeIcon() {
+  return (
+    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 15a3 3 0 0 0 3-3V8a3 3 0 1 0-6 0v4a3 3 0 0 0 3 3Z" />
+      <path d="M19 11a7 7 0 0 1-14 0" />
+      <path d="M12 18v3" />
+    </svg>
+  )
+}
+
 export const apps = [
   { id: 3, name: '日历', color: '#4A7CFF', type: 'calendar' },
   { id: 11, name: '空间', color: '#87CEEB', type: 'space' },
@@ -206,6 +216,7 @@ const editableAppTabs: TabItem[] = apps.map((app) => ({
 }))
 
 const allEditableTabs: TabItem[] = [...defaultMainTabs, ...optionalSystemTabs, ...editableAppTabs]
+const AI_VOICE_TOOLTIP_STORAGE_KEY = 'guoren-ai-voice-tooltip-seen'
 
 function App() {
   const [activeKey, setActiveKey] = useState('message')
@@ -216,13 +227,16 @@ function App() {
   const [mainTabs, setMainTabs] = useState(defaultMainTabs)
   const [elderMode, setElderMode] = useState(false)
   const [draggedTabKey, setDraggedTabKey] = useState<string | null>(null)
+  const [showAIVoiceTooltip, setShowAIVoiceTooltip] = useState(false)
 
   const handleSelectApp = (appKey: string) => {
     setShowMoreDrawer(false)
+    setShowAIVoiceTooltip(false)
     setActiveKey(appKey)
   }
 
   const handleTabChange = (key: string) => {
+    setShowAIVoiceTooltip(false)
     if (key === 'more') {
       setShowMoreDrawer(true)
       return
@@ -239,6 +253,31 @@ function App() {
       setActiveKey(mainTabs[0].key)
     }
   }, [activeKey, mainTabs])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    try {
+      if (window.localStorage.getItem(AI_VOICE_TOOLTIP_STORAGE_KEY) === '1') return
+      window.localStorage.setItem(AI_VOICE_TOOLTIP_STORAGE_KEY, '1')
+    } catch {
+      // Ignore storage failures and still show the one-time hint for this session.
+    }
+
+    const showTimer = window.setTimeout(() => setShowAIVoiceTooltip(true), 700)
+    const hideTimer = window.setTimeout(() => setShowAIVoiceTooltip(false), 4300)
+
+    return () => {
+      window.clearTimeout(showTimer)
+      window.clearTimeout(hideTimer)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (showAI) {
+      setShowAIVoiceTooltip(false)
+    }
+  }, [showAI])
 
   const activeCustomTab = useMemo(
     () => mainTabs.find((tab) => tab.key === activeKey && tab.source === 'app'),
@@ -320,8 +359,21 @@ function App() {
             })}
           </div>
           <div className={`ai-tab ${activeKey === 'ai' ? 'ai-tab-active' : ''}`} onClick={() => handleTabChange('ai')}>
-            <AIIcon active={activeKey === 'ai'} />
-            <span className="tab-label">AI</span>
+            {showAIVoiceTooltip && (
+              <div className="ai-tab-tooltip" aria-hidden="true">
+                长按调出语音
+                <span className="ai-tab-tooltip-arrow" />
+              </div>
+            )}
+            <span className="ai-tab-pulse ai-tab-pulse-outer" aria-hidden="true" />
+            <span className="ai-tab-pulse ai-tab-pulse-inner" aria-hidden="true" />
+            <span className="ai-tab-mic-badge" aria-hidden="true">
+              <AIMicBadgeIcon />
+            </span>
+            <div className="ai-tab-content">
+              <AIIcon active={activeKey === 'ai'} />
+              <span className="tab-label">AI</span>
+            </div>
           </div>
         </div>
       </div>
