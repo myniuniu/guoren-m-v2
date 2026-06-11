@@ -218,7 +218,56 @@ const editableAppTabs: TabItem[] = apps.map((app) => ({
 const allEditableTabs: TabItem[] = [...defaultMainTabs, ...optionalSystemTabs, ...editableAppTabs]
 const AI_VOICE_TOOLTIP_STORAGE_KEY = 'guoren-ai-voice-tooltip-seen'
 const AI_LONG_PRESS_MS = 420
+const EDGE_BACK_COMMIT_PX = 72
+const PAGE_SWIPE_COMMIT_PX = 68
+const PAGE_TRANSITION_MS = 260
+const SWIPE_MAX_VERTICAL_PX = 56
+const SWIPE_DIRECTION_RATIO = 1.2
+const SWIPE_ACTIVATE_PX = 12
 type AIEntryMode = 'default' | 'voice'
+type PageTransitionDirection = 'left' | 'right'
+type PageMotionState = {
+  fromKey: string
+  toKey: string
+  direction: PageTransitionDirection
+  width: number
+  fromX: number
+  toX: number
+  animate: boolean
+  fromContent: React.ReactNode
+  toContent: React.ReactNode
+}
+type PageSwipeSession = {
+  startX: number
+  startY: number
+  mode: 'pending' | 'horizontal' | 'vertical'
+  direction: PageTransitionDirection | null
+  targetKey: string | null
+}
+type EdgeSwipeSession = {
+  startX: number
+  startY: number
+  mode: 'pending' | 'horizontal' | 'vertical'
+  targetKey: string | null
+}
+
+function hasHorizontalScrollableAncestor(target: EventTarget | null, boundary: HTMLElement | null) {
+  let current = target instanceof HTMLElement ? target : null
+
+  while (current && current !== boundary) {
+    if (current.dataset.pageSwipeIgnore === 'true') return true
+
+    const style = window.getComputedStyle(current)
+    const overflowX = style.overflowX
+    if ((overflowX === 'auto' || overflowX === 'scroll') && current.scrollWidth > current.clientWidth + 4) {
+      return true
+    }
+
+    current = current.parentElement
+  }
+
+  return false
+}
 
 function App() {
   const [activeKey, setActiveKey] = useState('message')
@@ -231,8 +280,17 @@ function App() {
   const [elderMode, setElderMode] = useState(false)
   const [draggedTabKey, setDraggedTabKey] = useState<string | null>(null)
   const [showAIVoiceTooltip, setShowAIVoiceTooltip] = useState(false)
+  const [pageMotion, setPageMotion] = useState<PageMotionState | null>(null)
+  const appContentRef = useRef<HTMLDivElement | null>(null)
   const aiLongPressTimerRef = useRef<number | null>(null)
   const aiLongPressTriggeredRef = useRef(false)
+  const pageTransitionTimerRef = useRef<number | null>(null)
+  const pageTransitionFrameRef = useRef<number | null>(null)
+  const navigationHistoryRef = useRef<string[]>(['message'])
+  const suppressHistoryRef = useRef(false)
+  const pageMotionRef = useRef<PageMotionState | null>(null)
+  const edgeSwipeRef = useRef<EdgeSwipeSession | null>(null)
+  const pageSwipeRef = useRef<PageSwipeSession | null>(null)
 
   const clearAILongPressTimer = () => {
     if (aiLongPressTimerRef.current !== null) {
@@ -241,18 +299,148 @@ function App() {
     }
   }
 
+  const clearPageTransitionMotion = () => {
+    if (pageTransitionTimerRef.current !== null) {
+      window.clearTimeout(pageTransitionTimerRef.current)
+      pageTransitionTimerRef.current = null
+    }
+
+    if (pageTransitionFrameRef.current !== null) {
+      window.cancelAnimationFrame(pageTransitionFrameRef.current)
+      pageTransitionFrameRef.current = null
+    }
+  }
+
+  const updatePageMotionState = (
+    next:
+      | PageMotionState
+      | null
+      | ((current: PageMotionState | null) => PageMotionState | null)
+  ) => {
+    setPageMotion((current) => {
+      const resolved = typeof next === 'function'
+        ? (next as (value: PageMotionState | null) => PageMotionState | null)(current)
+        : next
+
+      pageMotionRef.current = resolved
+      return resolved
+    })
+  }
+
+  const getAppContentWidth = () => appContentRef.current?.clientWidth ?? window.innerWidth ?? 390
+
+  const schedulePageMotionCleanup = () => {
+    pageTransitionTimerRef.current = window.setTimeout(() => {
+      updatePageMotionState(null)
+      pageTransitionTimerRef.current = null
+    }, PAGE_TRANSITION_MS + 40)
+  }
+
   const openAIPage = (mode: AIEntryMode = 'default') => {
     setShowAIVoiceTooltip(false)
     setShowMoreDrawer(false)
+    clearPageTransitionMotion()
+    updatePageMotionState(null)
     setActiveKey('ai')
     setAIEntryMode(mode)
     setShowAI(true)
   }
 
+  const renderPageContent = (key: string) => {
+    if (key === 'home') {
+      return <Home onOpenAI={() => openAIPage('default')} elderMode={elderMode} onToggleElderMode={() => setElderMode(!elderMode)} />
+    }
+
+    if (key === 'message') return <MessagePage />
+    if (key === 'task') return <TaskPage />
+    if (key === 'calendar') return <CalendarPage />
+    if (key === 'space') return <SpacePage />
+    if (key === 'library' || key === 'app-10') return <LibraryPage />
+    if (key === 'app-3') return <CalendarPage />
+    if (key === 'app-11') return <SpacePage />
+    if (key === 'ai') return <PlaceholderPage title="AI" />
+
+    const customTab = mainTabs.find((tab) => tab.key === key && tab.source === 'app') ?? allEditableTabs.find((tab) => tab.key === key)
+    if (customTab && !['app-10', 'app-3', 'app-11'].includes(key)) {
+      return <PlaceholderPage title={customTab.label} />
+    }
+
+    return null
+  }
+
+  const swipeableTabKeys = useMemo(
+    () => mainTabs.filter((tab) => tab.key !== 'more').map((tab) => tab.key),
+    [mainTabs]
+  )
+
+  const resolvePageTransitionDirection = (fromKey: string, toKey: string, forcedDirection?: PageTransitionDirection) => {
+    if (forcedDirection) return forcedDirection
+
+    const fromIndex = swipeableTabKeys.indexOf(fromKey)
+    const toIndex = swipeableTabKeys.indexOf(toKey)
+
+    if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) {
+      return null
+    }
+
+    return toIndex > fromIndex ? 'left' : 'right'
+  }
+
+  const navigateToKey = (nextKey: string, options?: { forcedDirection?: PageTransitionDirection; suppressHistory?: boolean }) => {
+    if (pageMotion || activeKey === nextKey) {
+      if (options?.suppressHistory) suppressHistoryRef.current = false
+      return
+    }
+
+    if (options?.suppressHistory) {
+      suppressHistoryRef.current = true
+    }
+
+    const direction = resolvePageTransitionDirection(activeKey, nextKey, options?.forcedDirection)
+
+    if (!direction) {
+      setActiveKey(nextKey)
+      return
+    }
+
+    const width = getAppContentWidth()
+    clearPageTransitionMotion()
+    updatePageMotionState({
+      fromKey: activeKey,
+      toKey: nextKey,
+      direction,
+      width,
+      fromX: 0,
+      toX: direction === 'left' ? width : -width,
+      animate: false,
+      fromContent: renderPageContent(activeKey),
+      toContent: renderPageContent(nextKey),
+    })
+    setActiveKey(nextKey)
+
+    pageTransitionFrameRef.current = window.requestAnimationFrame(() => {
+      pageTransitionFrameRef.current = window.requestAnimationFrame(() => {
+        updatePageMotionState((current) => (
+          current
+            ? {
+                ...current,
+                animate: true,
+                fromX: direction === 'left' ? -width : width,
+                toX: 0,
+              }
+            : current
+        ))
+        pageTransitionFrameRef.current = null
+      })
+    })
+
+    schedulePageMotionCleanup()
+  }
+
   const handleSelectApp = (appKey: string) => {
     setShowMoreDrawer(false)
     setShowAIVoiceTooltip(false)
-    setActiveKey(appKey)
+    navigateToKey(appKey)
   }
 
   const handleTabChange = (key: string) => {
@@ -265,7 +453,7 @@ function App() {
       openAIPage('default')
       return
     }
-    setActiveKey(key)
+    navigateToKey(key)
   }
 
   const handleAIPointerDown = () => {
@@ -294,6 +482,266 @@ function App() {
       return
     }
     openAIPage('default')
+  }
+
+  const consumePreviousActiveKey = () => {
+    const history = navigationHistoryRef.current
+
+    if (history.length <= 1) {
+      return null
+    }
+
+    const current = history.pop()
+
+    while (history.length > 0) {
+      const previous = history[history.length - 1]
+      if (previous && previous !== current) {
+        return previous
+      }
+      history.pop()
+    }
+
+    return null
+  }
+
+  const peekPreviousActiveKey = () => {
+    const history = navigationHistoryRef.current
+    if (history.length <= 1) return null
+
+    const current = history[history.length - 1]
+    for (let i = history.length - 2; i >= 0; i -= 1) {
+      const previous = history[i]
+      if (previous && previous !== current) {
+        return previous
+      }
+    }
+
+    return null
+  }
+
+  const handleEdgeBack = () => {
+    setShowAIVoiceTooltip(false)
+
+    if (showAI) {
+      setShowAI(false)
+      setAIEntryMode('default')
+      const previousKey = consumePreviousActiveKey()
+      if (previousKey) {
+        navigateToKey(previousKey, { forcedDirection: 'right', suppressHistory: true })
+      } else {
+        navigationHistoryRef.current = ['home']
+        navigateToKey('home', { forcedDirection: 'right', suppressHistory: true })
+      }
+      return
+    }
+
+    if (showSettings) {
+      setShowSettings(false)
+      return
+    }
+
+    if (showMoreEdit) {
+      setShowMoreEdit(false)
+      return
+    }
+
+    if (showMoreDrawer) {
+      setShowMoreDrawer(false)
+      return
+    }
+
+    if (activeKey === 'home') return
+
+    const previousKey = consumePreviousActiveKey()
+    if (previousKey) {
+      navigateToKey(previousKey, { forcedDirection: 'right', suppressHistory: true })
+    } else {
+      navigationHistoryRef.current = ['home']
+      navigateToKey('home', { forcedDirection: 'right', suppressHistory: true })
+    }
+  }
+
+  const handleEdgeTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
+    if (pageMotion) return
+    if (event.touches.length !== 1) return
+
+    const canPreviewBack = !showAI && !showMoreDrawer && !showMoreEdit && !showSettings
+    const targetKey = canPreviewBack
+      ? (peekPreviousActiveKey() ?? (activeKey !== 'home' ? 'home' : null))
+      : null
+
+    const touch = event.touches[0]
+    edgeSwipeRef.current = {
+      startX: touch.clientX,
+      startY: touch.clientY,
+      mode: 'pending',
+      targetKey,
+    }
+  }
+
+  const handleEdgeTouchMove = (event: React.TouchEvent<HTMLDivElement>) => {
+    const swipe = edgeSwipeRef.current
+    if (!swipe || event.touches.length !== 1 || !swipe.targetKey) return
+
+    const touch = event.touches[0]
+    const deltaX = touch.clientX - swipe.startX
+    const deltaY = touch.clientY - swipe.startY
+
+    if (swipe.mode === 'pending') {
+      if (Math.abs(deltaY) > SWIPE_ACTIVATE_PX && Math.abs(deltaY) > Math.abs(deltaX) * SWIPE_DIRECTION_RATIO) {
+        edgeSwipeRef.current = { ...swipe, mode: 'vertical' }
+        return
+      }
+
+      if (deltaX < SWIPE_ACTIVATE_PX) return
+      if (deltaX < Math.abs(deltaY) * SWIPE_DIRECTION_RATIO) return
+
+      edgeSwipeRef.current = {
+        ...swipe,
+        mode: 'horizontal',
+      }
+    }
+
+    const activeSwipe = edgeSwipeRef.current
+    if (!activeSwipe || activeSwipe.mode !== 'horizontal' || !activeSwipe.targetKey) return
+    const targetKey = activeSwipe.targetKey
+
+    const width = getAppContentWidth()
+    const fromX = Math.max(0, Math.min(deltaX, width))
+    const toX = fromX - width
+
+    event.preventDefault()
+
+    updatePageMotionState((current) => {
+      if (
+        current &&
+        !current.animate &&
+        current.fromKey === activeKey &&
+        current.toKey === targetKey &&
+        current.direction === 'right'
+      ) {
+        if (current.fromX === fromX && current.toX === toX && current.width === width) {
+          return current
+        }
+
+        return {
+          ...current,
+          width,
+          fromX,
+          toX,
+        }
+      }
+
+      return {
+        fromKey: activeKey,
+        toKey: targetKey,
+        direction: 'right',
+        width,
+        fromX,
+        toX,
+        animate: false,
+        fromContent: renderPageContent(activeKey),
+        toContent: renderPageContent(targetKey),
+      }
+    })
+  }
+
+  const handleEdgeTouchEnd = (event: React.TouchEvent<HTMLDivElement>) => {
+    const swipe = edgeSwipeRef.current
+    if (!swipe) return
+
+    const touch = event.changedTouches[0]
+    const deltaX = touch.clientX - swipe.startX
+    const deltaY = touch.clientY - swipe.startY
+    edgeSwipeRef.current = null
+
+    if (swipe.mode === 'horizontal' && swipe.targetKey) {
+      const currentMotion = pageMotionRef.current
+
+      if (
+        currentMotion &&
+        !currentMotion.animate &&
+        currentMotion.direction === 'right' &&
+        currentMotion.toKey === swipe.targetKey
+      ) {
+        if (Math.abs(currentMotion.fromX) >= EDGE_BACK_COMMIT_PX) {
+          const consumedKey = consumePreviousActiveKey()
+          if (!consumedKey && swipe.targetKey === 'home') {
+            navigationHistoryRef.current = ['home']
+          }
+          settleInteractivePageMotion(true, { suppressHistory: true })
+        } else {
+          settleInteractivePageMotion(false)
+        }
+        return
+      }
+    }
+
+    if (deltaX < EDGE_BACK_COMMIT_PX) return
+    if (Math.abs(deltaY) > SWIPE_MAX_VERTICAL_PX) return
+    if (Math.abs(deltaX) < Math.abs(deltaY) * SWIPE_DIRECTION_RATIO) return
+
+    handleEdgeBack()
+  }
+
+  const handleContentTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
+    if (pageMotion || showAI || showMoreDrawer || showMoreEdit || showSettings) {
+      pageSwipeRef.current = null
+      return
+    }
+
+    if (event.touches.length !== 1) return
+
+    if (hasHorizontalScrollableAncestor(event.target, appContentRef.current)) {
+      pageSwipeRef.current = null
+      return
+    }
+
+    const touch = event.touches[0]
+    pageSwipeRef.current = {
+      startX: touch.clientX,
+      startY: touch.clientY,
+      mode: 'pending',
+      direction: null,
+      targetKey: null,
+    }
+  }
+
+  const settleInteractivePageMotion = (shouldCommit: boolean, options?: { suppressHistory?: boolean }) => {
+    const currentMotion = pageMotionRef.current
+    if (!currentMotion || currentMotion.animate) return
+
+    clearPageTransitionMotion()
+
+    if (shouldCommit) {
+      if (options?.suppressHistory) {
+        suppressHistoryRef.current = true
+      }
+      setActiveKey(currentMotion.toKey)
+    }
+
+    updatePageMotionState((motion) => {
+      if (!motion || motion.animate) return motion
+
+      return {
+        ...motion,
+        animate: true,
+        fromX: shouldCommit ? (motion.direction === 'left' ? -motion.width : motion.width) : 0,
+        toX: shouldCommit ? 0 : (motion.direction === 'left' ? motion.width : -motion.width),
+      }
+    })
+
+    schedulePageMotionCleanup()
+  }
+
+  const clearSwipeGestures = (cancelInteractiveMotion = false) => {
+    edgeSwipeRef.current = null
+
+    if (cancelInteractiveMotion) {
+      settleInteractivePageMotion(false)
+    }
+
+    pageSwipeRef.current = null
   }
 
   useEffect(() => {
@@ -330,47 +778,213 @@ function App() {
 
   useEffect(() => () => {
     clearAILongPressTimer()
+    clearPageTransitionMotion()
   }, [])
 
-  const activeCustomTab = useMemo(
-    () => mainTabs.find((tab) => tab.key === activeKey && tab.source === 'app'),
-    [activeKey, mainTabs]
-  )
+  useEffect(() => {
+    if (suppressHistoryRef.current) {
+      suppressHistoryRef.current = false
+      return
+    }
+
+    const history = navigationHistoryRef.current
+    if (history[history.length - 1] !== activeKey) {
+      history.push(activeKey)
+      if (history.length > 24) {
+        history.splice(0, history.length - 24)
+      }
+    }
+  }, [activeKey])
 
   const isMoreContextKey = activeKey === 'task' || activeKey.startsWith('app-')
 
+  const resolveSliderIndexForKey = (key: string) => {
+    const directIndex = mainTabs.findIndex((tab) => tab.key === key)
+    if (directIndex >= 0) return directIndex
+
+    if (key === 'task' || key.startsWith('app-')) {
+      const moreIndex = mainTabs.findIndex((tab) => tab.key === 'more')
+      return moreIndex >= 0 ? moreIndex : null
+    }
+
+    return null
+  }
+
+  const handleContentTouchMove = (event: React.TouchEvent<HTMLDivElement>) => {
+    const swipe = pageSwipeRef.current
+    if (!swipe || event.touches.length !== 1) return
+
+    const touch = event.touches[0]
+    const deltaX = touch.clientX - swipe.startX
+    const deltaY = touch.clientY - swipe.startY
+
+    if (swipe.mode === 'pending') {
+      if (Math.abs(deltaY) > SWIPE_ACTIVATE_PX && Math.abs(deltaY) > Math.abs(deltaX) * SWIPE_DIRECTION_RATIO) {
+        pageSwipeRef.current = { ...swipe, mode: 'vertical' }
+        return
+      }
+
+      if (Math.abs(deltaX) < SWIPE_ACTIVATE_PX) return
+      if (Math.abs(deltaX) < Math.abs(deltaY) * SWIPE_DIRECTION_RATIO) return
+
+      const currentIndex = swipeableTabKeys.indexOf(activeKey)
+      if (currentIndex < 0) {
+        pageSwipeRef.current = { ...swipe, mode: 'vertical' }
+        return
+      }
+
+      const direction: PageTransitionDirection = deltaX < 0 ? 'left' : 'right'
+      const nextIndex = direction === 'left' ? currentIndex + 1 : currentIndex - 1
+      const targetKey = swipeableTabKeys[nextIndex]
+
+      if (!targetKey) {
+        pageSwipeRef.current = { ...swipe, mode: 'vertical' }
+        return
+      }
+
+      pageSwipeRef.current = {
+        ...swipe,
+        mode: 'horizontal',
+        direction,
+        targetKey,
+      }
+    }
+
+    const activeSwipe = pageSwipeRef.current
+    if (!activeSwipe || activeSwipe.mode !== 'horizontal' || !activeSwipe.direction || !activeSwipe.targetKey) return
+    const { direction, targetKey } = activeSwipe
+
+    const width = getAppContentWidth()
+    const fromX = direction === 'left'
+      ? Math.min(0, Math.max(deltaX, -width))
+      : Math.max(0, Math.min(deltaX, width))
+    const toX = direction === 'left' ? width + fromX : fromX - width
+
+    event.preventDefault()
+
+    updatePageMotionState((current) => {
+      if (
+        current &&
+        !current.animate &&
+        current.fromKey === activeKey &&
+        current.toKey === targetKey &&
+        current.direction === direction
+      ) {
+        if (current.fromX === fromX && current.toX === toX && current.width === width) {
+          return current
+        }
+
+        return {
+          ...current,
+          width,
+          fromX,
+          toX,
+        }
+      }
+
+      return {
+        fromKey: activeKey,
+        toKey: targetKey,
+        direction,
+        width,
+        fromX,
+        toX,
+        animate: false,
+        fromContent: renderPageContent(activeKey),
+        toContent: renderPageContent(targetKey),
+      }
+    })
+  }
+
+  const handleContentTouchEndWithCommit = () => {
+    const swipe = pageSwipeRef.current
+    pageSwipeRef.current = null
+
+    if (!swipe || swipe.mode !== 'horizontal') return
+
+    const currentMotion = pageMotionRef.current
+    if (!currentMotion || currentMotion.animate) return
+
+    const shouldCommit = Math.abs(currentMotion.fromX) >= PAGE_SWIPE_COMMIT_PX
+    settleInteractivePageMotion(shouldCommit)
+  }
+
+  const sliderMotionIndex = (() => {
+    const baseIndex = resolveSliderIndexForKey(activeKey)
+
+    if (pageMotion) {
+      const fromIndex = resolveSliderIndexForKey(pageMotion.fromKey)
+      const toIndex = resolveSliderIndexForKey(pageMotion.toKey)
+
+      if (fromIndex !== null && toIndex !== null && pageMotion.width > 0) {
+        const progress = Math.min(1, Math.max(0, Math.abs(pageMotion.fromX) / pageMotion.width))
+        return {
+          index: fromIndex + (toIndex - fromIndex) * progress,
+          visible: true,
+          instant: !pageMotion.animate,
+        }
+      }
+    }
+
+    return {
+      index: baseIndex ?? 0,
+      visible: baseIndex !== null || isMoreContextKey,
+      instant: false,
+    }
+  })()
+
   return (
     <div className={`app-container ${elderMode ? 'elder-mode' : ''}`}>
-      <div className="app-content">
-        {activeKey === 'home' && <Home onOpenAI={() => openAIPage('default')} elderMode={elderMode} onToggleElderMode={() => setElderMode(!elderMode)} />}
-        {activeKey === 'message' && <MessagePage />}
-        {activeKey === 'task' && <TaskPage />}
-        {activeKey === 'calendar' && <CalendarPage />}
-        {activeKey === 'space' && <SpacePage />}
-        {activeKey === 'library' && <LibraryPage />}
-        {activeKey === 'app-10' && <LibraryPage />}
-        {activeKey === 'app-3' && <CalendarPage />}
-        {activeKey === 'app-11' && <SpacePage />}
-        {activeKey === 'ai' && <PlaceholderPage title="AI" />}
-        {activeCustomTab && !['app-10', 'app-3', 'app-11'].includes(activeKey) && <PlaceholderPage title={activeCustomTab.label} />}
+      <div
+        className="app-edge-back-zone"
+        onTouchStart={handleEdgeTouchStart}
+        onTouchMove={handleEdgeTouchMove}
+        onTouchEnd={handleEdgeTouchEnd}
+        onTouchCancel={() => clearSwipeGestures(true)}
+        aria-hidden="true"
+      />
+      <div
+        className={`app-content ${pageMotion ? `is-page-motion motion-${pageMotion.direction} ${pageMotion.animate ? 'motion-animate' : 'motion-dragging'}` : ''}`}
+        ref={appContentRef}
+        onTouchStart={handleContentTouchStart}
+        onTouchMove={handleContentTouchMove}
+        onTouchEnd={handleContentTouchEndWithCommit}
+        onTouchCancel={() => clearSwipeGestures(true)}
+      >
+        {pageMotion ? (
+          <div className="app-page-transition-shell" aria-hidden="true">
+            <div
+              className={`app-page-panel app-page-panel-from ${pageMotion.animate ? 'is-animated' : ''}`}
+              style={{ transform: `translate3d(${pageMotion.fromX}px, 0, 0)` }}
+            >
+              {pageMotion.fromContent}
+            </div>
+            <div
+              className={`app-page-panel app-page-panel-to ${pageMotion.animate ? 'is-animated' : ''}`}
+              style={{ transform: `translate3d(${pageMotion.toX}px, 0, 0)` }}
+            >
+              {pageMotion.toContent}
+            </div>
+          </div>
+        ) : (
+          <div className="app-page-live">
+            {renderPageContent(activeKey)}
+          </div>
+        )}
       </div>
       <div className="app-bottom">
         <div className="bottom-tabs">
-          <div className="tabs-group">
+          <div
+            className="tabs-group"
+            style={{ '--tab-count': mainTabs.length } as React.CSSProperties}
+          >
             {/* 滑动背景指示器 */}
             <div
               className="tab-slider"
               style={{
-                transform: `translateX(${(() => {
-                  const idx = mainTabs.findIndex(t => t.key === activeKey)
-                  if (idx >= 0) return idx * 100
-                  if (isMoreContextKey) {
-                    const moreIdx = mainTabs.findIndex(t => t.key === 'more')
-                    return moreIdx >= 0 ? moreIdx * 100 : 0
-                  }
-                  return 0
-                })()}%)`,
-                opacity: mainTabs.findIndex(t => t.key === activeKey) >= 0 || isMoreContextKey ? 1 : 0,
+                transform: `translateX(${sliderMotionIndex.index * 100}%)`,
+                opacity: sliderMotionIndex.visible ? 1 : 0,
+                transition: sliderMotionIndex.instant ? 'none' : undefined,
               }}
             />
             {mainTabs.map((tab) => {
