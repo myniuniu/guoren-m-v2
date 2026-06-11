@@ -5,9 +5,11 @@ type AiConversationHeaderActionsProps = {
   showDeleteSessionAction?: boolean
   showPartnerSettingsAction?: boolean
   showCustomAgentMoreAction?: boolean
+  showSessionMoreAction?: boolean
   onDeleteSession?: () => void
   onOpenPartnerSettings?: () => void
   onOpenCustomAgentDetail?: () => void
+  onSaveCommand?: () => void
   onClose: () => void
 }
 
@@ -15,9 +17,11 @@ export function AiConversationHeaderActions({
   showDeleteSessionAction = false,
   showPartnerSettingsAction = false,
   showCustomAgentMoreAction = false,
+  showSessionMoreAction = false,
   onDeleteSession,
   onOpenPartnerSettings,
   onOpenCustomAgentDetail,
+  onSaveCommand,
   onClose,
 }: AiConversationHeaderActionsProps) {
   const [showActionMenu, setShowActionMenu] = useState(false)
@@ -56,10 +60,10 @@ export function AiConversationHeaderActions({
   }, [showActionMenu])
 
   useEffect(() => {
-    if (!showCustomAgentMoreAction) {
+    if (!showCustomAgentMoreAction && !showSessionMoreAction) {
       setShowActionMenu(false)
     }
-  }, [showCustomAgentMoreAction])
+  }, [showCustomAgentMoreAction, showSessionMoreAction])
 
   return (
     <div className="ai-page-header-right" ref={actionContainerRef}>
@@ -98,6 +102,44 @@ export function AiConversationHeaderActions({
               >
                 智能体详情
               </button>
+            </div>
+          ) : null}
+        </div>
+      ) : showSessionMoreAction ? (
+        <div className="ai-page-header-action-menu-wrap">
+          <button
+            aria-label="打开会话更多操作"
+            className="ai-page-header-action"
+            type="button"
+            onClick={() => setShowActionMenu((current) => !current)}
+          >
+            <MoreOutline aria-hidden="true" style={{ fontSize: 20 }} />
+          </button>
+
+          {showActionMenu ? (
+            <div className="ai-page-header-action-menu">
+              <button
+                className="ai-page-header-action-menu-item"
+                type="button"
+                onClick={() => {
+                  setShowActionMenu(false)
+                  onSaveCommand?.()
+                }}
+              >
+                保存为指令
+              </button>
+              {onDeleteSession ? (
+                <button
+                  className="ai-page-header-action-menu-item is-danger"
+                  type="button"
+                  onClick={() => {
+                    setShowActionMenu(false)
+                    onDeleteSession()
+                  }}
+                >
+                  删除会话记录
+                </button>
+              ) : null}
             </div>
           ) : null}
         </div>

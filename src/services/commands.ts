@@ -3,6 +3,8 @@ import { getChatUserId } from './chat/api'
 import type { ChatAttachment } from './chat/types'
 
 const COMMANDS_PATH = '/api/v1/commands'
+const MY_COMMANDS_PATH = '/api/v1/my-commands'
+const GENERATE_MY_COMMAND_PATH = '/api/v1/my-commands/generate'
 const MAX_DESCRIPTION_LENGTH = 40
 
 export type CommandApiItem = {
@@ -36,6 +38,22 @@ type CommandsSuccessResponse = {
   my_commands?: CommandApiItem[]
 }
 
+type SaveCommandTemplateResponse = {
+  success?: boolean
+  code?: string
+  msg?: string
+  message?: string
+  data?: SaveCommandStep1Response
+}
+
+type CreateCommandApiResponse = {
+  success?: boolean
+  code?: string
+  msg?: string
+  message?: string
+  data?: CreateCommandResponse
+}
+
 export type CommandPromptItem = {
   id: string
   icon: string
@@ -45,6 +63,27 @@ export type CommandPromptItem = {
   skillName: string | null
   attachments: ChatAttachment[]
   image?: string | null
+}
+
+export type SaveCommandStep1Response = {
+  name: string
+  template: string
+  attachments: unknown[]
+  source_session_id: string
+}
+
+export type CreateCommandRequest = {
+  name: string
+  template: string
+  attachments: unknown[]
+  source_session_id: string
+}
+
+export type CreateCommandResponse = {
+  id: string
+  name: string
+  template: string
+  attachments: unknown[]
 }
 
 function normalizeCommandAttachments(rawAttachments: unknown): ChatAttachment[] {
@@ -125,6 +164,70 @@ export async function fetchCommands(signal?: AbortSignal): Promise<CommandsData>
   }
 
   return resolveCommandsData(payload)
+}
+
+export async function generateCommandFromSession(
+  sessionId: string,
+  signal?: AbortSignal,
+): Promise<SaveCommandStep1Response> {
+  const requestUrl = buildAiApiUrl(GENERATE_MY_COMMAND_PATH, {
+    user_id: getChatUserId(),
+  })
+
+  const response = await authorizedFetch(requestUrl, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      session_id: sessionId,
+    }),
+    signal,
+  })
+
+  if (!response.ok) {
+    throw new Error('生成指令模板失败')
+  }
+
+  const payload = (await response.json()) as SaveCommandTemplateResponse
+
+  if (payload.success === false || !payload.data) {
+    throw new Error(payload.msg || payload.message || '生成指令模板失败')
+  }
+
+  return payload.data
+}
+
+export async function createCommand(
+  data: CreateCommandRequest,
+  signal?: AbortSignal,
+): Promise<CreateCommandResponse> {
+  const requestUrl = buildAiApiUrl(MY_COMMANDS_PATH, {
+    user_id: getChatUserId(),
+  })
+
+  const response = await authorizedFetch(requestUrl, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(data),
+    signal,
+  })
+
+  if (!response.ok) {
+    throw new Error('创建指令失败')
+  }
+
+  const payload = (await response.json()) as CreateCommandApiResponse
+
+  if (payload.success === false || !payload.data) {
+    throw new Error(payload.msg || payload.message || '创建指令失败')
+  }
+
+  return payload.data
 }
 
 export function mapCommandsToPromptItems(commands: CommandApiItem[]): CommandPromptItem[] {

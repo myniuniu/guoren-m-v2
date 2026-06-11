@@ -890,7 +890,7 @@ export function AiAgentConfigPage({
     }
 
     if (!draft.instruction.trim()) {
-      showPublishError('请先填写指令中的系统提示词')
+      showPublishError('请先填写指令')
       return
     }
 
@@ -1047,7 +1047,7 @@ export function AiAgentConfigPage({
     <div className="ai-agent-config-content">
       <section className="ai-agent-config-card">
         <AiPublishSettings
-          actionLabel={mode === 'edit' ? '保存' : '发布'}
+          actionLabel="发布"
           applyReason={draft.applyReason}
           communityCategoryId={draft.communityCategoryId}
           publishMessage={publishMessage}
@@ -1070,10 +1070,8 @@ export function AiAgentConfigPage({
           指令 <span className="ai-agent-config-required">*</span>
         </div>
         <label className="ai-agent-config-field">
-          <span className="ai-agent-config-field-label">
-            系统提示词 <span className="ai-agent-config-required">*</span>
-          </span>
           <textarea
+            aria-label="指令"
             className="ai-agent-config-textarea"
             maxLength={3000}
             placeholder="请输入智能体的角色设定、回答风格和边界要求"

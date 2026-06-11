@@ -68,6 +68,7 @@ import { AiConversationHeaderActions } from './components/AiConversationHeaderAc
 import { AiCreateAgentModal } from './components/AiCreateAgentModal'
 import { AiDiscoverPage } from './components/AiDiscoverPage'
 import { AiDrawerSessionGroup } from './components/AiDrawerSessionGroup'
+import { AiSaveCommandModal } from './components/AiSaveCommandModal'
 import AiLibraryFilePreview from './components/AiLibraryFilePreview'
 import { AiManageSkillCard } from './components/AiManageSkillCard'
 import { AI_DRAWER_MENU_ITEMS, renderAiDrawerMenuIcon } from './components/AiDrawerMenuIcons'
@@ -414,6 +415,7 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
   const [showAgentConfigPage, setShowAgentConfigPage] = useState(false)
   const [showCreateAgentModal, setShowCreateAgentModal] = useState(false)
   const [showCommandsPage, setShowCommandsPage] = useState(false)
+  const [showSaveCommandModal, setShowSaveCommandModal] = useState(false)
   const [commandsPageTab, setCommandsPageTab] = useState<AiCommandsPageTabKey>('best-practice')
   const [showMySkillsPage, setShowMySkillsPage] = useState(false)
   const [mySkillsTab, setMySkillsTab] = useState<'added' | 'created'>('added')
@@ -613,7 +615,7 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
   const canShowCurrentConversationCustomAgentActions = Boolean(currentConversationCustomAgentId)
     && isAiMainPageVisible
     && !showCustomAgentConversationPage
-  const canDeleteCurrentSession = Boolean(currentRouteSession) && !isPartnerRoute && isAiMainPageVisible
+  const canShowSessionMoreAction = Boolean(currentRouteSession) && !canShowCurrentConversationCustomAgentActions && isAiMainPageVisible
   const plusCardItems = [
     { key: 'file', label: '图片 / 文件' },
     { key: 'doc', label: '资料库' },
@@ -1262,39 +1264,43 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
     setSelectedSkillName(null)
   }, [activeToolType])
 
-  useEffect(() => {
-    let cancelled = false
+  const loadCommandsData = useCallback(async (signal?: AbortSignal) => {
+    const isAborted = () => signal?.aborted === true
 
-    void (async () => {
+    try {
       setCommandsLoading(true)
       setCommandsError('')
 
-      try {
-        const commands = await fetchCommands()
+      const commands = await fetchCommands(signal)
 
-        if (cancelled) {
-          return
-        }
-
-        setCommandsData(commands)
-        const nextCards = mapCommandsToPromptItems(commands.best_practices)
-        setFeatureCards(nextCards.length > 0 ? nextCards : fallbackFeatureCards)
-      } catch (error) {
-        if (!cancelled) {
-          setCommandsError(error instanceof Error ? error.message : '指令内容加载失败')
-        }
-        console.warn('[ai-page] 加载最佳实践失败：', error)
-      } finally {
-        if (!cancelled) {
-          setCommandsLoading(false)
-        }
+      if (isAborted()) {
+        return
       }
-    })()
 
-    return () => {
-      cancelled = true
+      setCommandsData(commands)
+      const nextCards = mapCommandsToPromptItems(commands.best_practices)
+      setFeatureCards(nextCards.length > 0 ? nextCards : fallbackFeatureCards)
+    } catch (error) {
+      if (!isAborted()) {
+        setCommandsError(error instanceof Error ? error.message : '指令内容加载失败')
+      }
+      console.warn('[ai-page] 加载最佳实践失败：', error)
+    } finally {
+      if (!isAborted()) {
+        setCommandsLoading(false)
+      }
     }
   }, [])
+
+  useEffect(() => {
+    const controller = new AbortController()
+
+    void loadCommandsData(controller.signal)
+
+    return () => {
+      controller.abort()
+    }
+  }, [loadCommandsData])
 
   useEffect(() => {
     const scroller = scrollerRef.current
@@ -1579,6 +1585,21 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
   const openCommandsPage = (tab: AiCommandsPageTabKey = 'best-practice') => {
     setCommandsPageTab(tab)
     setShowCommandsPage(true)
+  }
+
+  const openSaveCommandModal = () => {
+    setShowSaveCommandModal(true)
+  }
+
+  const closeSaveCommandModal = () => {
+    setShowSaveCommandModal(false)
+  }
+
+  const handleSaveCommandSuccess = () => {
+    closeSaveCommandModal()
+    Toast.show({ content: '已保存到我的指令' })
+    openCommandsPage('my-prompts')
+    void loadCommandsData()
   }
 
   const applyCommandItem = (command: CommandApiItem) => {
@@ -2050,7 +2071,7 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
         {headerTitle ? <div className="ai-page-header-title">{headerTitle}</div> : <div className="ai-page-header-spacer" />}
         <AiConversationHeaderActions
           showCustomAgentMoreAction={canShowCurrentConversationCustomAgentActions}
-          showDeleteSessionAction={!canShowCurrentConversationCustomAgentActions && canDeleteCurrentSession}
+          showSessionMoreAction={canShowSessionMoreAction}
           onClose={onClose}
           onDeleteSession={() => {
             if (!currentRouteSession) {
@@ -2059,6 +2080,7 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
 
             openDeleteSessionDialog(currentRouteSession)
           }}
+          onSaveCommand={openSaveCommandModal}
           onOpenCustomAgentDetail={() => setShowCurrentConversationCustomAgentDetailSheet(true)}
         />
       </div>
@@ -2925,6 +2947,13 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
         visible={showCreateAgentModal}
         onClose={() => setShowCreateAgentModal(false)}
         onUseTemplate={openAgentConfigPage}
+      />
+
+      <AiSaveCommandModal
+        open={showSaveCommandModal && Boolean(currentRouteSession)}
+        sessionId={currentRouteSession?.session_id || ''}
+        onClose={closeSaveCommandModal}
+        onSuccess={handleSaveCommandSuccess}
       />
 
       {showSkillSelectorPage && (
