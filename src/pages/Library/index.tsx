@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState, type ChangeEvent } from 'react'
 import './index.css'
 
 type LibraryScope = 'personal' | 'org'
@@ -28,7 +28,7 @@ type LibraryPathItem = {
   clickable: boolean
 }
 
-const libraryEntries: LibraryEntry[] = [
+const initialLibraryEntries: LibraryEntry[] = [
   { id: 'p-folder-1', name: '教育信息化资料库', type: 'folder', scope: 'personal', parentId: null, updatedAt: '今天 09:18', owner: '我', starred: true, shared: false, tags: ['课程', '教研'] },
   { id: 'p-folder-2', name: '人工智能-教育', type: 'folder', scope: 'personal', parentId: null, updatedAt: '昨天 17:36', owner: '我', starred: true, shared: true, tags: ['AI', '课程'] },
   { id: 'p-folder-3', name: '模板作品集', type: 'folder', scope: 'personal', parentId: null, updatedAt: '06-01 12:08', owner: '我', starred: false, shared: false, tags: ['教研'] },
@@ -79,20 +79,45 @@ const filterSheetSections: Array<{
   },
 ]
 
-function buildFolderPath(folderId: string) {
+function buildFolderPath(folderId: string, entries: LibraryEntry[]) {
   const path: string[] = []
   const visited = new Set<string>()
-  let current = libraryEntries.find((item) => item.id === folderId && item.type === 'folder') ?? null
+  let current = entries.find((item) => item.id === folderId && item.type === 'folder') ?? null
 
   while (current && !visited.has(current.id)) {
     visited.add(current.id)
     path.unshift(current.id)
     const parentId = current.parentId
     if (!parentId) break
-    current = libraryEntries.find((item) => item.id === parentId && item.type === 'folder') ?? null
+    current = entries.find((item) => item.id === parentId && item.type === 'folder') ?? null
   }
 
   return path
+}
+
+function formatLibraryNow() {
+  const now = new Date()
+  const hours = `${now.getHours()}`.padStart(2, '0')
+  const minutes = `${now.getMinutes()}`.padStart(2, '0')
+  return `今天 ${hours}:${minutes}`
+}
+
+function formatFileSize(size: number) {
+  if (size < 1024) return `${size} B`
+  if (size < 1024 * 1024) return `${Math.max(1, Math.round(size / 1024))} KB`
+  return `${(size / (1024 * 1024)).toFixed(size >= 10 * 1024 * 1024 ? 0 : 1)} MB`
+}
+
+function inferLibraryEntryType(fileName: string): LibraryEntryType {
+  const ext = fileName.split('.').pop()?.toLowerCase() ?? ''
+
+  if (ext === 'pdf') return 'pdf'
+  if (['doc', 'docx', 'txt', 'md', 'rtf'].includes(ext)) return 'doc'
+  if (['ppt', 'pptx', 'key'].includes(ext)) return 'ppt'
+  if (['xls', 'xlsx', 'csv'].includes(ext)) return 'sheet'
+  if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp'].includes(ext)) return 'image'
+
+  return 'doc'
 }
 
 function SearchIcon() {
@@ -100,6 +125,15 @@ function SearchIcon() {
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="11" cy="11" r="7" />
       <line x1="20" y1="20" x2="16.65" y2="16.65" />
+    </svg>
+  )
+}
+
+function PlusIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 5v14" />
+      <path d="M5 12h14" />
     </svg>
   )
 }
@@ -118,6 +152,16 @@ function FilterIcon() {
       <path d="M4 6h16" />
       <path d="M7 12h10" />
       <path d="M10 18h4" />
+    </svg>
+  )
+}
+
+function NewFolderIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 7.5C3 6.12 4.12 5 5.5 5H9l1.8 2H18.5C19.88 7 21 8.12 21 9.5v7A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5z" />
+      <path d="M16.5 11.5v5" />
+      <path d="M14 14h5" />
     </svg>
   )
 }
@@ -241,6 +285,7 @@ function LibraryFilePreview({
 }
 
 export default function LibraryPage() {
+  const [entries, setEntries] = useState<LibraryEntry[]>(() => initialLibraryEntries)
   const [scope, setScope] = useState<LibraryScope>('personal')
   const [folderPath, setFolderPath] = useState<string[]>([])
   const [selectedFilter, setSelectedFilter] = useState<SidebarFilter>('all')
@@ -249,26 +294,31 @@ export default function LibraryPage() {
   const [showSearch, setShowSearch] = useState(false)
   const [showFilterSheet, setShowFilterSheet] = useState(false)
   const [showOrgSpaceSheet, setShowOrgSpaceSheet] = useState(false)
+  const [showCreateFolderSheet, setShowCreateFolderSheet] = useState(false)
+  const [newFolderName, setNewFolderName] = useState('')
+  const [newFolderError, setNewFolderError] = useState('')
   const [previewFile, setPreviewFile] = useState<LibraryEntry | null>(null)
   const [actionTarget, setActionTarget] = useState<LibraryEntry | null>(null)
+  const listRef = useRef<HTMLDivElement | null>(null)
+  const uploadInputRef = useRef<HTMLInputElement | null>(null)
   const currentFolderId = folderPath[folderPath.length - 1] ?? null
 
   const rootPathLabel = scope === 'personal' ? '个人资料库' : selectedOrgSpace
   const folderPathEntries = useMemo(
     () =>
       folderPath
-        .map((id) => libraryEntries.find((item) => item.id === id && item.type === 'folder') ?? null)
+        .map((id) => entries.find((item) => item.id === id && item.type === 'folder') ?? null)
         .filter((item): item is LibraryEntry => item !== null),
-    [folderPath]
+    [entries, folderPath]
   )
   const currentFolder = useMemo(
-    () => libraryEntries.find((item) => item.id === currentFolderId) ?? null,
-    [currentFolderId]
+    () => entries.find((item) => item.id === currentFolderId) ?? null,
+    [currentFolderId, entries]
   )
 
   const visibleItems = useMemo(
     () =>
-      libraryEntries.filter((item) => {
+      entries.filter((item) => {
         if (item.scope !== scope) return false
         if (scope === 'org' && item.orgSpace !== selectedOrgSpace) return false
         if (item.parentId !== currentFolderId) return false
@@ -280,7 +330,7 @@ export default function LibraryPage() {
         if (!keyword.trim()) return true
         return item.name.toLowerCase().includes(keyword.trim().toLowerCase())
       }),
-    [scope, currentFolderId, keyword, selectedFilter, selectedOrgSpace]
+    [entries, scope, currentFolderId, keyword, selectedFilter, selectedOrgSpace]
   )
 
   const currentTitle = currentFolder ? currentFolder.name : scope === 'personal' ? '个人资料库' : '组织资料库'
@@ -320,6 +370,7 @@ export default function LibraryPage() {
     [pathItems, previewFile]
   )
   const showHeaderPath = pathItems.length > 1
+  const currentLocationLabel = pathItems.map((item) => item.label).join(' / ')
   const handleJumpToFolder = (folderId: string | null) => {
     setPreviewFile(null)
     if (folderId === null) {
@@ -327,7 +378,7 @@ export default function LibraryPage() {
       return
     }
 
-    setFolderPath(buildFolderPath(folderId))
+    setFolderPath(buildFolderPath(folderId, entries))
   }
   const handleInternalBack = () => {
     if (previewFile) {
@@ -345,6 +396,86 @@ export default function LibraryPage() {
     }
 
     setShowSearch(true)
+  }
+  const closeCreateFolderSheet = () => {
+    setShowCreateFolderSheet(false)
+    setNewFolderName('')
+    setNewFolderError('')
+  }
+  const handleCreateFolder = () => {
+    const nextName = newFolderName.trim()
+
+    if (!nextName) {
+      setNewFolderError('请输入文件夹名称')
+      return
+    }
+
+    const hasDuplicate = entries.some((item) => {
+      if (item.parentId !== currentFolderId) return false
+      if (item.scope !== scope) return false
+      if (scope === 'org' && item.orgSpace !== selectedOrgSpace) return false
+      return item.name.trim() === nextName
+    })
+
+    if (hasDuplicate) {
+      setNewFolderError('当前目录下已存在同名资料')
+      return
+    }
+
+    const newEntry: LibraryEntry = {
+      id: `folder-${Date.now()}`,
+      name: nextName,
+      type: 'folder',
+      scope,
+      orgSpace: scope === 'org' ? selectedOrgSpace : undefined,
+      parentId: currentFolderId,
+      updatedAt: formatLibraryNow(),
+      owner: '我',
+      starred: false,
+      shared: false,
+      tags: [],
+    }
+
+    setEntries((current) => [newEntry, ...current])
+    setSelectedFilter('all')
+    setKeyword('')
+    closeCreateFolderSheet()
+    requestAnimationFrame(() => {
+      listRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
+    })
+  }
+  const handleOpenAddMaterial = () => {
+    uploadInputRef.current?.click()
+  }
+  const handleMaterialFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files ?? [])
+
+    if (files.length === 0) {
+      return
+    }
+
+    const createdEntries: LibraryEntry[] = files.map((file, index) => ({
+      id: `file-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 6)}`,
+      name: file.name,
+      type: inferLibraryEntryType(file.name),
+      scope,
+      orgSpace: scope === 'org' ? selectedOrgSpace : undefined,
+      parentId: currentFolderId,
+      updatedAt: formatLibraryNow(),
+      owner: '我',
+      size: formatFileSize(file.size),
+      starred: false,
+      shared: false,
+      tags: [],
+    }))
+
+    setEntries((current) => [...createdEntries, ...current])
+    setSelectedFilter('all')
+    setKeyword('')
+    event.target.value = ''
+    requestAnimationFrame(() => {
+      listRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
+    })
   }
 
   if (previewFile) {
@@ -430,6 +561,18 @@ export default function LibraryPage() {
           </div>
           <div className="library-nav-actions">
             <button
+              className="library-icon-btn"
+              type="button"
+              onClick={() => {
+                setShowCreateFolderSheet(true)
+                setNewFolderName('')
+                setNewFolderError('')
+              }}
+              aria-label="新建文件夹"
+            >
+              <NewFolderIcon />
+            </button>
+            <button
               className={`library-icon-btn ${showSearch ? 'is-active' : ''}`}
               type="button"
               onClick={handleToggleSearch}
@@ -486,7 +629,18 @@ export default function LibraryPage() {
       </div>
 
       <div className="library-content">
-        <div className="library-list">
+        <button className="library-add-material" type="button" onClick={handleOpenAddMaterial}>
+          <PlusIcon />
+          <span>添加资料</span>
+        </button>
+        <input
+          ref={uploadInputRef}
+          className="library-file-input"
+          type="file"
+          multiple
+          onChange={handleMaterialFileChange}
+        />
+        <div className="library-list" ref={listRef}>
           {visibleItems.length > 0 ? (
             visibleItems.map((item) => {
               const isFolder = item.type === 'folder'
@@ -590,6 +744,49 @@ export default function LibraryPage() {
                   <span>{space}</span>
                 </button>
               ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showCreateFolderSheet && (
+        <div className="library-filter-sheet-overlay" onClick={closeCreateFolderSheet}>
+          <div className="library-filter-sheet library-create-folder-sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="library-filter-sheet-handle" />
+            <div className="library-filter-sheet-title">新建文件夹</div>
+            <div className="library-create-folder-location">保存到：{currentLocationLabel}</div>
+            <div className="library-create-folder-field">
+              <label className="library-create-folder-label" htmlFor="library-new-folder-name">
+                文件夹名称
+              </label>
+              <input
+                id="library-new-folder-name"
+                className="library-create-folder-input"
+                value={newFolderName}
+                onChange={(e) => {
+                  setNewFolderName(e.target.value)
+                  if (newFolderError) {
+                    setNewFolderError('')
+                  }
+                }}
+                placeholder="请输入文件夹名称"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    handleCreateFolder()
+                  }
+                }}
+              />
+              {newFolderError ? <div className="library-create-folder-error">{newFolderError}</div> : null}
+            </div>
+            <div className="library-create-folder-actions">
+              <button className="library-create-folder-action secondary" type="button" onClick={closeCreateFolderSheet}>
+                取消
+              </button>
+              <button className="library-create-folder-action primary" type="button" onClick={handleCreateFolder}>
+                创建
+              </button>
             </div>
           </div>
         </div>
