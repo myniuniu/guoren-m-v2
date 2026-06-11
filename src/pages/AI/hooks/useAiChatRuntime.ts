@@ -47,6 +47,7 @@ import type {
   ChatSessionDetail,
   ChatStreamSnapshot,
 } from '../../../services/chat/types'
+import { resolveSubmitSessionId } from './resolveSubmitSessionId'
 
 function buildTimestamp(): string {
   return new Date().toISOString()
@@ -445,7 +446,7 @@ export function useAiChatRuntime() {
     promptOverride?: string,
     nextToolType?: string | null,
     attachmentOverride?: ChatAttachment[],
-    submitOptions?: { enableWebSearch?: boolean },
+    submitOptions?: { enableWebSearch?: boolean; forceNewSession?: boolean },
   ) => {
     const prompt = (promptOverride ?? inputValue).trim()
 
@@ -466,13 +467,17 @@ export function useAiChatRuntime() {
     setIsStopping(false)
 
     try {
-      let sessionId = currentSessionIdRef.current
       const resolvedToolType = nextToolType ?? activeToolType
       const activeAgentId = activeAgent?.agentId ?? null
+      const sessionId = await resolveSubmitSessionId({
+        currentSessionId: currentSessionIdRef.current,
+        activeAgentId,
+        forceNewSession: submitOptions?.forceNewSession ?? false,
+        findLatestEmptySession,
+        createChatSession,
+      })
 
-      if (!sessionId) {
-        const reusedSessionId = activeAgentId ? null : await findLatestEmptySession()
-        sessionId = reusedSessionId ?? (await createChatSession(undefined, activeAgentId)).sessionId
+      if (currentSessionIdRef.current !== sessionId) {
         skipRestoreSessionIdRef.current = sessionId
         setSearchParams({ sessionId })
       }
@@ -703,7 +708,9 @@ export function useAiChatRuntime() {
     setDraftAttachments(state.attachments ?? [])
 
     if (state.autoSend) {
-      void submitPrompt(state.initialPrompt, state.toolType ?? null, state.attachments ?? [])
+      void submitPrompt(state.initialPrompt, state.toolType ?? null, state.attachments ?? [], {
+        forceNewSession: state.forceNewSession,
+      })
     } else {
       setInputValue((current) => current || state.initialPrompt)
     }

@@ -15,6 +15,9 @@ import {
   getTabKeyByPathname,
 } from './routes'
 import { useMobileViewport } from './hooks/useMobileViewport'
+import AITabMicBadge from './components/AITabMicBadge'
+import VoiceCaptureOverlay from './components/VoiceCaptureOverlay'
+import { shouldEmitVoiceReleaseSignal, type AiVoiceReleaseSource } from './utils/aiVoiceLongPress'
 import './App.css'
 
 const Home = lazy(() => import('./pages/Home'))
@@ -214,8 +217,10 @@ function AuthenticatedApp() {
   const [showMoreDrawer, setShowMoreDrawer] = useState(false)
   const [showMoreEdit, setShowMoreEdit] = useState(false)
   const [showProfileMenu, setShowProfileMenu] = useState(false)
+  const [showVoiceCaptureOverlay, setShowVoiceCaptureOverlay] = useState(false)
   const [elderMode, setElderMode] = useState(false)
   const [mainTabs, setMainTabs] = useState(defaultMainTabs)
+  const [voiceOverlayReleaseSignal, setVoiceOverlayReleaseSignal] = useState(0)
   const aiLongPressTimerRef = useRef<number | null>(null)
   const aiLongPressTriggeredRef = useRef(false)
 
@@ -239,6 +244,24 @@ function AuthenticatedApp() {
     })
   }
 
+  const closeVoiceCaptureOverlay = () => {
+    aiLongPressTriggeredRef.current = false
+    setShowVoiceCaptureOverlay(false)
+  }
+
+  const submitVoiceCaptureTranscript = (transcript: string) => {
+    aiLongPressTriggeredRef.current = false
+    setShowVoiceCaptureOverlay(false)
+    navigate(APP_ROUTE_PATHS.ai, {
+      state: {
+        entryId: `voice-entry-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        initialPrompt: transcript,
+        autoSend: true,
+        forceNewSession: true,
+      },
+    })
+  }
+
   const handleTabChange = (key: string) => {
     if (key === 'more') {
       setShowMoreDrawer(true)
@@ -257,16 +280,21 @@ function AuthenticatedApp() {
     aiLongPressTimerRef.current = window.setTimeout(() => {
       aiLongPressTimerRef.current = null
       aiLongPressTriggeredRef.current = true
-      openAIPage('voice')
+      setShowVoiceCaptureOverlay(true)
     }, AI_LONG_PRESS_MS)
   }
 
-  const handleAIPointerRelease = () => {
+  const handleAIPointerRelease = (source: AiVoiceReleaseSource) => {
     clearAILongPressTimer()
+
+    if (shouldEmitVoiceReleaseSignal(source, aiLongPressTriggeredRef.current)) {
+      setVoiceOverlayReleaseSignal((current) => current + 1)
+    }
   }
 
   const handleAIPointerCancel = () => {
     clearAILongPressTimer()
+    closeVoiceCaptureOverlay()
     aiLongPressTriggeredRef.current = false
   }
 
@@ -388,9 +416,10 @@ function AuthenticatedApp() {
               onContextMenu={(event) => event.preventDefault()}
               onPointerCancel={handleAIPointerCancel}
               onPointerDown={handleAIPointerDown}
-              onPointerLeave={handleAIPointerRelease}
-              onPointerUp={handleAIPointerRelease}
+              onPointerLeave={() => handleAIPointerRelease('leave')}
+              onPointerUp={() => handleAIPointerRelease('up')}
             >
+              <AITabMicBadge />
               <AIIcon active={activeKey === 'ai'} />
               <span className="tab-label">AI</span>
             </button>
@@ -423,6 +452,13 @@ function AuthenticatedApp() {
           onLogout={() => { logout(); setShowProfileMenu(false); }}
         />
       )}
+
+      <VoiceCaptureOverlay
+        releaseSignal={voiceOverlayReleaseSignal}
+        visible={showVoiceCaptureOverlay}
+        onCancel={closeVoiceCaptureOverlay}
+        onSubmit={submitVoiceCaptureTranscript}
+      />
     </div>
   )
 }

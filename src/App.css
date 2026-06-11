@@ -213,6 +213,23 @@
   font-weight: 500;
 }
 
+.ai-tab-mic-badge {
+  position: absolute;
+  top: -3px;
+  right: -1px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #7ab0ff 0%, #2f6bff 100%);
+  box-shadow: 0 4px 10px rgba(47, 107, 255, 0.28), 0 0 0 3px rgba(255, 255, 255, 0.94);
+  z-index: 3;
+  animation: aiMicPulse 2.8s ease-in-out infinite;
+  transform-origin: center;
+}
+
 .ai-tab-active::before {
   inset: -6px;
   opacity: 1;
@@ -225,6 +242,18 @@
   }
   to {
     transform: rotate(360deg);
+  }
+}
+
+@keyframes aiMicPulse {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 4px 10px rgba(47, 107, 255, 0.28), 0 0 0 3px rgba(255, 255, 255, 0.94);
+  }
+  50% {
+    transform: scale(1.06);
+    box-shadow: 0 6px 14px rgba(47, 107, 255, 0.34), 0 0 0 3px rgba(255, 255, 255, 0.96);
   }
 }
 

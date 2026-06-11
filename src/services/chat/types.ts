@@ -152,6 +152,7 @@ export interface ChatEntryState {
   entryId: string
   initialPrompt: string
   autoSend?: boolean
+  forceNewSession?: boolean
   toolType?: string | null
   attachments?: ChatAttachment[]
 }
