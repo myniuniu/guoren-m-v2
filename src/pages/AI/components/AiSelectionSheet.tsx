@@ -18,6 +18,7 @@ type AiSelectionSheetProps = {
   loading: boolean
   error: string
   emptyText: string
+  fixedHeight?: boolean
   children?: ReactNode
   onClose: () => void
   onSearchChange: (value: string) => void
@@ -35,6 +36,7 @@ export function AiSelectionSheet({
   loading,
   error,
   emptyText,
+  fixedHeight = false,
   children,
   onClose,
   onSearchChange,
@@ -46,7 +48,10 @@ export function AiSelectionSheet({
 
   return (
     <div className="ai-selection-sheet-overlay" onClick={onClose}>
-      <div className="ai-selection-sheet" onClick={(event) => event.stopPropagation()}>
+      <div
+        className={`ai-selection-sheet${fixedHeight ? ' is-fixed-height' : ''}`}
+        onClick={(event) => event.stopPropagation()}
+      >
         <div className="ai-selection-sheet-header">
           <div className="ai-selection-sheet-title">{title}</div>
           <button

@@ -1,3 +1,5 @@
+import { AppOutline, AppstoreOutline } from 'antd-mobile-icons'
+
 export type AiDrawerMenuIconKey = 'new' | 'library' | 'skills' | 'discover'
 
 export const AI_DRAWER_MENU_ITEMS: Array<{ key: AiDrawerMenuIconKey; label: string }> = [
@@ -31,22 +33,13 @@ export function AiDrawerMenuLibraryIcon({ size = 18 }: AiDrawerMenuIconProps) {
 
 export function AiDrawerMenuSkillsIcon({ size = 18 }: AiDrawerMenuIconProps) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M14.5 4.5a3 3 0 0 1 4.24 4.24l-1.42 1.42-4.24-4.24z" />
-      <path d="M13.09 5.91 5.3 13.7a2 2 0 0 0 0 2.83l2.17 2.17a2 2 0 0 0 2.83 0l7.79-7.79" />
-      <path d="m8.5 11.5 4 4" />
-    </svg>
+    <AppOutline aria-hidden="true" style={{ fontSize: size }} />
   )
 }
 
 export function AiDrawerMenuDiscoverIcon({ size = 18 }: AiDrawerMenuIconProps) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="3" width="7" height="7" />
-      <rect x="14" y="3" width="7" height="7" />
-      <rect x="3" y="14" width="7" height="7" />
-      <path d="M17.5 14v7M14 17.5h7" />
-    </svg>
+    <AppstoreOutline aria-hidden="true" style={{ fontSize: size }} />
   )
 }
 

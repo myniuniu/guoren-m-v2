@@ -69,6 +69,11 @@ export interface ChatMessage {
   attachments: ChatAttachment[]
 }
 
+export interface ChatSessionAgentInfo {
+  agent_name?: string
+  avatar_url?: string | null
+}
+
 export interface ChatSession {
   session_id: string
   session_name: string | null
@@ -76,6 +81,9 @@ export interface ChatSession {
   created_at: string
   updated_at: string
   tool_type?: string | null
+  agent_id?: string | null
+  agent_type?: string | null
+  agent_info?: ChatSessionAgentInfo | null
 }
 
 export interface ChatSessionMessageAttachment {

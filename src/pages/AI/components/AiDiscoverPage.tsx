@@ -228,7 +228,7 @@ export function AiDiscoverPage({
                     <DiscoverAgentCard
                       key={agent.agentId}
                       agent={agent}
-                      tone={section.key === 'mine' ? 'white' : 'blue'}
+                      tone="white"
                       onClick={() => { onOpenAgentChat(agent) }}
                     />
                   ))

@@ -21,11 +21,13 @@ import type { CustomAgentDebugRequest } from '../../../services/customAgentDebug
 import { streamCustomAgentDebug } from '../../../services/customAgentDebug'
 import {
   fetchAddedSkills,
-  fetchClawhubSkills,
+  fetchCustomAgentRecommendedSkills,
   fetchCreatedSkills,
   installClawhubSkill,
+  type RecommendSkillsRequest,
   type SkillSummaryItem,
 } from '../../../services/skills'
+import { getSkillCardTags } from '../utils/skillDisplay'
 import { AiAgentConversationPreview } from './AiAgentConversationPreview'
 import { AiPublishSettings } from './AiPublishSettings'
 import { AiSelectionSheet } from './AiSelectionSheet'
@@ -301,17 +303,17 @@ export function AiAgentConfigPage({
   const [knowledgeSearchValue, setKnowledgeSearchValue] = useState('')
   const [addedSkillOptions, setAddedSkillOptions] = useState<AiAgentSelectedSkill[]>([])
   const [createdSkillOptions, setCreatedSkillOptions] = useState<AiAgentSelectedSkill[]>([])
-  const [clawhubSkillOptions, setClawhubSkillOptions] = useState<AiAgentSelectedSkill[]>([])
+  const [recommendedSkillOptions, setRecommendedSkillOptions] = useState<AiAgentSelectedSkill[]>([])
   const [knowledgeOptions, setKnowledgeOptions] = useState<KnowledgeSpaceOption[]>([])
   const [addedSkillsLoading, setAddedSkillsLoading] = useState(false)
   const [createdSkillsLoading, setCreatedSkillsLoading] = useState(false)
-  const [clawhubSkillsLoading, setClawhubSkillsLoading] = useState(false)
+  const [recommendedSkillsLoading, setRecommendedSkillsLoading] = useState(false)
   const [knowledgeLoading, setKnowledgeLoading] = useState(false)
   const [addedSkillsError, setAddedSkillsError] = useState('')
   const [createdSkillsError, setCreatedSkillsError] = useState('')
-  const [clawhubSkillsError, setClawhubSkillsError] = useState('')
+  const [recommendedSkillsError, setRecommendedSkillsError] = useState('')
   const [knowledgeError, setKnowledgeError] = useState('')
-  const [clawhubInstallingSkillId, setClawhubInstallingSkillId] = useState('')
+  const [recommendedInstallingSkillId, setRecommendedInstallingSkillId] = useState('')
   const [agentAvatarUrl, setAgentAvatarUrl] = useState(avatarUrl?.trim() || '')
   const [agentAvatarUploading, setAgentAvatarUploading] = useState(false)
   const [publishing, setPublishing] = useState(false)
@@ -366,6 +368,12 @@ export function AiAgentConfigPage({
     }
   }, [])
 
+  const recommendSkillsPayload = useMemo<RecommendSkillsRequest>(() => ({
+    agent_name: draft.agentName.trim(),
+    description: draft.description.trim(),
+    agent_prompt: draft.instruction.trim() || null,
+  }), [draft.agentName, draft.description, draft.instruction])
+
   const handleAgentAvatarChange = useCallback(async (file: File) => {
     setAgentAvatarUploading(true)
 
@@ -388,45 +396,34 @@ export function AiAgentConfigPage({
     createdSkillsRequestedRef.current = false
     setCreatedSkillOptions([])
     setCreatedSkillsError('')
+    setRecommendedSkillOptions([])
+    setRecommendedSkillsError('')
 
     const controller = new AbortController()
 
     async function loadSkillOptions() {
       setAddedSkillsLoading(true)
-      setClawhubSkillsLoading(true)
       setAddedSkillsError('')
-      setClawhubSkillsError('')
 
-      const [addedSkillsResult, clawhubSkillsResult] = await Promise.allSettled([
+      const addedSkillsResult = await Promise.allSettled([
         fetchAddedSkills(controller.signal),
-        fetchClawhubSkills({
-          limit: 8,
-          signal: controller.signal,
-        }),
       ])
 
       if (controller.signal.aborted) {
         return
       }
 
-      if (addedSkillsResult.status === 'fulfilled') {
-        setAddedSkillOptions(addedSkillsResult.value.map((skill) => normalizeSelectedSkill(skill)))
+      const [addedSkillsState] = addedSkillsResult
+
+      if (addedSkillsState.status === 'fulfilled') {
+        setAddedSkillOptions(addedSkillsState.value.map((skill) => normalizeSelectedSkill(skill)))
         setAddedSkillsError('')
       } else {
         setAddedSkillOptions([])
-        setAddedSkillsError(addedSkillsResult.reason instanceof Error ? addedSkillsResult.reason.message : '获取我添加的技能失败')
-      }
-
-      if (clawhubSkillsResult.status === 'fulfilled') {
-        setClawhubSkillOptions(clawhubSkillsResult.value.map((skill) => normalizeSelectedSkill(skill)))
-        setClawhubSkillsError('')
-      } else {
-        setClawhubSkillOptions([])
-        setClawhubSkillsError(clawhubSkillsResult.reason instanceof Error ? clawhubSkillsResult.reason.message : '获取 ClawHub 技能失败')
+        setAddedSkillsError(addedSkillsState.reason instanceof Error ? addedSkillsState.reason.message : '获取我添加的技能失败')
       }
 
       setAddedSkillsLoading(false)
-      setClawhubSkillsLoading(false)
     }
 
     void loadSkillOptions()
@@ -435,6 +432,42 @@ export function AiAgentConfigPage({
       controller.abort()
     }
   }, [showSkillSheet])
+
+  useEffect(() => {
+    if (!showSkillSheet || skillSheetView !== 'recommended') {
+      return
+    }
+
+    const controller = new AbortController()
+
+    async function loadRecommendedSkillOptions() {
+      setRecommendedSkillsLoading(true)
+      setRecommendedSkillsError('')
+
+      try {
+        const skills = await fetchCustomAgentRecommendedSkills(recommendSkillsPayload, controller.signal)
+
+        if (!controller.signal.aborted) {
+          setRecommendedSkillOptions(skills.map((skill) => normalizeSelectedSkill(skill)))
+        }
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          setRecommendedSkillOptions([])
+          setRecommendedSkillsError(error instanceof Error ? error.message : '获取推荐技能失败')
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setRecommendedSkillsLoading(false)
+        }
+      }
+    }
+
+    void loadRecommendedSkillOptions()
+
+    return () => {
+      controller.abort()
+    }
+  }, [recommendSkillsPayload, showSkillSheet, skillSheetView])
 
   useEffect(() => {
     if (!showSkillSheet || skillSheetView !== 'created' || createdSkillsRequestedRef.current) {
@@ -562,10 +595,10 @@ export function AiAgentConfigPage({
     })
   }
 
-  const handleAddClawhubSkill = useCallback(async (skillId: string) => {
-    const targetSkill = clawhubSkillOptions.find((item) => item.id === skillId)
+  const handleAddRecommendedSkill = useCallback(async (skillId: string) => {
+    const targetSkill = recommendedSkillOptions.find((item) => item.id === skillId)
 
-    if (!targetSkill || clawhubInstallingSkillId) {
+    if (!targetSkill || recommendedInstallingSkillId) {
       return
     }
 
@@ -573,15 +606,14 @@ export function AiAgentConfigPage({
       return
     }
 
-    setClawhubInstallingSkillId(targetSkill.id)
+    setRecommendedInstallingSkillId(targetSkill.id)
 
     try {
-      await installClawhubSkill(targetSkill.skillName || targetSkill.id)
-
-      const normalizedSkill = {
-        ...targetSkill,
-        source: 'clawhub' as const,
+      if (targetSkill.source === 'clawhub') {
+        await installClawhubSkill(targetSkill.skillName || targetSkill.id)
       }
+
+      const normalizedSkill = { ...targetSkill }
 
       setAddedSkillOptions((currentSkills) => {
         if (currentSkills.some((item) => resolveSkillIdentity(item) === resolveSkillIdentity(normalizedSkill))) {
@@ -594,35 +626,78 @@ export function AiAgentConfigPage({
       updateDraft({
         selectedSkills: [...selectedSkills, normalizedSkill],
       })
-      setSkillSheetView('added')
+      if (targetSkill.source === 'clawhub') {
+        setSkillSheetView('added')
+      }
       Toast.show({ content: `已添加 ${normalizedSkill.title}` })
     } catch (error) {
-      Toast.show({ content: error instanceof Error ? error.message : '添加 ClawHub 技能失败' })
+      Toast.show({ content: error instanceof Error ? error.message : '添加技能失败' })
     } finally {
-      setClawhubInstallingSkillId('')
+      setRecommendedInstallingSkillId('')
     }
-  }, [clawhubInstallingSkillId, clawhubSkillOptions, isSkillSelected, selectedSkills, updateDraft])
+  }, [isSkillSelected, recommendedInstallingSkillId, recommendedSkillOptions, selectedSkills, updateDraft])
 
   const activeSkillSheetOptions = skillSheetView === 'added'
     ? addedSkillOptions
-    : skillSheetView === 'created'
-      ? createdSkillOptions
-      : clawhubSkillOptions
+    : createdSkillOptions
   const activeSkillSheetLoading = skillSheetView === 'added'
     ? addedSkillsLoading
-    : skillSheetView === 'created'
-      ? createdSkillsLoading
-      : clawhubSkillsLoading
+    : createdSkillsLoading
   const activeSkillSheetError = skillSheetView === 'added'
     ? addedSkillsError
-    : skillSheetView === 'created'
-      ? createdSkillsError
-      : clawhubSkillsError
+    : createdSkillsError
   const activeSkillSheetEmptyText = skillSheetView === 'added'
     ? '暂无我添加的技能'
-    : skillSheetView === 'created'
-      ? '暂无我创建的技能'
-      : '暂无技能推荐'
+    : '暂无我创建的技能'
+  const renderSkillSheetItems = (
+    items: AiAgentSelectedSkill[],
+    options: {
+      installFromRecommended?: boolean
+    } = {},
+  ) => (
+    <div className="ai-selection-sheet-list">
+      {items.map((skill) => {
+        const checked = isSkillSelected(skill)
+        const isInstalling = Boolean(options.installFromRecommended && recommendedInstallingSkillId === skill.id)
+        const isClawhubSkill = skill.source === 'clawhub'
+
+        return (
+          <button
+            aria-label={options.installFromRecommended && isClawhubSkill ? `${checked ? '已添加' : '添加'} ClawHub 技能 ${skill.title}` : undefined}
+            aria-pressed={options.installFromRecommended ? undefined : checked}
+            className={`ai-selection-sheet-item${checked ? ' is-selected' : ''}`}
+            disabled={Boolean(options.installFromRecommended && (checked || isInstalling))}
+            key={skill.id}
+            type="button"
+            onClick={() => {
+              if (options.installFromRecommended) {
+                void handleAddRecommendedSkill(skill.id)
+                return
+              }
+
+              handleToggleSkill(skill)
+            }}
+          >
+            <div className="ai-selection-sheet-item-main">
+              <div className="ai-selection-sheet-item-title-row">
+                <span className="ai-selection-sheet-item-title">{skill.title}</span>
+                {isClawhubSkill ? <span className="ai-selection-sheet-item-badge">ClawHub</span> : null}
+              </div>
+              {skill.description ? <div className="ai-selection-sheet-item-desc">{skill.description}</div> : null}
+              {getSkillCardTags(skill).length > 0 ? (
+                <div className="ai-selection-sheet-item-tags">
+                  {getSkillCardTags(skill).map((tag) => (
+                    <span className="ai-selection-sheet-item-tag" key={`${skill.id}-${tag}`}>{tag}</span>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+            <span className="ai-selection-sheet-item-action">{checked ? '已添加' : isInstalling ? '添加中' : '添加'}</span>
+          </button>
+        )
+      })}
+    </div>
+  )
   const visiblePresetQuestions = presetQuestions.filter((item) => item.question.trim())
   const canSubmitDebugPrompt = useMemo(() => {
     return Boolean(debugInput.trim()) && !debugIsResponding && !debugIsStopping
@@ -971,6 +1046,26 @@ export function AiAgentConfigPage({
   const renderConfigTab = () => (
     <div className="ai-agent-config-content">
       <section className="ai-agent-config-card">
+        <AiPublishSettings
+          actionLabel={mode === 'edit' ? '保存' : '发布'}
+          applyReason={draft.applyReason}
+          communityCategoryId={draft.communityCategoryId}
+          publishMessage={publishMessage}
+          isPublishingToCommunity={draft.isPublishingToCommunity}
+          publishStatus={publishStatus}
+          publishScope={draft.publishScope}
+          publishing={publishing}
+          selectedUsers={selectedUsers}
+          onApplyReasonChange={(applyReason) => updateDraft({ applyReason })}
+          onCommunityCategoryChange={(communityCategoryId) => updateDraft({ communityCategoryId })}
+          onPublish={handlePublish}
+          onPublishScopeChange={(publishScope) => updateDraft({ publishScope })}
+          onPublishingToCommunityChange={(isPublishingToCommunity) => updateDraft({ isPublishingToCommunity })}
+          onSelectedUsersChange={(selectedUsers) => updateDraft({ selectedUsers })}
+        />
+      </section>
+
+      <section className="ai-agent-config-card">
         <div className="ai-agent-config-card-title">
           指令 <span className="ai-agent-config-required">*</span>
         </div>
@@ -1167,25 +1262,6 @@ export function AiAgentConfigPage({
         )}
       </section>
 
-      <section className="ai-agent-config-card">
-        <AiPublishSettings
-          actionLabel={mode === 'edit' ? '保存' : '发布'}
-          applyReason={draft.applyReason}
-          communityCategoryId={draft.communityCategoryId}
-          publishMessage={publishMessage}
-          isPublishingToCommunity={draft.isPublishingToCommunity}
-          publishStatus={publishStatus}
-          publishScope={draft.publishScope}
-          publishing={publishing}
-          selectedUsers={selectedUsers}
-          onApplyReasonChange={(applyReason) => updateDraft({ applyReason })}
-          onCommunityCategoryChange={(communityCategoryId) => updateDraft({ communityCategoryId })}
-          onPublish={handlePublish}
-          onPublishScopeChange={(publishScope) => updateDraft({ publishScope })}
-          onPublishingToCommunityChange={(isPublishingToCommunity) => updateDraft({ isPublishingToCommunity })}
-          onSelectedUsersChange={(selectedUsers) => updateDraft({ selectedUsers })}
-        />
-      </section>
     </div>
   )
 
@@ -1247,6 +1323,7 @@ export function AiAgentConfigPage({
         searchPlaceholder=""
         searchValue=""
         selectedIds={selectedSkills.map((skill) => skill.id)}
+        fixedHeight
         showSearch={false}
         title="选择 Skills 服务"
         visible={showSkillSheet}
@@ -1284,48 +1361,29 @@ export function AiAgentConfigPage({
             </button>
           </div>
 
-          {activeSkillSheetLoading ? <div className="ai-selection-sheet-status">加载中…</div> : null}
-          {!activeSkillSheetLoading && activeSkillSheetError ? <div className="ai-selection-sheet-status is-error">{activeSkillSheetError}</div> : null}
-          {!activeSkillSheetLoading && !activeSkillSheetError && activeSkillSheetOptions.length === 0 ? (
-            <div className="ai-selection-sheet-status">{activeSkillSheetEmptyText}</div>
-          ) : null}
-          {!activeSkillSheetLoading && !activeSkillSheetError && activeSkillSheetOptions.length > 0 ? (
-            <div className="ai-selection-sheet-list">
-              {activeSkillSheetOptions.map((skill) => {
-                const checked = isSkillSelected(skill)
-                const isRecommendedSkill = skillSheetView === 'recommended'
-                const isInstalling = isRecommendedSkill && clawhubInstallingSkillId === skill.id
-
-                return (
-                  <button
-                    aria-label={isRecommendedSkill ? `${checked ? '已添加' : '添加'} ClawHub 技能 ${skill.title}` : undefined}
-                    aria-pressed={isRecommendedSkill ? undefined : checked}
-                    className={`ai-selection-sheet-item${checked ? ' is-selected' : ''}`}
-                    disabled={Boolean(isRecommendedSkill && (checked || isInstalling))}
-                    key={skill.id}
-                    type="button"
-                    onClick={() => {
-                      if (isRecommendedSkill) {
-                        void handleAddClawhubSkill(skill.id)
-                        return
-                      }
-
-                      handleToggleSkill(skill)
-                    }}
-                  >
-                    <div className="ai-selection-sheet-item-main">
-                      <div className="ai-selection-sheet-item-title-row">
-                        <span className="ai-selection-sheet-item-title">{skill.title}</span>
-                        {isRecommendedSkill ? <span className="ai-selection-sheet-item-badge">ClawHub</span> : null}
-                      </div>
-                      {skill.description ? <div className="ai-selection-sheet-item-desc">{skill.description}</div> : null}
-                    </div>
-                    <span className="ai-selection-sheet-item-action">{checked ? '已添加' : isInstalling ? '添加中' : '添加'}</span>
-                  </button>
-                )
-              })}
-            </div>
-          ) : null}
+          {skillSheetView === 'recommended' ? (
+            <>
+              {recommendedSkillsLoading ? <div className="ai-selection-sheet-status">加载中…</div> : null}
+              {!recommendedSkillsLoading && recommendedSkillsError ? <div className="ai-selection-sheet-status is-error">{recommendedSkillsError}</div> : null}
+              {!recommendedSkillsLoading && !recommendedSkillsError && recommendedSkillOptions.length === 0 ? (
+                <div className="ai-selection-sheet-status">暂无推荐技能</div>
+              ) : null}
+              {!recommendedSkillsLoading && !recommendedSkillsError && recommendedSkillOptions.length > 0
+                ? renderSkillSheetItems(recommendedSkillOptions, { installFromRecommended: true })
+                : null}
+            </>
+          ) : (
+            <>
+              {activeSkillSheetLoading ? <div className="ai-selection-sheet-status">加载中…</div> : null}
+              {!activeSkillSheetLoading && activeSkillSheetError ? <div className="ai-selection-sheet-status is-error">{activeSkillSheetError}</div> : null}
+              {!activeSkillSheetLoading && !activeSkillSheetError && activeSkillSheetOptions.length === 0 ? (
+                <div className="ai-selection-sheet-status">{activeSkillSheetEmptyText}</div>
+              ) : null}
+              {!activeSkillSheetLoading && !activeSkillSheetError && activeSkillSheetOptions.length > 0
+                ? renderSkillSheetItems(activeSkillSheetOptions)
+                : null}
+            </>
+          )}
         </div>
       </AiSelectionSheet>
 

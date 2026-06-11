@@ -387,6 +387,20 @@ export function useAiChatRuntime() {
     }
 
     const session = await getChatSession(sessionId)
+    const restoredAgentName = session.agent_info?.agent_name?.trim() || ''
+
+    // 刷新后只剩 sessionId，需要从会话详情把自定义智能体上下文补回来，
+    // 这样顶部标题和同一会话里的继续对话才能保持一致。
+    if (session.agent_id && restoredAgentName) {
+      setActiveAgent({
+        agentId: session.agent_id,
+        agentName: restoredAgentName,
+        description: '',
+      })
+    } else {
+      setActiveAgent(null)
+    }
+
     const nextMessages = session.messages.map(mapServerMessage)
 
     if (!session.has_running_stream) {

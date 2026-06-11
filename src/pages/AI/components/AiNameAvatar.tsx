@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react'
 
-export type AiNameAvatarTone = 'white' | 'blue' | 'green' | 'orange'
+export type AiNameAvatarTone = 'white' | 'blue' | 'green' | 'orange' | 'detail'
 
 type AiNameAvatarProps = {
   name?: string
@@ -33,6 +33,12 @@ const AI_NAME_AVATAR_FALLBACK_STYLES: Record<AiNameAvatarTone, CSSProperties> = 
   orange: {
     background: '#F56C27',
     color: '#ffffff',
+    border: 'none',
+    boxShadow: 'none',
+  },
+  detail: {
+    background: '#fff3ea',
+    color: '#1f2329',
     border: 'none',
     boxShadow: 'none',
   },

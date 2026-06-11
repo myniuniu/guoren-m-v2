@@ -1,5 +1,6 @@
 import { authorizedFetch, buildAiApiUrl, buildApiUrl } from '../../utils/request'
 import { getChatUserId } from './api'
+import { resolveChatParseTaskState } from './parseTaskState'
 import type { ChatAttachment } from './types'
 
 const OSS_SIGN_PATH = '/open/aliyun/oss/v1/temp/url'
@@ -31,7 +32,11 @@ type ChatFileParseTaskResponse = {
   task_id?: string
   resource_id?: string
   status?: string
+  progress?: number | null
+  result?: unknown
   error?: string | null
+  completed_at?: string | null
+  failed_at?: string | null
 }
 
 type UploadChatFileOptions = {
@@ -44,7 +49,7 @@ function buildRandomSuffix(): string {
   return Math.random().toString(36).slice(2, 8)
 }
 
-function getFileExtension(fileName: string): string {
+export function getChatUploadFileExtension(fileName: string): string {
   const segments = fileName.split('.')
   return segments.length > 1 ? segments.pop()?.toLowerCase() ?? '' : ''
 }
@@ -75,15 +80,15 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   })
 }
 
-function isDocumentFile(file: File): boolean {
-  const ext = getFileExtension(file.name)
+export function isChatParseDocumentFile(fileName: string): boolean {
+  const ext = getChatUploadFileExtension(fileName)
   return new Set([
     'pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx', 'txt', 'md', 'markdown', 'csv', 'json', 'html',
   ]).has(ext)
 }
 
 export function isAllowedChatUploadFile(fileName: string): boolean {
-  return ALLOWED_CHAT_UPLOAD_EXTENSIONS.includes(getFileExtension(fileName) as (typeof ALLOWED_CHAT_UPLOAD_EXTENSIONS)[number])
+  return ALLOWED_CHAT_UPLOAD_EXTENSIONS.includes(getChatUploadFileExtension(fileName) as (typeof ALLOWED_CHAT_UPLOAD_EXTENSIONS)[number])
 }
 
 export function createPendingChatAttachment(file: File): ChatAttachment {
@@ -240,16 +245,16 @@ async function pollParseTaskUntilCompleted(
     }
 
     const payload = (await response.json()) as ChatFileParseTaskResponse
-    const status = payload.status?.toLowerCase()
+    const taskState = resolveChatParseTaskState(payload)
 
-    if (status === 'completed') {
+    if (taskState.phase === 'completed') {
       return {
-        resourceId: payload.resource_id?.trim() || null,
+        resourceId: taskState.resourceId,
       }
     }
 
-    if (status === 'failed') {
-      throw new Error(payload.error || '文档解析失败')
+    if (taskState.phase === 'failed') {
+      throw new Error(taskState.error || '文档解析失败')
     }
 
     if (attempt < DEFAULT_MAX_POLL_ATTEMPTS - 1) {
@@ -276,7 +281,7 @@ export async function uploadPendingChatFile(
     url: signedUrl.split('?')[0],
   }
 
-  if (!isDocumentFile(file)) {
+  if (!isChatParseDocumentFile(file.name)) {
     return uploadedAttachment
   }
 

@@ -62,6 +62,7 @@ import {
 } from './components/AiAgentConfigPage'
 import { AiAgentUsageList } from './components/AiAgentUsageList'
 import { AiCustomAgentConversationPage } from './components/AiCustomAgentConversationPage'
+import { AiCustomAgentDetailSheet } from './components/AiCustomAgentDetailSheet'
 import AiCommandsPage, { type AiCommandsPageTabKey } from './components/AiCommandsPage'
 import { AiConversationHeaderActions } from './components/AiConversationHeaderActions'
 import { AiCreateAgentModal } from './components/AiCreateAgentModal'
@@ -78,6 +79,11 @@ import {
   normalizeSessionArtifactPreviewFilePath,
   normalizeSessionArtifactPreviewFileType,
 } from './utils/sessionArtifactPreview'
+import {
+  MAX_LOCAL_DOCUMENT_ATTACHMENTS,
+  planLocalFilesForUpload,
+} from './utils/localUploadPolicy'
+import { filterSkillItems, getSkillCardTags } from './utils/skillDisplay'
 import AppComposerInput from '../../components/AppComposerInput'
 import DisplayName from '../../components/DisplayName'
 import { APP_ROUTE_PATHS } from '../../routes'
@@ -86,7 +92,6 @@ import './index.css'
 
 const LUCKY_AVATAR_URL = 'https://guoren-skills-hb-test.oss-cn-beijing.aliyuncs.com/system/images/avatar/73799dbfdc2c495c8c0e1d86ffd2bf23.png'
 const BRAND_NAME = 'lucky'
-const MAX_CHAT_UPLOAD_FILES = 5
 const AUTO_SCROLL_RESUME_THRESHOLD = 48
 
 const fallbackFeatureCards: CommandPromptItem[] = [
@@ -134,27 +139,6 @@ function getFeatureCardColor(index: number): string {
   return featureCardColors[index % featureCardColors.length]
 }
 
-function filterSkillItems(items: SkillSummaryItem[], keyword: string): SkillSummaryItem[] {
-  const normalizedKeyword = keyword.trim().toLowerCase()
-
-  if (!normalizedKeyword) {
-    return items
-  }
-
-  return items.filter((item) => {
-    return (
-      item.title.toLowerCase().includes(normalizedKeyword) ||
-      item.description.toLowerCase().includes(normalizedKeyword) ||
-      item.skillName.toLowerCase().includes(normalizedKeyword) ||
-      item.tags.some((tag) => tag.toLowerCase().includes(normalizedKeyword))
-    )
-  })
-}
-
-function getSkillCardTags(skill: SkillSummaryItem): string[] {
-  return skill.tags.slice(0, 3)
-}
-
 function isScrollerNearBottom(scroller: HTMLDivElement): boolean {
   return scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight <= AUTO_SCROLL_RESUME_THRESHOLD
 }
@@ -187,6 +171,14 @@ function buildCustomAgentConversationQuestions(detail: CustomAgentDetail) {
     id: `custom-agent-question-${detail.agent_id}-${index}`,
     question: item.question,
     instruction: item.instruction?.trim() || item.question,
+  }))
+}
+
+function buildCustomAgentDetailSkills(detail: CustomAgentDetail) {
+  return detail.enabled_skills.map((skill, index) => ({
+    id: skill.skill_name || `custom-agent-skill-${detail.agent_id}-${index}`,
+    title: skill.chinese_name?.trim() || skill.skill_name,
+    description: skill.description?.trim() || '',
   }))
 }
 
@@ -353,8 +345,13 @@ function getDisplayName(): string {
   return '用户'
 }
 
-type PartnerSettingsPage = 'menu' | 'basic' | 'workspace'
 type PartnerWorkspaceFileKey = 'SOUL.md' | 'USER.md' | 'IDENTITY.md'
+
+const PARTNER_WORKSPACE_FIELDS: Array<{ label: PartnerWorkspaceFileKey; field: keyof PartnerConfig }> = [
+  { label: 'SOUL.md', field: 'soulContent' },
+  { label: 'USER.md', field: 'userContent' },
+  { label: 'IDENTITY.md', field: 'identityContent' },
+]
 
 function buildArtifactPreviewEntry(
   selectedArtifact: {
@@ -399,27 +396,6 @@ function buildArtifactPreviewEntry(
       sizeBytes: artifact.size ?? null,
     },
   }
-}
-
-function getPartnerWorkspaceField(fileKey: PartnerWorkspaceFileKey): keyof PartnerConfig {
-  switch (fileKey) {
-    case 'SOUL.md':
-      return 'soulContent'
-    case 'USER.md':
-      return 'userContent'
-    case 'IDENTITY.md':
-      return 'identityContent'
-    default:
-      return 'soulContent'
-  }
-}
-
-function getPartnerWorkspaceValue(config: PartnerConfig | null, fileKey: PartnerWorkspaceFileKey): string {
-  if (!config) {
-    return ''
-  }
-
-  return config[getPartnerWorkspaceField(fileKey)] ?? ''
 }
 
 export default function AIPage({ onClose }: { onClose: () => void }) {
@@ -491,10 +467,8 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
   const [libraryLoading, setLibraryLoading] = useState(false)
   const [libraryError, setLibraryError] = useState('')
   const [localBannerMessage, setLocalBannerMessage] = useState('')
-  const [filePickerMode, setFilePickerMode] = useState<'all' | 'image' | 'camera'>('all')
+  const [filePickerMode, setFilePickerMode] = useState<'all' | 'image'>('all')
   const [showPartnerSettings, setShowPartnerSettings] = useState(false)
-  const [partnerSettingsPage, setPartnerSettingsPage] = useState<PartnerSettingsPage>('menu')
-  const [partnerWorkspaceFileKey, setPartnerWorkspaceFileKey] = useState<PartnerWorkspaceFileKey>('SOUL.md')
   const [partnerConfig, setPartnerConfig] = useState<PartnerConfig | null>(null)
   const [partnerDraft, setPartnerDraft] = useState<PartnerConfig | null>(null)
   const [partnerLoading, setPartnerLoading] = useState(false)
@@ -507,10 +481,12 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
   const [agentConfigMode, setAgentConfigMode] = useState<'create' | 'edit'>('create')
   const [agentConfigAgentId, setAgentConfigAgentId] = useState('')
   const [agentConfigAvatarUrl, setAgentConfigAvatarUrl] = useState<string | null>(null)
-  const [agentConfigReturnTarget, setAgentConfigReturnTarget] = useState<'default' | 'custom-conversation'>('default')
+  const [agentConfigReturnTarget, setAgentConfigReturnTarget] = useState<'default' | 'custom-conversation' | 'main-conversation'>('default')
   const [customAgentConversationDetail, setCustomAgentConversationDetail] = useState<CustomAgentDetail | null>(null)
   const [customAgentConversationLoading, setCustomAgentConversationLoading] = useState(false)
   const [customAgentConversationError, setCustomAgentConversationError] = useState('')
+  const [currentConversationCustomAgentDetail, setCurrentConversationCustomAgentDetail] = useState<CustomAgentDetail | null>(null)
+  const [showCurrentConversationCustomAgentDetailSheet, setShowCurrentConversationCustomAgentDetailSheet] = useState(false)
 
   const {
     activeAgent,
@@ -550,6 +526,20 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
   const partnerAvatarInputRef = useRef<HTMLInputElement | null>(null)
   const uploadAbortControllersRef = useRef<Map<string, AbortController>>(new Map())
   const customAgentConversationAbortRef = useRef<AbortController | null>(null)
+  const currentConversationCustomAgentAbortRef = useRef<AbortController | null>(null)
+
+  useEffect(() => {
+    if (!localBannerMessage) {
+      return undefined
+    }
+
+    const timer = window.setTimeout(() => {
+      setLocalBannerMessage('')
+    }, 4000)
+
+    return () => window.clearTimeout(timer)
+  }, [localBannerMessage])
+
   const hasConversation = messages.length > 0 || Boolean(routeSessionId)
   const currentRouteSession = useMemo(() => (
     routeSessionId ? sessions.find((session) => session.session_id === routeSessionId) ?? null : null
@@ -558,6 +548,13 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
   const hasGroupedSessions = groupedSessions.today.length > 0
     || groupedSessions.within7Days.length > 0
     || groupedSessions.beyond7Days.length > 0
+  // 单次会话的本地文档解析上限要跨轮次累计，不能只看当前输入框草稿。
+  const currentConversationAttachments = useMemo(() => (
+    [
+      ...messages.flatMap((message) => message.attachments),
+      ...draftAttachments,
+    ]
+  ), [draftAttachments, messages])
 
   const builtInAgent = useMemo(() => {
     const agentName = partnerConfig?.agentName?.trim() || '建国'
@@ -568,13 +565,38 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
       avatarUrl: partnerConfig?.avatarUrl?.trim() || '',
     }
   }, [partnerConfig])
+  const headerTitle = currentRouteSession?.session_name?.trim() || ''
+  const customAgentConversationHeaderTitle = currentRouteSession?.session_name?.trim()
+    || customAgentConversationDetail?.agent_name
+    || activeAgent?.agentName
+    || ''
+  const currentConversationCustomAgentId = currentRouteSession?.agent_id?.trim() || activeAgent?.agentId || ''
+  const currentConversationCustomAgentName = currentConversationCustomAgentDetail?.agent_name
+    || currentRouteSession?.agent_info?.agent_name?.trim()
+    || activeAgent?.agentName
+    || ''
+  const currentConversationCustomAgentAvatarUrl = currentConversationCustomAgentDetail?.avatar_url
+    || currentRouteSession?.agent_info?.avatar_url
+    || null
+  const currentConversationCustomAgentDescription = currentConversationCustomAgentDetail?.description
+    || activeAgent?.description
+    || ''
   const groupedDiscoverAgents = useMemo(() => groupVisibleAgents(visibleAgents, currentUserId), [currentUserId, visibleAgents])
   const customAgentConversationQuestions = useMemo(() => (
     customAgentConversationDetail ? buildCustomAgentConversationQuestions(customAgentConversationDetail) : []
   ), [customAgentConversationDetail])
+  const currentConversationCustomAgentQuestions = useMemo(() => (
+    currentConversationCustomAgentDetail ? buildCustomAgentConversationQuestions(currentConversationCustomAgentDetail) : []
+  ), [currentConversationCustomAgentDetail])
+  const currentConversationCustomAgentSkills = useMemo(() => (
+    currentConversationCustomAgentDetail ? buildCustomAgentDetailSkills(currentConversationCustomAgentDetail) : []
+  ), [currentConversationCustomAgentDetail])
   const canEditCustomAgentConversation = useMemo(() => (
     Boolean(customAgentConversationDetail && customAgentConversationDetail.creator_user_id === currentUserId)
   ), [currentUserId, customAgentConversationDetail])
+  const canEditCurrentConversationCustomAgent = useMemo(() => (
+    Boolean(currentConversationCustomAgentDetail && currentConversationCustomAgentDetail.creator_user_id === currentUserId)
+  ), [currentConversationCustomAgentDetail, currentUserId])
   const isAiMainPageVisible = !showDrawer
     && !showSidebarLibrary
     && !showDiscoverPage
@@ -588,6 +610,9 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
     && !showCommandsPage
     && !showPartnerSettings
     && !selectedArtifact
+  const canShowCurrentConversationCustomAgentActions = Boolean(currentConversationCustomAgentId)
+    && isAiMainPageVisible
+    && !showCustomAgentConversationPage
   const canDeleteCurrentSession = Boolean(currentRouteSession) && !isPartnerRoute && isAiMainPageVisible
   const plusCardItems = [
     { key: 'file', label: '图片 / 文件' },
@@ -599,7 +624,6 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
   ]
   const fileMenuItems = [
     { key: 'album', label: '照片图库', icon: 'album' },
-    { key: 'camera', label: '拍照', icon: 'camera' },
     { key: 'folder', label: '选取文件', icon: 'folder' },
   ]
 
@@ -693,8 +717,52 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     return () => {
       customAgentConversationAbortRef.current?.abort()
+      currentConversationCustomAgentAbortRef.current?.abort()
     }
   }, [])
+
+  useEffect(() => {
+    if (!canShowCurrentConversationCustomAgentActions) {
+      setShowCurrentConversationCustomAgentDetailSheet(false)
+    }
+  }, [canShowCurrentConversationCustomAgentActions])
+
+  useEffect(() => {
+    currentConversationCustomAgentAbortRef.current?.abort()
+
+    if (!currentConversationCustomAgentId || !canShowCurrentConversationCustomAgentActions) {
+      setCurrentConversationCustomAgentDetail(null)
+      return undefined
+    }
+
+    if (currentConversationCustomAgentDetail?.agent_id === currentConversationCustomAgentId) {
+      return undefined
+    }
+
+    const controller = new AbortController()
+    currentConversationCustomAgentAbortRef.current = controller
+
+    void viewCustomAgent(currentConversationCustomAgentId, controller.signal)
+      .then((detail) => {
+        if (!controller.signal.aborted) {
+          setCurrentConversationCustomAgentDetail(detail)
+        }
+      })
+      .catch((error) => {
+        if (!controller.signal.aborted) {
+          setCurrentConversationCustomAgentDetail(null)
+          console.warn('[ai-page] 当前会话智能体详情加载失败：', error)
+        }
+      })
+
+    return () => {
+      controller.abort()
+    }
+  }, [
+    canShowCurrentConversationCustomAgentActions,
+    currentConversationCustomAgentDetail?.agent_id,
+    currentConversationCustomAgentId,
+  ])
 
   const openAgentConfigPage = (
     initialDraft?: Partial<AiAgentConfigDraft>,
@@ -702,7 +770,7 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
       mode?: 'create' | 'edit'
       agentId?: string
       avatarUrl?: string | null
-      returnTarget?: 'default' | 'custom-conversation'
+      returnTarget?: 'default' | 'custom-conversation' | 'main-conversation'
     } = {},
   ) => {
     setAgentConfigDraft(createEmptyAiAgentConfigDraft(initialDraft))
@@ -790,11 +858,42 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
       description: payload.description,
     })
 
-    if (payload.mode === 'edit' && agentConfigReturnTarget === 'custom-conversation') {
-      setCustomAgentConversationDetail((current) => buildDetailFromConfigDraft(current, agentConfigDraft, payload))
+    if (agentConfigReturnTarget === 'custom-conversation') {
       setShowAgentConfigPage(false)
       setAgentConfigReturnTarget('default')
-      setLocalBannerMessage('智能体已保存。')
+
+      if (payload.mode === 'edit') {
+        setCustomAgentConversationDetail((current) => buildDetailFromConfigDraft(current, agentConfigDraft, payload))
+        setLocalBannerMessage('智能体已保存。')
+      } else {
+        setLocalBannerMessage('智能体已发布，可继续对话。')
+        void openCustomAgentConversation({
+          agentId: payload.agentId,
+        })
+      }
+
+      void refreshVisibleAgents()
+
+      if (showDrawer) {
+        void refreshAgentUsageLogs()
+      }
+
+      return
+    }
+
+    if (agentConfigReturnTarget === 'main-conversation') {
+      const nextDetail = buildDetailFromConfigDraft(currentConversationCustomAgentDetail, agentConfigDraft, payload)
+
+      setShowAgentConfigPage(false)
+      setAgentConfigReturnTarget('default')
+      setShowCurrentConversationCustomAgentDetailSheet(false)
+      setCurrentConversationCustomAgentDetail(nextDetail)
+      setLocalBannerMessage(payload.mode === 'edit' ? '智能体已更新。' : '智能体已发布，可继续对话。')
+
+      if (payload.mode === 'create') {
+        startNewChat({ keepAgent: true })
+      }
+
       void refreshVisibleAgents()
 
       if (showDrawer) {
@@ -819,6 +918,7 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
     activateAgent,
     agentConfigDraft,
     agentConfigReturnTarget,
+    currentConversationCustomAgentDetail,
     currentUserId,
     refreshAgentUsageLogs,
     refreshVisibleAgents,
@@ -826,7 +926,7 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
     startNewChat,
   ])
 
-  const openLocalFilePicker = (mode: 'all' | 'image' | 'camera') => {
+  const openLocalFilePicker = (mode: 'all' | 'image') => {
     setShowFileMenu(false)
     setShowPlusSheet(false)
     setFilePickerMode(mode)
@@ -861,17 +961,21 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
       return false
     })
 
-    const availableSlots = Math.max(0, MAX_CHAT_UPLOAD_FILES - draftAttachments.length)
-
-    if (availableSlots <= 0) {
-      setLocalBannerMessage(`单次对话最多上传 ${MAX_CHAT_UPLOAD_FILES} 个文件，请先移除已有附件。`)
+    if (validFiles.length === 0) {
       return
     }
 
-    const filesToUpload = validFiles.slice(0, availableSlots)
+    const { filesToUpload, exceededParsedLimit } = planLocalFilesForUpload(validFiles, currentConversationAttachments)
 
-    if (filesToUpload.length < validFiles.length) {
-      setLocalBannerMessage(`单次对话最多上传 ${MAX_CHAT_UPLOAD_FILES} 个文件，超出的文件已忽略。`)
+    if (filesToUpload.length === 0) {
+      if (exceededParsedLimit) {
+        setLocalBannerMessage(`单次对话最多解析 ${MAX_LOCAL_DOCUMENT_ATTACHMENTS} 个本地文档，超出的文档已忽略。`)
+      }
+      return
+    }
+
+    if (exceededParsedLimit) {
+      setLocalBannerMessage(`单次对话最多解析 ${MAX_LOCAL_DOCUMENT_ATTACHMENTS} 个本地文档，超出的文档已忽略。`)
     } else {
       setLocalBannerMessage('')
     }
@@ -922,8 +1026,6 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
   }
 
   const openPartnerSettings = () => {
-    setPartnerSettingsPage('menu')
-    setPartnerWorkspaceFileKey('SOUL.md')
     setShowPartnerSettings(true)
   }
 
@@ -933,8 +1035,6 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
     }
 
     setShowPartnerSettings(false)
-    setPartnerSettingsPage('menu')
-    setPartnerWorkspaceFileKey('SOUL.md')
   }
 
   const handlePartnerAvatarFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -962,6 +1062,11 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
 
   const savePartnerSettings = async () => {
     if (!partnerDraft || !partnerConfig) {
+      return
+    }
+
+    if (!partnerDraft.agentName.trim()) {
+      setPartnerError('请先填写伙伴名称')
       return
     }
 
@@ -1756,6 +1861,38 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
     })
   }
 
+  const openCloneCurrentConversationCustomAgent = () => {
+    if (!currentConversationCustomAgentDetail) {
+      return
+    }
+
+    setShowCurrentConversationCustomAgentDetailSheet(false)
+    openAgentConfigPage(buildConfigDraftFromCustomAgentDetail(currentConversationCustomAgentDetail), {
+      mode: 'create',
+      avatarUrl: currentConversationCustomAgentDetail.avatar_url || null,
+      returnTarget: 'main-conversation',
+    })
+  }
+
+  const openCurrentConversationCustomAgentConfig = () => {
+    if (!currentConversationCustomAgentDetail) {
+      return
+    }
+
+    setShowCurrentConversationCustomAgentDetailSheet(false)
+    openAgentConfigPage(buildConfigDraftFromCustomAgentDetail(currentConversationCustomAgentDetail), {
+      mode: 'edit',
+      agentId: currentConversationCustomAgentDetail.agent_id,
+      avatarUrl: currentConversationCustomAgentDetail.avatar_url || null,
+      returnTarget: 'main-conversation',
+    })
+  }
+
+  const startCurrentConversationWithCustomAgent = () => {
+    setShowCurrentConversationCustomAgentDetailSheet(false)
+    startNewChat({ keepAgent: true })
+  }
+
   const openAgentUsageLogChat = (agent: AgentUsageLog) => {
     void openCustomAgentConversation({
       agentId: agent.agentId,
@@ -1873,13 +2010,6 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
             <path d="m21 15-4.5-4.5L9 18" />
           </svg>
         )
-      case 'camera':
-        return (
-          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M4.5 8.5h3l1.5-2h6l1.5 2h3A1.5 1.5 0 0 1 21 10v8A1.5 1.5 0 0 1 19.5 19h-15A1.5 1.5 0 0 1 3 17.5v-7A2 2 0 0 1 4.5 8.5z" />
-            <circle cx="12" cy="13" r="3.5" />
-          </svg>
-        )
       case 'folder':
         return (
           <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -1917,10 +2047,10 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
             <line x1="3" y1="18" x2="21" y2="18" />
           </svg>
         </div>
-        {isPartnerRoute ? <div className="ai-page-header-title">{builtInAgent.name}</div> : <div className="ai-page-header-spacer" />}
+        {headerTitle ? <div className="ai-page-header-title">{headerTitle}</div> : <div className="ai-page-header-spacer" />}
         <AiConversationHeaderActions
-          showDeleteSessionAction={canDeleteCurrentSession}
-          showPartnerSettingsAction={isPartnerRoute}
+          showCustomAgentMoreAction={canShowCurrentConversationCustomAgentActions}
+          showDeleteSessionAction={!canShowCurrentConversationCustomAgentActions && canDeleteCurrentSession}
           onClose={onClose}
           onDeleteSession={() => {
             if (!currentRouteSession) {
@@ -1929,7 +2059,7 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
 
             openDeleteSessionDialog(currentRouteSession)
           }}
-          onOpenPartnerSettings={openPartnerSettings}
+          onOpenCustomAgentDetail={() => setShowCurrentConversationCustomAgentDetailSheet(true)}
         />
       </div>
 
@@ -1949,8 +2079,8 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
                     tone="white"
                   />
                   <div className="ai-page-partner-copy">
-                    <div className="ai-page-partner-title">伙伴聊天和普通会话共用同一套流式链路</div>
-                    <div className="ai-page-partner-desc">右上角可以改伙伴名称和人设文档，底部可以直接上传本地文件后发起对话。</div>
+                    <div className="ai-page-partner-title">有想法就告诉我，我们一起把事情推进</div>
+                    <div className="ai-page-partner-desc">你可以直接发问题、草稿或资料，我会陪你一起梳理思路、补全内容，再继续往下做。</div>
                   </div>
                 </div>
                 <button className="ai-page-partner-settings-entry" type="button" onClick={openPartnerSettings}>
@@ -2008,18 +2138,12 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
 
       {/* 底部输入区 */}
       <div className="ai-page-bottom">
-        {(requestError || localBannerMessage) && (
-          <div className="ai-page-error-banner">{requestError || localBannerMessage}</div>
-        )}
+        {requestError ? <div className="ai-page-error-banner">{requestError}</div> : null}
+        {!requestError && localBannerMessage ? <div className="ai-page-notice-banner">{localBannerMessage}</div> : null}
         {draftAttachments.length > 0 && (
           <div className="ai-page-draft-attachments">
             {draftAttachments.map((attachment) => (
-              <button
-                className="ai-page-draft-chip"
-                key={attachment.id}
-                type="button"
-                onClick={() => handleRemoveDraftAttachment(attachment.id)}
-              >
+              <div className="ai-page-draft-chip" key={attachment.id}>
                 <span className="ai-page-draft-chip-name">{attachment.name}</span>
                 <span className="ai-page-draft-chip-status">
                   {attachment.kind === 'resource'
@@ -2030,7 +2154,15 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
                         ? '解析中'
                         : '已就绪'}
                 </span>
-              </button>
+                <button
+                  aria-label={`${attachment.name} 删除附件`}
+                  className="ai-page-draft-chip-remove"
+                  type="button"
+                  onClick={() => handleRemoveDraftAttachment(attachment.id)}
+                >
+                  x
+                </button>
+              </div>
             ))}
           </div>
         )}
@@ -2041,7 +2173,7 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
           inputAriaLabel="提问输入框"
           isResponding={isResponding}
           isStopping={isStopping}
-          note="使用国内合规模型并严格遵循权限隔离，保障企业数据安全"
+          note="AI 生成内容可能有误，请核实重要信息"
           placeholder="提个问题，或让我创作、分析任意内容"
           plusAriaLabel="打开更多操作"
           value={inputValue}
@@ -2055,44 +2187,38 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
         />
         <input
           accept={fileInputAccept}
-          capture={filePickerMode === 'camera' ? 'environment' : undefined}
           className="ai-hidden-file-input"
-          multiple={filePickerMode !== 'camera'}
+          multiple
           onChange={handleLocalFileChange}
           ref={fileInputRef}
           type="file"
         />
       </div>
 
+      {showCurrentConversationCustomAgentDetailSheet && currentConversationCustomAgentId ? (
+        <AiCustomAgentDetailSheet
+          agentName={currentConversationCustomAgentName}
+          avatarUrl={currentConversationCustomAgentAvatarUrl}
+          canEdit={canEditCurrentConversationCustomAgent}
+          configuredSkills={currentConversationCustomAgentSkills}
+          creatorUserId={currentConversationCustomAgentDetail?.creator_user_id || ''}
+          description={currentConversationCustomAgentDescription}
+          publishedAt={currentConversationCustomAgentDetail?.created_at || ''}
+          questions={currentConversationCustomAgentQuestions}
+          onClose={() => setShowCurrentConversationCustomAgentDetailSheet(false)}
+          onOpenClone={openCloneCurrentConversationCustomAgent}
+          onOpenEdit={openCurrentConversationCustomAgentConfig}
+          onStartConversation={startCurrentConversationWithCustomAgent}
+        />
+      ) : null}
+
       {showPartnerSettings && (
         <div className="ai-partner-settings-overlay" onClick={closePartnerSettings}>
           <div className="ai-partner-settings-sheet" onClick={(event) => event.stopPropagation()}>
             <div className="ai-partner-settings-handle" />
             <div className="ai-partner-settings-head">
-              <div className="ai-partner-settings-head-left">
-                {partnerSettingsPage !== 'menu' ? (
-                  <button
-                    className="ai-partner-settings-back"
-                    disabled={partnerSaving || partnerAvatarUploading}
-                    type="button"
-                    onClick={() => setPartnerSettingsPage('menu')}
-                  >
-                    返回
-                  </button>
-                ) : null}
-                <div>
-                  <div className="ai-partner-settings-title">
-                    {partnerSettingsPage === 'basic' ? '基础信息' : partnerSettingsPage === 'workspace' ? '工作区' : '伙伴设置'}
-                  </div>
-                  <div className="ai-partner-settings-subtitle">
-                    {partnerSettingsPage === 'basic'
-                      ? '这里更新伙伴名称、头像和基础展示信息。'
-                      : partnerSettingsPage === 'workspace'
-                        ? '这里维护三份人设文档，聊天会直接复用这些配置。'
-                        : '伙伴聊天和普通会话共用一套流式链路，设置拆到单独子页。'}
-                  </div>
-                </div>
-              </div>
+              <div aria-hidden="true" className="ai-partner-settings-head-spacer" />
+              <div className="ai-partner-settings-head-title">基础信息</div>
               <button className="ai-partner-settings-close" disabled={partnerSaving || partnerAvatarUploading} type="button" onClick={closePartnerSettings}>
                 关闭
               </button>
@@ -2101,97 +2227,60 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
             {partnerLoading ? <div className="ai-partner-settings-status">配置加载中...</div> : null}
             {partnerError ? <div className="ai-partner-settings-status is-error">{partnerError}</div> : null}
 
-            {partnerSettingsPage === 'menu' ? (
-              <div className="ai-partner-settings-menu">
-                <button className="ai-partner-settings-menu-item" type="button" onClick={() => setPartnerSettingsPage('basic')}>
-                  <span className="ai-partner-settings-menu-title">基础信息</span>
-                  <span className="ai-partner-settings-menu-desc">名称、头像和展示信息</span>
-                </button>
-                <button className="ai-partner-settings-menu-item" type="button" onClick={() => setPartnerSettingsPage('workspace')}>
-                  <span className="ai-partner-settings-menu-title">工作区</span>
-                  <span className="ai-partner-settings-menu-desc">SOUL.md / USER.md / IDENTITY.md</span>
+            <div className="ai-partner-settings-body">
+              <div className="ai-partner-settings-avatar-card">
+                <AiNameAvatar
+                  ariaLabel={`${partnerDraft?.agentName || builtInAgent.name}头像`}
+                  avatarUrl={partnerDraft?.avatarUrl}
+                  className="ai-partner-settings-avatar-preview"
+                  imageClassName="ai-partner-settings-avatar-preview-image"
+                  name={partnerDraft?.agentName || builtInAgent.name || '建'}
+                  tone="white"
+                />
+                <div className="ai-partner-settings-avatar-meta">
+                  <div className="ai-partner-settings-avatar-title">伙伴头像</div>
+                  <div className="ai-partner-settings-avatar-desc">支持直接上传图片，保存后会同步更新伙伴头像。</div>
+                </div>
+                <button
+                  className="ai-partner-settings-upload-btn"
+                  disabled={partnerSaving || partnerAvatarUploading}
+                  type="button"
+                  onClick={() => partnerAvatarInputRef.current?.click()}
+                >
+                  {partnerAvatarUploading ? '上传中...' : '上传头像'}
                 </button>
               </div>
-            ) : null}
-
-            {partnerSettingsPage === 'basic' ? (
-              <div className="ai-partner-settings-body">
-                <div className="ai-partner-settings-avatar-card">
-                  <AiNameAvatar
-                    ariaLabel={`${partnerDraft?.agentName || builtInAgent.name}头像`}
-                    avatarUrl={partnerDraft?.avatarUrl}
-                    className="ai-partner-settings-avatar-preview"
-                    imageClassName="ai-partner-settings-avatar-preview-image"
-                    name={partnerDraft?.agentName || builtInAgent.name || '建'}
-                    tone="white"
-                  />
-                  <div className="ai-partner-settings-avatar-meta">
-                    <div className="ai-partner-settings-avatar-title">伙伴头像</div>
-                    <div className="ai-partner-settings-avatar-desc">支持直接上传图片，也可以继续手动填地址。</div>
-                  </div>
-                  <button
-                    className="ai-partner-settings-upload-btn"
-                    disabled={partnerSaving || partnerAvatarUploading}
-                    type="button"
-                    onClick={() => partnerAvatarInputRef.current?.click()}
-                  >
-                    {partnerAvatarUploading ? '上传中...' : '上传头像'}
-                  </button>
-                </div>
-                <label className="ai-partner-settings-field">
-                  <span>伙伴名称</span>
-                  <input
-                    className="ai-partner-settings-input"
-                    disabled={partnerSaving || partnerAvatarUploading}
-                    type="text"
-                    value={partnerDraft?.agentName ?? builtInAgent.name}
-                    onChange={(event) => updatePartnerDraftField('agentName', event.target.value)}
-                  />
-                </label>
-                <label className="ai-partner-settings-field">
-                  <span>头像地址</span>
-                  <input
-                    className="ai-partner-settings-input"
-                    disabled={partnerSaving || partnerAvatarUploading}
-                    type="text"
-                    value={partnerDraft?.avatarUrl ?? builtInAgent.avatarUrl}
-                    onChange={(event) => updatePartnerDraftField('avatarUrl', event.target.value)}
-                  />
-                </label>
-              </div>
-            ) : null}
-
-            {partnerSettingsPage === 'workspace' ? (
-              <div className="ai-partner-settings-body">
-                <div className="ai-partner-settings-doc-tabs">
-                  {(['SOUL.md', 'USER.md', 'IDENTITY.md'] as PartnerWorkspaceFileKey[]).map((fileKey) => (
-                    <button
-                      className={`ai-partner-settings-doc-tab ${partnerWorkspaceFileKey === fileKey ? 'is-active' : ''}`}
-                      key={fileKey}
-                      type="button"
-                      onClick={() => setPartnerWorkspaceFileKey(fileKey)}
-                    >
-                      {fileKey}
-                    </button>
-                  ))}
-                </div>
-                <label className="ai-partner-settings-field">
-                  <span>{partnerWorkspaceFileKey}</span>
+              <label className="ai-partner-settings-field">
+                <span className="ai-partner-settings-field-label">
+                  伙伴名称
+                  <span className="ai-partner-settings-label-required">*</span>
+                </span>
+                <input
+                  className="ai-partner-settings-input"
+                  disabled={partnerSaving || partnerAvatarUploading}
+                  type="text"
+                  value={partnerDraft?.agentName ?? builtInAgent.name}
+                  onChange={(event) => updatePartnerDraftField('agentName', event.target.value)}
+                />
+              </label>
+              {PARTNER_WORKSPACE_FIELDS.map(({ field, label }) => (
+                <label className="ai-partner-settings-field" key={label}>
+                  <span>{label}</span>
                   <textarea
                     className="ai-partner-settings-textarea"
                     disabled={partnerSaving}
-                    value={getPartnerWorkspaceValue(partnerDraft, partnerWorkspaceFileKey)}
-                    onChange={(event) => updatePartnerDraftField(getPartnerWorkspaceField(partnerWorkspaceFileKey), event.target.value)}
+                    value={partnerDraft?.[field] ?? ''}
+                    onChange={(event) => updatePartnerDraftField(field, event.target.value)}
                   />
                 </label>
-              </div>
-            ) : null}
+              ))}
+            </div>
 
             <div className="ai-partner-settings-actions">
               <button className="ai-partner-settings-btn" disabled={partnerSaving || partnerAvatarUploading} type="button" onClick={closePartnerSettings}>
-                {partnerSettingsPage === 'menu' ? '关闭' : '取消'}
+                取消
               </button>
-              <button className="ai-partner-settings-btn is-primary" disabled={partnerSaving || partnerLoading || partnerAvatarUploading} type="button" onClick={() => { void savePartnerSettings() }}>
+              <button className="ai-partner-settings-btn is-primary" disabled={partnerSaving || partnerLoading || partnerAvatarUploading || !partnerDraft?.agentName.trim()} type="button" onClick={() => { void savePartnerSettings() }}>
                 {partnerSaving ? '保存中...' : '保存'}
               </button>
             </div>
@@ -2346,11 +2435,6 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
                       onClick={() => {
                         if (item.key === 'album') {
                           openLocalFilePicker('image')
-                          return
-                        }
-
-                        if (item.key === 'camera') {
-                          openLocalFilePicker('camera')
                           return
                         }
 
@@ -2793,6 +2877,7 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
       {showCustomAgentConversationPage && (
         <AiCustomAgentConversationPage
           agentName={customAgentConversationDetail?.agent_name || activeAgent?.agentName || ''}
+          headerTitle={customAgentConversationHeaderTitle}
           avatarUrl={customAgentConversationDetail?.avatar_url || null}
           canEdit={canEditCustomAgentConversation}
           canSubmit={canSend}
@@ -2808,10 +2893,15 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
           onBack={closeCustomAgentConversation}
           onInputChange={setInputValue}
           onOpenEdit={openCustomAgentConfigFromConversation}
-          onPlusClick={() => setShowPlusSheet(true)}
+          onPlusClick={() => {
+            setShowFileMenu(false)
+            setShowPlusSheet(true)
+          }}
           onSelectArtifact={setSelectedArtifact}
           onStop={stopResponding}
-          onSubmit={submitPrompt}
+          onSubmit={(promptOverride) => submitPrompt(promptOverride, undefined, undefined, {
+            enableWebSearch: customAgentConversationDetail?.enable_web_search === true,
+          })}
           onSuggestionClick={setInputValue}
         />
       )}
@@ -2823,7 +2913,9 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
           draft={agentConfigDraft}
           mode={agentConfigMode}
           onBack={() => setShowAgentConfigPage(false)}
-          onClose={agentConfigReturnTarget === 'custom-conversation' ? () => setShowAgentConfigPage(false) : undefined}
+          onClose={agentConfigReturnTarget === 'custom-conversation' || agentConfigReturnTarget === 'main-conversation'
+            ? () => setShowAgentConfigPage(false)
+            : undefined}
           onDraftChange={setAgentConfigDraft}
           onPublishSuccess={handleAgentPublishSuccess}
         />

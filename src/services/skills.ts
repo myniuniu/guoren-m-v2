@@ -3,6 +3,7 @@ import { getChatUserId } from './chat/api'
 
 const SKILLS_PATH = '/api/v1/skills'
 const CUSTOM_SKILLS_PATH = '/api/v1/skills/custom'
+const CUSTOM_AGENT_RECOMMEND_SKILLS_PATH = '/api/v1/custom-agents/skills/recommend'
 const CLAWHUB_BROWSE_PATH = '/api/v1/skills/clawhub/browse'
 const CLAWHUB_SEARCH_PATH = '/api/v1/skills/clawhub/search'
 const CLAWHUB_DETAIL_PATH = '/api/v1/skills/clawhub/{slug}'
@@ -50,6 +51,12 @@ export interface SkillSummaryItem {
   tags: string[]
   countLabel?: string
   isSelected: boolean
+}
+
+export type RecommendSkillsRequest = {
+  agent_name: string
+  description: string
+  agent_prompt?: string | null
 }
 
 function buildSkillMergeKey(skill: Pick<SkillSummaryItem, 'id' | 'skillName'>): string {
@@ -133,6 +140,16 @@ function readBooleanField(value: Record<string, unknown>, keys: string[]): boole
   return fieldKey ? Boolean(value[fieldKey]) : false
 }
 
+function readSkillSourceField(value: Record<string, unknown>, fallback: SkillSource): SkillSource {
+  const candidate = readStringField(value, ['source', 'skill_source']).toLowerCase()
+
+  if (candidate === 'official' || candidate === 'clawhub' || candidate === 'added' || candidate === 'created') {
+    return candidate
+  }
+
+  return fallback
+}
+
 function replacePathParam(path: string, key: string, value: string): string {
   return path.replace(`{${key}}`, encodeURIComponent(value))
 }
@@ -173,7 +190,7 @@ function normalizeSkillItems(items: unknown[], source: SkillSource): SkillSummar
       title,
       description,
         template,
-        source,
+        source: readSkillSourceField(record, source),
         tags: readTags(record),
         countLabel: buildCountLabel(record),
         isSelected: readBooleanField(record, ['is_selected', 'isSelected']),
@@ -369,6 +386,35 @@ export function mergeSkillSummaryItems(...lists: SkillSummaryItem[][]): SkillSum
 export async function fetchOfficialSkills(signal?: AbortSignal): Promise<SkillSummaryItem[]> {
   const userId = getRequiredUserId()
   return requestSkillList(buildAiApiUrl(SKILLS_PATH, { user_id: userId }), 'official', signal)
+}
+
+export async function fetchCustomAgentRecommendedSkills(
+  payload: RecommendSkillsRequest,
+  signal?: AbortSignal,
+): Promise<SkillSummaryItem[]> {
+  const userId = getRequiredUserId()
+  const requestUrl = buildAiApiUrl(CUSTOM_AGENT_RECOMMEND_SKILLS_PATH, { user_id: userId })
+  const response = await authorizedFetch(requestUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    },
+    body: JSON.stringify(payload),
+    signal,
+  })
+
+  if (!response.ok) {
+    throw new Error(`获取推荐技能失败: HTTP ${response.status}`)
+  }
+
+  const result = await response.json() as SkillListResponse
+
+  if (result.success === false) {
+    throw new Error(result.msg || result.message || '获取推荐技能失败')
+  }
+
+  return extractSkillItems(result, 'official')
 }
 
 export async function fetchAddedSkills(signal?: AbortSignal): Promise<SkillSummaryItem[]> {

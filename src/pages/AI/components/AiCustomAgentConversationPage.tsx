@@ -12,6 +12,7 @@ type AiCustomAgentConversationQuestion = {
 
 type AiCustomAgentConversationPageProps = {
   agentName: string
+  headerTitle?: string
   avatarUrl?: string | null
   description: string
   questions: AiCustomAgentConversationQuestion[]
@@ -36,6 +37,7 @@ type AiCustomAgentConversationPageProps = {
 
 export function AiCustomAgentConversationPage({
   agentName,
+  headerTitle = '',
   avatarUrl,
   description,
   questions,
@@ -57,6 +59,8 @@ export function AiCustomAgentConversationPage({
   onSuggestionClick,
   onPlusClick,
 }: AiCustomAgentConversationPageProps) {
+  const normalizedHeaderTitle = headerTitle.trim()
+
   if (loading || error) {
     return (
       <div className="ai-custom-agent-conversation-page">
@@ -71,7 +75,7 @@ export function AiCustomAgentConversationPage({
               <polyline points="15 18 9 12 15 6" />
             </svg>
           </button>
-          <div className="ai-custom-agent-conversation-header-title">会话</div>
+          <div className="ai-custom-agent-conversation-header-title">{normalizedHeaderTitle}</div>
           <div aria-hidden="true" className="ai-agent-config-header-spacer" />
         </div>
 
@@ -95,11 +99,11 @@ export function AiCustomAgentConversationPage({
             <polyline points="15 18 9 12 15 6" />
           </svg>
         </button>
-        <div className="ai-custom-agent-conversation-header-title">会话</div>
+        <div className="ai-custom-agent-conversation-header-title">{normalizedHeaderTitle}</div>
         {canEdit ? (
           <button
             aria-label="编辑自定义智能体"
-            className="ai-custom-agent-conversation-settings"
+            className="ai-agent-config-close"
             type="button"
             onClick={onOpenEdit}
           >
@@ -116,7 +120,7 @@ export function AiCustomAgentConversationPage({
         canSubmit={canSubmit}
         composerActionAriaLabel="发送消息"
         composerInputAriaLabel="自定义智能体输入框"
-        composerNote="使用国内合规模型并严格遵循权限隔离，保障企业数据安全"
+        composerNote="AI 生成内容可能有误，请核实重要信息"
         configuredSkills={[]}
         description={description}
         inputValue={inputValue}

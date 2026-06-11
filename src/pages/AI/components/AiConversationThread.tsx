@@ -3,7 +3,6 @@ import { Toast } from 'antd-mobile'
 import type {
   ChatArtifactItem,
   ChatMessage,
-  ChatReference,
   ChatToolCall,
 } from '../../../services/chat/types'
 import type { SelectedArtifact } from '../hooks/useAiChatRuntime'
@@ -74,7 +73,7 @@ function hasProcessingSteps(message: ChatMessage): boolean {
 }
 
 function hasAssistantOutput(message: ChatMessage): boolean {
-  return hasTextContent(message) || message.skillOutput.length > 0 || message.references.length > 0
+  return hasTextContent(message) || message.skillOutput.length > 0
 }
 
 function groupMessages(messages: ChatMessage[]): PresentationGroup[] {
@@ -734,22 +733,6 @@ function AssistantOutputMessage({
               isStreaming={Boolean(message.loading)}
             />
           ) : null}
-
-          {message.references.length > 0 && (
-            <div className="ai-chat-reference-list">
-              {message.references.map((reference: ChatReference, index) => (
-                <a
-                  className="ai-chat-reference-chip"
-                  href={reference.url || '#'}
-                  key={`${reference.title ?? 'ref'}-${index}`}
-                  rel="noreferrer"
-                  target="_blank"
-                >
-                  {reference.title || reference.url || `引用 ${index + 1}`}
-                </a>
-              ))}
-            </div>
-          )}
 
           {message.skillOutput.length > 0 && (
             <div className="ai-chat-artifact-list">
