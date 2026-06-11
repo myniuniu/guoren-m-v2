@@ -22,11 +22,10 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
-package-lock.json
-package.json
-CLAUDE.md
 doc/
-docs/
 scripts/
 tests/
+.playwright-mcp/
+docs/
+CLAUDE.md
 .cert/

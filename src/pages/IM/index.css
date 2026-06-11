@@ -5,7 +5,9 @@
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: #f5f6f8;
+  background:
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.88) 0%, rgba(255, 255, 255, 0) 28%),
+    linear-gradient(180deg, #f9f9fa 0%, #f2f2f4 100%);
 }
 
 /* 登录守卫 */
@@ -65,23 +67,117 @@
 
 /* 会话列表页 */
 .im-conversation-list-page {
+  position: relative;
   height: 100%;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  background: transparent;
+}
+
+.im-message-shell {
+  position: sticky;
+  top: 0;
+  z-index: 12;
+  background:
+    linear-gradient(180deg, rgba(248, 248, 250, 0.98) 0%, rgba(248, 248, 250, 0.96) 84%, rgba(248, 248, 250, 0) 100%);
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
+}
+
+.im-message-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: calc(14px + env(safe-area-inset-top)) 16px 8px;
+}
+
+.im-message-title-wrap {
+  min-width: 0;
+}
+
+.im-message-title {
+  margin: 0;
+  color: #2a2d34;
+  font-size: 21px;
+  font-weight: 700;
+  line-height: 1.05;
+}
+
+.im-message-subtitle {
+  margin-top: 4px;
+  color: #8b909a;
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.im-message-refresh-btn {
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: #343841;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.im-message-refresh-btn:active {
+  background: rgba(255, 255, 255, 0.8);
 }
 
 .im-conversation-list-search {
-  padding: 10px 14px;
-  background: #fff;
-  border-bottom: 1px solid #f0f0f0;
+  padding: 0 16px 12px;
+  background: transparent;
   flex-shrink: 0;
+}
+
+.im-message-filter-row {
+  padding: 0 16px 12px;
+}
+
+.im-message-filter-segment {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2px;
+  padding: 2px;
+  border-radius: 16px;
+  background: #e8e8eb;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+}
+
+.im-message-filter-tab {
+  appearance: none;
+  border: none;
+  border-radius: 14px;
+  background: transparent;
+  padding: 7px 0;
+  color: #7b8089;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.2s, background 0.2s, box-shadow 0.2s;
+}
+
+.im-message-filter-tab.is-active {
+  background: #fff;
+  color: #346dff;
+  box-shadow: 0 6px 14px rgba(76, 92, 133, 0.08);
 }
 
 .im-conversation-list-content {
   flex: 1;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  padding-bottom: calc(96px + env(safe-area-inset-bottom));
+  scrollbar-width: none;
+}
+
+.im-conversation-list-content::-webkit-scrollbar {
+  display: none;
 }
 
 .im-conversation-list-loading {
@@ -121,23 +217,25 @@
 
 /* 会话分区 */
 .im-conversation-section {
-  background: #fff;
-  margin-bottom: 8px;
+  background: transparent;
+  margin-bottom: 10px;
 }
 
 .im-conversation-section-header {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 14px;
+  padding: 0 16px 8px;
   font-size: 12px;
-  color: #999;
-  font-weight: 500;
-  background: #f8f9fa;
+  color: #8f949d;
+  font-weight: 600;
+  background: transparent;
 }
 
 .im-conversation-section-list {
-  background: #fff;
+  background: rgba(255, 255, 255, 0.84);
+  border-top: 1px solid rgba(255, 255, 255, 0.66);
+  border-bottom: 1px solid rgba(45, 50, 63, 0.06);
 }
 
 /* 单条会话 */
@@ -146,15 +244,15 @@
   align-items: flex-start;
   gap: 10px;
   padding: 10px 14px;
-  border-bottom: 1px solid #f5f5f5;
+  border-bottom: 1px solid rgba(45, 50, 63, 0.07);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-  background: #fff;
+  background: transparent;
   transition: background 0.15s ease;
 }
 
 .im-conversation-item:active {
-  background: #f5f6f8;
+  background: rgba(52, 109, 255, 0.04);
 }
 
 .im-conversation-item:last-child {
@@ -171,20 +269,21 @@
 .im-conversation-avatar-img {
   width: 44px;
   height: 44px;
-  border-radius: 12px;
+  border-radius: 50%;
   object-fit: cover;
 }
 
 .im-conversation-avatar-default {
   width: 44px;
   height: 44px;
-  border-radius: 12px;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   color: #fff;
   font-size: 16px;
   font-weight: 600;
+  box-shadow: 0 8px 18px rgba(66, 72, 90, 0.08);
 }
 
 /* 内容区域 */
@@ -194,19 +293,27 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding-top: 2px;
+  padding-top: 1px;
 }
 
 .im-conversation-header {
   display: flex;
-  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.im-conversation-title-line {
+  min-width: 0;
+  flex: 1;
+  display: flex;
   align-items: center;
+  gap: 6px;
 }
 
 .im-conversation-title {
   font-size: 15px;
   font-weight: 600;
-  color: #222;
+  color: #2a2d34;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -214,11 +321,22 @@
   min-width: 0;
 }
 
+.im-conversation-kind-tag {
+  flex-shrink: 0;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: #eaf1ff;
+  color: #2a6eff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+}
+
 .im-conversation-time {
   font-size: 11px;
-  color: #999;
+  color: #a0a4ae;
   flex-shrink: 0;
-  margin-left: 8px;
+  line-height: 1.2;
 }
 
 .im-conversation-footer {
@@ -230,7 +348,7 @@
 
 .im-conversation-preview {
   font-size: 13px;
-  color: #999;
+  color: #8b909a;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -238,8 +356,41 @@
   min-width: 0;
 }
 
-.im-conversation-badge {
+.im-conversation-side {
   flex-shrink: 0;
+  min-width: 18px;
+  min-height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.im-conversation-unread-badge {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #ff5a5f;
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  box-shadow: 0 2px 8px rgba(255, 90, 95, 0.2);
+}
+
+.im-conversation-pinned-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #98a3b8;
+}
+
+.im-conversation-side-placeholder {
+  width: 8px;
+  height: 8px;
 }
 
 /* 空状态 */
@@ -1632,5 +1783,4 @@
   padding: 0 !important;
   max-width: none !important;
 }
-
 

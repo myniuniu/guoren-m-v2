@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { TextArea, Toast } from 'antd-mobile'
 import { AddOutline, AudioOutline, StopOutline, UpOutline } from 'antd-mobile-icons'
 import { useVoiceInput } from '../hooks/useVoiceInput'
@@ -9,6 +9,7 @@ export interface AppComposerInputProps {
   placeholder?: string
   note?: string
   className?: string
+  autoStartVoice?: boolean
   canSubmit?: boolean
   isResponding?: boolean
   isStopping?: boolean
@@ -30,6 +31,7 @@ export default function AppComposerInput({
   placeholder = '请输入内容',
   note,
   className,
+  autoStartVoice = false,
   canSubmit = false,
   isResponding = false,
   isStopping = false,
@@ -46,6 +48,7 @@ export default function AppComposerInput({
   const voiceCurrentTextRef = useRef('')
   const isVoiceSendingRef = useRef(false)
   const hasRecognizedTextRef = useRef(false)
+  const autoStartVoiceDoneRef = useRef(false)
 
   const handleVoiceResult = useCallback((text: string, isFinal: boolean) => {
     if (isVoiceSendingRef.current || !text) {
@@ -157,6 +160,23 @@ export default function AppComposerInput({
       void onSubmit?.()
     }
   }
+
+  useEffect(() => {
+    if (!autoStartVoice) {
+      autoStartVoiceDoneRef.current = false
+      return
+    }
+
+    if (autoStartVoiceDoneRef.current || isResponding || isVoiceActive || isVoiceStopping || !isVoiceSupported) {
+      return
+    }
+
+    autoStartVoiceDoneRef.current = true
+    voiceBaseTextRef.current = value
+    voiceCurrentTextRef.current = value
+    hasRecognizedTextRef.current = false
+    void startRecording()
+  }, [autoStartVoice, isResponding, isVoiceActive, isVoiceStopping, isVoiceSupported, startRecording, value])
 
   return (
     <div className={joinClassNames('app-composer-input', className)}>

@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useMemo, useState } from 'react'
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Navigate,
   Route,
@@ -23,6 +23,8 @@ const AIPage = lazy(() => import('./pages/AI'))
 const LibraryPage = lazy(() => import('./pages/Library'))
 const IMPage = lazy(() => import('./pages/IM'))
 const LoginPage = lazy(() => import('./pages/Login'))
+const AI_LONG_PRESS_MS = 420
+type AIEntryMode = 'default' | 'voice'
 
 // 底部导航图标
 function HomeIcon({ active }: { active: boolean }) {
@@ -212,19 +214,70 @@ function AuthenticatedApp() {
   const [showMoreDrawer, setShowMoreDrawer] = useState(false)
   const [showMoreEdit, setShowMoreEdit] = useState(false)
   const [showProfileMenu, setShowProfileMenu] = useState(false)
+  const [elderMode, setElderMode] = useState(false)
   const [mainTabs, setMainTabs] = useState(defaultMainTabs)
+  const aiLongPressTimerRef = useRef<number | null>(null)
+  const aiLongPressTriggeredRef = useRef(false)
 
   const activeKey = useMemo(
     () => getTabKeyByPathname(location.pathname),
     [location.pathname]
   )
 
+  const clearAILongPressTimer = () => {
+    if (aiLongPressTimerRef.current !== null) {
+      window.clearTimeout(aiLongPressTimerRef.current)
+      aiLongPressTimerRef.current = null
+    }
+  }
+
+  const openAIPage = (mode: AIEntryMode = 'default') => {
+    navigate(APP_ROUTE_PATHS.ai, {
+      state: {
+        aiInitialMode: mode,
+      },
+    })
+  }
+
   const handleTabChange = (key: string) => {
     if (key === 'more') {
       setShowMoreDrawer(true)
       return
     }
+    if (key === 'ai') {
+      openAIPage('default')
+      return
+    }
     navigate(getPathByTabKey(key))
+  }
+
+  const handleAIPointerDown = () => {
+    clearAILongPressTimer()
+    aiLongPressTriggeredRef.current = false
+    aiLongPressTimerRef.current = window.setTimeout(() => {
+      aiLongPressTimerRef.current = null
+      aiLongPressTriggeredRef.current = true
+      openAIPage('voice')
+    }, AI_LONG_PRESS_MS)
+  }
+
+  const handleAIPointerRelease = () => {
+    clearAILongPressTimer()
+  }
+
+  const handleAIPointerCancel = () => {
+    clearAILongPressTimer()
+    aiLongPressTriggeredRef.current = false
+  }
+
+  const handleAIClick = () => {
+    clearAILongPressTimer()
+    if (aiLongPressTriggeredRef.current) {
+      aiLongPressTriggeredRef.current = false
+      return
+    }
+
+    openAIPage('default')
   }
 
   useEffect(() => {
@@ -233,6 +286,12 @@ function AuthenticatedApp() {
       navigate(getPathByTabKey(mainTabs[0].key), { replace: true })
     }
   }, [activeKey, mainTabs, navigate])
+
+  useEffect(() => {
+    return () => {
+      clearAILongPressTimer()
+    }
+  }, [])
 
   const activeCustomTab = useMemo(
     () => mainTabs.find((tab) => tab.key === activeKey && tab.source === 'app'),
@@ -258,7 +317,16 @@ function AuthenticatedApp() {
       <div className="app-content">
         <Routes>
           <Route path={APP_ROUTE_PATHS.root} element={<Navigate to={APP_ROUTE_PATHS.home} replace />} />
-          <Route path={APP_ROUTE_PATHS.home} element={<Home />} />
+          <Route
+            path={APP_ROUTE_PATHS.home}
+            element={(
+              <Home
+                elderMode={elderMode}
+                onOpenAI={() => openAIPage('default')}
+                onToggleElderMode={() => setElderMode((current) => !current)}
+              />
+            )}
+          />
           <Route path={APP_ROUTE_PATHS.space} element={<SpacePage />} />
           <Route path={`${APP_ROUTE_PATHS.space}/:spaceId`} element={<SpacePage />} />
           <Route path={APP_ROUTE_PATHS.im} element={<IMPage />} />
@@ -312,10 +380,20 @@ function AuthenticatedApp() {
                 )
               })}
             </div>
-            <div className={`ai-tab ${activeKey === 'ai' ? 'ai-tab-active' : ''}`} onClick={() => handleTabChange('ai')}>
+            <button
+              aria-label="AI 助手，长按可直接进入语音输入"
+              className={`ai-tab ${activeKey === 'ai' ? 'ai-tab-active' : ''}`}
+              type="button"
+              onClick={handleAIClick}
+              onContextMenu={(event) => event.preventDefault()}
+              onPointerCancel={handleAIPointerCancel}
+              onPointerDown={handleAIPointerDown}
+              onPointerLeave={handleAIPointerRelease}
+              onPointerUp={handleAIPointerRelease}
+            >
               <AIIcon active={activeKey === 'ai'} />
               <span className="tab-label">AI</span>
-            </div>
+            </button>
           </div>
         </div>
       )}

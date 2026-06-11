@@ -399,10 +399,21 @@ function buildArtifactPreviewEntry(
   }
 }
 
-export default function AIPage({ onClose }: { onClose: () => void }) {
+type AIPageMode = 'default' | 'voice'
+
+export default function AIPage({
+  initialMode = 'default',
+  onClose,
+}: {
+  initialMode?: AIPageMode
+  onClose: () => void
+}) {
   const location = useLocation()
   const navigate = useNavigate()
   const isPartnerRoute = location.pathname === APP_ROUTE_PATHS.partner
+  const resolvedInitialMode = ((location.state as { aiInitialMode?: AIPageMode } | null)?.aiInitialMode ?? initialMode) === 'voice'
+    ? 'voice'
+    : 'default'
   const [showDrawer, setShowDrawer] = useState(false)
   const [showPlusSheet, setShowPlusSheet] = useState(false)
   const [showSkillsPage, setShowSkillsPage] = useState(false)
@@ -2197,6 +2208,7 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
         )}
         <AppComposerInput
           actionAriaLabel="发送消息"
+          autoStartVoice={resolvedInitialMode === 'voice'}
           canSubmit={canSend}
           className="ai-page-composer-input"
           inputAriaLabel="提问输入框"

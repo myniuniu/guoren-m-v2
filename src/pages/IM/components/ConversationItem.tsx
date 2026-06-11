@@ -4,7 +4,6 @@
  */
 
 import React from 'react';
-import { Badge } from 'antd-mobile';
 import { formatConversationTime } from '../utils/formatTime';
 import type { MergedConversation } from '../hooks/useConversationList';
 import { useDisplayName } from '../utils/displayNameHooks';
@@ -30,6 +29,10 @@ const ConversationItem: React.FC<ConversationItemProps> = ({ conversation, onCli
   const displayName = useDisplayName(targetUserID, title);
   // 群聊保持原有 title，C2C 私聊使用 displayName
   const finalTitle = (conversation.type === 'c2c' || conversation.type === 'ai_c2c') ? displayName : title;
+  const conversationKindLabel = conversation.type === 'group' || conversation.type === 'community' ? '群聊' : null;
+  const previewText = conversationKindLabel && conversation.last_msg_from
+    ? `${conversation.last_msg_from}: ${last_msg_preview || '暂无消息'}`
+    : last_msg_preview || '暂无消息';
 
   const avatarText = finalTitle ? finalTitle[0] : '?';
 
@@ -51,17 +54,26 @@ const ConversationItem: React.FC<ConversationItemProps> = ({ conversation, onCli
 
       {/* 内容区域 */}
       <div className="im-conversation-content">
-          <div className="im-conversation-header">
+        <div className="im-conversation-header">
+          <div className="im-conversation-title-line">
             <span className="im-conversation-title">{finalTitle}</span>
-            <span className="im-conversation-time">{formatConversationTime(last_msg_time)}</span>
+            {conversationKindLabel ? <span className="im-conversation-kind-tag">{conversationKindLabel}</span> : null}
           </div>
-          <div className="im-conversation-footer">
-            <span className="im-conversation-preview">{last_msg_preview || '暂无消息'}</span>
-            {unread_count > 0 && (
-              <Badge content={unread_count > 99 ? '99+' : unread_count} className="im-conversation-badge" />
+          <span className="im-conversation-time">{formatConversationTime(last_msg_time)}</span>
+        </div>
+        <div className="im-conversation-footer">
+          <span className="im-conversation-preview">{previewText}</span>
+          <div className="im-conversation-side">
+            {unread_count > 0 ? (
+              <span className="im-conversation-unread-badge">{unread_count > 99 ? '99+' : unread_count}</span>
+            ) : conversation.pinned ? (
+              <span className="im-conversation-pinned-dot" aria-hidden="true" />
+            ) : (
+              <span className="im-conversation-side-placeholder" />
             )}
           </div>
         </div>
+      </div>
     </div>
   );
 };

@@ -1,0 +1,27 @@
+.calendar-page {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #f3f4f6;
+}
+
+.calendar-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.calendar-empty-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #222;
+}
+
+.calendar-empty-desc {
+  font-size: 14px;
+  color: #999;
+  margin-top: 8px;
+}
