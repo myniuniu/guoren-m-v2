@@ -20,6 +20,14 @@ interface LibraryEntry {
   tags: string[]
 }
 
+type LibraryPathItem = {
+  key: string
+  folderId: string | null
+  label: string
+  current: boolean
+  clickable: boolean
+}
+
 const libraryEntries: LibraryEntry[] = [
   { id: 'p-folder-1', name: '教育信息化资料库', type: 'folder', scope: 'personal', parentId: null, updatedAt: '今天 09:18', owner: '我', starred: true, shared: false, tags: ['课程', '教研'] },
   { id: 'p-folder-2', name: '人工智能-教育', type: 'folder', scope: 'personal', parentId: null, updatedAt: '昨天 17:36', owner: '我', starred: true, shared: true, tags: ['AI', '课程'] },
@@ -28,8 +36,11 @@ const libraryEntries: LibraryEntry[] = [
   { id: 'p-file-2', name: '课堂评价指标库.xlsx', type: 'sheet', scope: 'personal', parentId: null, updatedAt: '05-30 15:10', owner: '我', size: '348 KB', starred: false, shared: false, tags: ['课程', '教研'] },
   { id: 'p-file-3', name: '果仁产品介绍.pptx', type: 'ppt', scope: 'personal', parentId: null, updatedAt: '05-28 09:05', owner: '我', size: '5.1 MB', starred: false, shared: true, tags: ['AI'] },
   { id: 'p-folder-2-folder-1', name: '课程智能体实验', type: 'folder', scope: 'personal', parentId: 'p-folder-2', updatedAt: '昨天 16:08', owner: '我', starred: true, shared: false, tags: ['AI', '课程'] },
+  { id: 'p-folder-2-folder-2', name: '教师助手样例', type: 'folder', scope: 'personal', parentId: 'p-folder-2', updatedAt: '昨天 15:57', owner: '我', starred: false, shared: false, tags: ['AI'] },
   { id: 'p-folder-2-folder-1-folder-1', name: '多模态课堂观察', type: 'folder', scope: 'personal', parentId: 'p-folder-2-folder-1', updatedAt: '昨天 15:42', owner: '我', starred: false, shared: false, tags: ['AI', '课程'] },
+  { id: 'p-folder-2-folder-1-folder-2', name: '问答助手测评', type: 'folder', scope: 'personal', parentId: 'p-folder-2-folder-1', updatedAt: '昨天 15:28', owner: '我', starred: false, shared: false, tags: ['AI'] },
   { id: 'p-folder-2-folder-1-folder-1-folder-1', name: '2026 春季试点', type: 'folder', scope: 'personal', parentId: 'p-folder-2-folder-1-folder-1', updatedAt: '昨天 15:18', owner: '我', starred: false, shared: false, tags: ['AI'] },
+  { id: 'p-folder-2-folder-1-folder-1-folder-2', name: '2026 秋季回收', type: 'folder', scope: 'personal', parentId: 'p-folder-2-folder-1-folder-1', updatedAt: '昨天 14:56', owner: '我', starred: false, shared: false, tags: ['AI'] },
   { id: 'p-folder-2-folder-1-folder-1-folder-1-file-1', name: '课堂助教提示词手册.pdf', type: 'pdf', scope: 'personal', parentId: 'p-folder-2-folder-1-folder-1-folder-1', updatedAt: '昨天 15:05', owner: '我', size: '1.8 MB', starred: true, shared: false, tags: ['AI', '课程'] },
   { id: 'p-folder-1-file-1', name: '智慧教室建设方案.docx', type: 'doc', scope: 'personal', parentId: 'p-folder-1', updatedAt: '今天 10:02', owner: '我', size: '1.1 MB', starred: true, shared: false, tags: ['课程'] },
   { id: 'p-folder-1-file-2', name: '职业教育改革图谱.png', type: 'image', scope: 'personal', parentId: 'p-folder-1', updatedAt: '今天 09:46', owner: '我', size: '860 KB', starred: false, shared: false, tags: ['教研'] },
@@ -46,12 +57,6 @@ const libraryEntries: LibraryEntry[] = [
 ]
 
 const orgSpaces = ['果仁集团', '教育研究院', '教务中心']
-
-const quickFilters: Array<{ key: SidebarFilter; label: string }> = [
-  { key: 'all', label: '全部' },
-  { key: 'recent', label: '最近' },
-  { key: 'folder', label: '文件夹' },
-]
 
 const filterSheetSections: Array<{
   title: string
@@ -74,15 +79,20 @@ const filterSheetSections: Array<{
   },
 ]
 
-const filterLabelMap: Record<SidebarFilter, string> = {
-  all: '全部',
-  recent: '最近',
-  folder: '文件夹',
-  starred: '已收藏',
-  shared: '共享',
-  'tag:AI': 'AI',
-  'tag:课程': '课程',
-  'tag:教研': '教研',
+function buildFolderPath(folderId: string) {
+  const path: string[] = []
+  const visited = new Set<string>()
+  let current = libraryEntries.find((item) => item.id === folderId && item.type === 'folder') ?? null
+
+  while (current && !visited.has(current.id)) {
+    visited.add(current.id)
+    path.unshift(current.id)
+    const parentId = current.parentId
+    if (!parentId) break
+    current = libraryEntries.find((item) => item.id === parentId && item.type === 'folder') ?? null
+  }
+
+  return path
 }
 
 function SearchIcon() {
@@ -156,7 +166,17 @@ function FileTypeIcon({ type }: { type: LibraryEntryType }) {
   )
 }
 
-function LibraryFilePreview({ file, onBack }: { file: LibraryEntry; onBack: () => void }) {
+function LibraryFilePreview({
+  file,
+  onBack,
+  pathItems,
+  onJumpToFolder,
+}: {
+  file: LibraryEntry
+  onBack: () => void
+  pathItems: LibraryPathItem[]
+  onJumpToFolder: (folderId: string | null) => void
+}) {
   return (
     <div className="library-file-preview-page" data-page-swipe-ignore="true">
       <div className="library-file-preview-topbar">
@@ -174,6 +194,24 @@ function LibraryFilePreview({ file, onBack }: { file: LibraryEntry; onBack: () =
             <div className="library-file-preview-paper-title-wrap">
               <div className="library-file-preview-paper-title">{file.name}</div>
               <div className="library-file-preview-paper-meta">{file.owner} · {file.updatedAt} · {file.size ?? '文件'}</div>
+              <div className="library-file-preview-path" data-page-swipe-ignore="true">
+                {pathItems.map((item, index) => (
+                  <div className="library-file-preview-path-segment" key={item.key}>
+                    {item.clickable ? (
+                      <button
+                        className="library-file-preview-path-btn"
+                        type="button"
+                        onClick={() => onJumpToFolder(item.folderId)}
+                      >
+                        {item.label}
+                      </button>
+                    ) : (
+                      <span className={`library-file-preview-path-text ${item.current ? 'is-current' : ''}`}>{item.label}</span>
+                    )}
+                    {index < pathItems.length - 1 ? <span className="library-file-preview-path-separator">/</span> : null}
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
 
@@ -208,12 +246,21 @@ export default function LibraryPage() {
   const [selectedFilter, setSelectedFilter] = useState<SidebarFilter>('all')
   const [selectedOrgSpace, setSelectedOrgSpace] = useState('果仁集团')
   const [keyword, setKeyword] = useState('')
+  const [showSearch, setShowSearch] = useState(false)
   const [showFilterSheet, setShowFilterSheet] = useState(false)
   const [showOrgSpaceSheet, setShowOrgSpaceSheet] = useState(false)
   const [previewFile, setPreviewFile] = useState<LibraryEntry | null>(null)
   const [actionTarget, setActionTarget] = useState<LibraryEntry | null>(null)
   const currentFolderId = folderPath[folderPath.length - 1] ?? null
 
+  const rootPathLabel = scope === 'personal' ? '个人资料库' : selectedOrgSpace
+  const folderPathEntries = useMemo(
+    () =>
+      folderPath
+        .map((id) => libraryEntries.find((item) => item.id === id && item.type === 'folder') ?? null)
+        .filter((item): item is LibraryEntry => item !== null),
+    [folderPath]
+  )
   const currentFolder = useMemo(
     () => libraryEntries.find((item) => item.id === currentFolderId) ?? null,
     [currentFolderId]
@@ -237,7 +284,51 @@ export default function LibraryPage() {
   )
 
   const currentTitle = currentFolder ? currentFolder.name : scope === 'personal' ? '个人资料库' : '组织资料库'
-  const isQuickFilter = quickFilters.some((item) => item.key === selectedFilter)
+  const pathItems = useMemo<LibraryPathItem[]>(
+    () => [
+      {
+        key: 'root',
+        folderId: null,
+        label: rootPathLabel,
+        current: folderPathEntries.length === 0,
+        clickable: folderPathEntries.length > 0,
+      },
+      ...folderPathEntries.map((entry, index) => ({
+        key: entry.id,
+        folderId: entry.id,
+        label: entry.name,
+        current: index === folderPathEntries.length - 1,
+        clickable: index !== folderPathEntries.length - 1,
+      })),
+    ],
+    [folderPathEntries, rootPathLabel]
+  )
+  const previewPathItems = useMemo<LibraryPathItem[]>(
+    () =>
+      previewFile
+        ? [
+            ...pathItems.map((item) => ({ ...item, clickable: true })),
+            {
+              key: previewFile.id,
+              folderId: null,
+              label: previewFile.name,
+              current: true,
+              clickable: false,
+            },
+          ]
+        : pathItems,
+    [pathItems, previewFile]
+  )
+  const showHeaderPath = pathItems.length > 1
+  const handleJumpToFolder = (folderId: string | null) => {
+    setPreviewFile(null)
+    if (folderId === null) {
+      setFolderPath([])
+      return
+    }
+
+    setFolderPath(buildFolderPath(folderId))
+  }
   const handleInternalBack = () => {
     if (previewFile) {
       setPreviewFile(null)
@@ -246,9 +337,25 @@ export default function LibraryPage() {
 
     setFolderPath((current) => current.slice(0, -1))
   }
+  const handleToggleSearch = () => {
+    if (showSearch) {
+      setShowSearch(false)
+      setKeyword('')
+      return
+    }
+
+    setShowSearch(true)
+  }
 
   if (previewFile) {
-    return <LibraryFilePreview file={previewFile} onBack={handleInternalBack} />
+    return (
+      <LibraryFilePreview
+        file={previewFile}
+        onBack={handleInternalBack}
+        pathItems={previewPathItems}
+        onJumpToFolder={handleJumpToFolder}
+      />
+    )
   }
 
   const handleScopeChange = (nextScope: LibraryScope) => {
@@ -256,6 +363,7 @@ export default function LibraryPage() {
     setFolderPath([])
     setSelectedFilter('all')
     setKeyword('')
+    setShowSearch(false)
     setShowFilterSheet(false)
     setShowOrgSpaceSheet(false)
     setPreviewFile(null)
@@ -294,12 +402,50 @@ export default function LibraryPage() {
             <div className="library-icon-placeholder" />
           )}
           <div className="library-title-wrap">
-            <div className="library-title">{currentTitle}</div>
+            <div className={`library-title ${showHeaderPath ? 'is-path' : ''}`}>
+              {showHeaderPath ? (
+                <div className="library-title-path" data-page-swipe-ignore="true">
+                  {pathItems.map((item, index) => (
+                    <div className="library-title-path-segment" key={item.key}>
+                      {item.clickable ? (
+                        <button
+                          className="library-title-path-btn"
+                          type="button"
+                          onClick={() => handleJumpToFolder(item.folderId)}
+                        >
+                          {item.label}
+                        </button>
+                      ) : (
+                        <span className={`library-title-path-text ${item.current ? 'is-current' : ''}`}>{item.label}</span>
+                      )}
+                      {index < pathItems.length - 1 ? <span className="library-title-path-separator">/</span> : null}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                currentTitle
+              )}
+            </div>
             <div className="library-subtitle">{visibleItems.length} 项内容</div>
           </div>
-          <button className="library-icon-btn" type="button" onClick={() => setShowFilterSheet(true)}>
-            <FilterIcon />
-          </button>
+          <div className="library-nav-actions">
+            <button
+              className={`library-icon-btn ${showSearch ? 'is-active' : ''}`}
+              type="button"
+              onClick={handleToggleSearch}
+              aria-label="搜索"
+            >
+              <SearchIcon />
+            </button>
+            <button
+              className="library-icon-btn"
+              type="button"
+              onClick={() => setShowFilterSheet(true)}
+              aria-label="收藏与标签"
+            >
+              <FilterIcon />
+            </button>
+          </div>
         </div>
 
         <div className={`library-scope-switch ${scope === 'personal' ? 'is-personal' : 'is-org'}`}>
@@ -326,41 +472,15 @@ export default function LibraryPage() {
           </button>
         )}
 
-        <div className="library-search">
-          <SearchIcon />
-          <input
-            value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
-            placeholder="搜索资料名称"
-          />
-        </div>
-
-        <div className="library-filter-row">
-          {quickFilters.map((item) => (
-            <button
-              key={item.key}
-              className={`library-filter-chip ${selectedFilter === item.key ? 'is-active' : ''}`}
-              type="button"
-              onClick={() => handleFilterChange(item.key)}
-            >
-              {item.label}
-            </button>
-          ))}
-          <button
-            className={`library-filter-chip library-filter-more ${!isQuickFilter ? 'is-active' : ''}`}
-            type="button"
-            onClick={() => setShowFilterSheet(true)}
-          >
-            收藏/标签
-          </button>
-        </div>
-
-        {!isQuickFilter && (
-          <div className="library-active-filter">
-            <span className="library-active-filter-pill">{filterLabelMap[selectedFilter]}</span>
-            <button className="library-active-filter-clear" type="button" onClick={() => handleFilterChange('all')}>
-              清除
-            </button>
+        {showSearch && (
+          <div className="library-search-inline" data-page-swipe-ignore="true">
+            <SearchIcon />
+            <input
+              value={keyword}
+              onChange={(e) => setKeyword(e.target.value)}
+              placeholder="搜索资料名称"
+              autoFocus
+            />
           </div>
         )}
       </div>
