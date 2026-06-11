@@ -1910,8 +1910,15 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
   }
 
   const startCurrentConversationWithCustomAgent = () => {
+    if (!currentConversationCustomAgentId) {
+      return
+    }
+
     setShowCurrentConversationCustomAgentDetailSheet(false)
-    startNewChat({ keepAgent: true })
+    // 从当前会话里继续发起新对话时，要切到该智能体的专属会话页，避免落回普通主会话。
+    void openCustomAgentConversation({
+      agentId: currentConversationCustomAgentId,
+    })
   }
 
   const openAgentUsageLogChat = (agent: AgentUsageLog) => {
