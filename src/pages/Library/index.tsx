@@ -27,6 +27,10 @@ const libraryEntries: LibraryEntry[] = [
   { id: 'p-file-1', name: 'AI 自动化案例清单.pdf', type: 'pdf', scope: 'personal', parentId: null, updatedAt: '05-31 19:24', owner: '我', size: '2.3 MB', starred: true, shared: true, tags: ['AI'] },
   { id: 'p-file-2', name: '课堂评价指标库.xlsx', type: 'sheet', scope: 'personal', parentId: null, updatedAt: '05-30 15:10', owner: '我', size: '348 KB', starred: false, shared: false, tags: ['课程', '教研'] },
   { id: 'p-file-3', name: '果仁产品介绍.pptx', type: 'ppt', scope: 'personal', parentId: null, updatedAt: '05-28 09:05', owner: '我', size: '5.1 MB', starred: false, shared: true, tags: ['AI'] },
+  { id: 'p-folder-2-folder-1', name: '课程智能体实验', type: 'folder', scope: 'personal', parentId: 'p-folder-2', updatedAt: '昨天 16:08', owner: '我', starred: true, shared: false, tags: ['AI', '课程'] },
+  { id: 'p-folder-2-folder-1-folder-1', name: '多模态课堂观察', type: 'folder', scope: 'personal', parentId: 'p-folder-2-folder-1', updatedAt: '昨天 15:42', owner: '我', starred: false, shared: false, tags: ['AI', '课程'] },
+  { id: 'p-folder-2-folder-1-folder-1-folder-1', name: '2026 春季试点', type: 'folder', scope: 'personal', parentId: 'p-folder-2-folder-1-folder-1', updatedAt: '昨天 15:18', owner: '我', starred: false, shared: false, tags: ['AI'] },
+  { id: 'p-folder-2-folder-1-folder-1-folder-1-file-1', name: '课堂助教提示词手册.pdf', type: 'pdf', scope: 'personal', parentId: 'p-folder-2-folder-1-folder-1-folder-1', updatedAt: '昨天 15:05', owner: '我', size: '1.8 MB', starred: true, shared: false, tags: ['AI', '课程'] },
   { id: 'p-folder-1-file-1', name: '智慧教室建设方案.docx', type: 'doc', scope: 'personal', parentId: 'p-folder-1', updatedAt: '今天 10:02', owner: '我', size: '1.1 MB', starred: true, shared: false, tags: ['课程'] },
   { id: 'p-folder-1-file-2', name: '职业教育改革图谱.png', type: 'image', scope: 'personal', parentId: 'p-folder-1', updatedAt: '今天 09:46', owner: '我', size: '860 KB', starred: false, shared: false, tags: ['教研'] },
   { id: 'p-folder-2-file-1', name: '课程智能体能力框架.pdf', type: 'pdf', scope: 'personal', parentId: 'p-folder-2', updatedAt: '昨天 16:21', owner: '我', size: '3.6 MB', starred: true, shared: true, tags: ['AI', '课程'] },
@@ -154,9 +158,9 @@ function FileTypeIcon({ type }: { type: LibraryEntryType }) {
 
 function LibraryFilePreview({ file, onBack }: { file: LibraryEntry; onBack: () => void }) {
   return (
-    <div className="library-file-preview-page">
+    <div className="library-file-preview-page" data-page-swipe-ignore="true">
       <div className="library-file-preview-topbar">
-        <button className="library-icon-btn" type="button" onClick={onBack}>
+        <button className="library-icon-btn" data-app-back-button="true" type="button" onClick={onBack}>
           <BackIcon />
         </button>
         <div className="library-file-preview-topbar-title">{file.name}</div>
@@ -200,7 +204,7 @@ function LibraryFilePreview({ file, onBack }: { file: LibraryEntry; onBack: () =
 
 export default function LibraryPage() {
   const [scope, setScope] = useState<LibraryScope>('personal')
-  const [currentFolderId, setCurrentFolderId] = useState<string | null>(null)
+  const [folderPath, setFolderPath] = useState<string[]>([])
   const [selectedFilter, setSelectedFilter] = useState<SidebarFilter>('all')
   const [selectedOrgSpace, setSelectedOrgSpace] = useState('果仁集团')
   const [keyword, setKeyword] = useState('')
@@ -208,6 +212,7 @@ export default function LibraryPage() {
   const [showOrgSpaceSheet, setShowOrgSpaceSheet] = useState(false)
   const [previewFile, setPreviewFile] = useState<LibraryEntry | null>(null)
   const [actionTarget, setActionTarget] = useState<LibraryEntry | null>(null)
+  const currentFolderId = folderPath[folderPath.length - 1] ?? null
 
   const currentFolder = useMemo(
     () => libraryEntries.find((item) => item.id === currentFolderId) ?? null,
@@ -233,14 +238,22 @@ export default function LibraryPage() {
 
   const currentTitle = currentFolder ? currentFolder.name : scope === 'personal' ? '个人资料库' : '组织资料库'
   const isQuickFilter = quickFilters.some((item) => item.key === selectedFilter)
+  const handleInternalBack = () => {
+    if (previewFile) {
+      setPreviewFile(null)
+      return
+    }
+
+    setFolderPath((current) => current.slice(0, -1))
+  }
 
   if (previewFile) {
-    return <LibraryFilePreview file={previewFile} onBack={() => setPreviewFile(null)} />
+    return <LibraryFilePreview file={previewFile} onBack={handleInternalBack} />
   }
 
   const handleScopeChange = (nextScope: LibraryScope) => {
     setScope(nextScope)
-    setCurrentFolderId(null)
+    setFolderPath([])
     setSelectedFilter('all')
     setKeyword('')
     setShowFilterSheet(false)
@@ -250,7 +263,7 @@ export default function LibraryPage() {
 
   const handleItemClick = (item: LibraryEntry) => {
     if (item.type === 'folder') {
-      setCurrentFolderId(item.id)
+      setFolderPath((current) => [...current, item.id])
       return
     }
 
@@ -265,16 +278,15 @@ export default function LibraryPage() {
   }
 
   return (
-    <div className="library-page">
+    <div className="library-page" data-page-swipe-ignore={currentFolder ? 'true' : undefined}>
       <div className="library-header">
         <div className="library-nav">
           {currentFolder ? (
             <button
               className="library-icon-btn"
+              data-app-back-button="true"
               type="button"
-              onClick={() => {
-                setCurrentFolderId(null)
-              }}
+              onClick={handleInternalBack}
             >
               <BackIcon />
             </button>
@@ -450,7 +462,7 @@ export default function LibraryPage() {
                   type="button"
                   onClick={() => {
                     setSelectedOrgSpace(space)
-                    setCurrentFolderId(null)
+                    setFolderPath([])
                     setPreviewFile(null)
                     setShowOrgSpaceSheet(false)
                   }}

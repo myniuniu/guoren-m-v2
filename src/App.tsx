@@ -249,6 +249,7 @@ type EdgeSwipeSession = {
   startY: number
   mode: 'pending' | 'horizontal' | 'vertical'
   targetKey: string | null
+  intent: 'tab' | 'history' | 'overlay' | 'internal'
 }
 
 function hasHorizontalScrollableAncestor(target: EventTarget | null, boundary: HTMLElement | null) {
@@ -269,6 +270,12 @@ function hasHorizontalScrollableAncestor(target: EventTarget | null, boundary: H
   return false
 }
 
+function getInternalBackButton(boundary: HTMLElement | null) {
+  if (!boundary) return null
+
+  return boundary.querySelector<HTMLButtonElement>('[data-app-back-button="true"]')
+}
+
 function App() {
   const [activeKey, setActiveKey] = useState('message')
   const [showAI, setShowAI] = useState(false)
@@ -286,6 +293,7 @@ function App() {
   const aiLongPressTriggeredRef = useRef(false)
   const pageTransitionTimerRef = useRef<number | null>(null)
   const pageTransitionFrameRef = useRef<number | null>(null)
+  const interactiveMotionFallbackTimerRef = useRef<number | null>(null)
   const navigationHistoryRef = useRef<string[]>(['message'])
   const suppressHistoryRef = useRef(false)
   const pageMotionRef = useRef<PageMotionState | null>(null)
@@ -308,6 +316,13 @@ function App() {
     if (pageTransitionFrameRef.current !== null) {
       window.cancelAnimationFrame(pageTransitionFrameRef.current)
       pageTransitionFrameRef.current = null
+    }
+  }
+
+  const clearInteractiveMotionFallback = () => {
+    if (interactiveMotionFallbackTimerRef.current !== null) {
+      window.clearTimeout(interactiveMotionFallbackTimerRef.current)
+      interactiveMotionFallbackTimerRef.current = null
     }
   }
 
@@ -562,13 +577,27 @@ function App() {
   }
 
   const handleEdgeTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
-    if (pageMotion) return
+    if (pageMotion) {
+      if (!pageMotion.animate) {
+        clearInteractiveMotionFallback()
+        updatePageMotionState(null)
+      } else {
+        return
+      }
+    }
     if (event.touches.length !== 1) return
 
+    const internalBackButton = getInternalBackButton(appContentRef.current)
     const canPreviewBack = !showAI && !showMoreDrawer && !showMoreEdit && !showSettings
-    const targetKey = canPreviewBack
-      ? (peekPreviousActiveKey() ?? (activeKey !== 'home' ? 'home' : null))
-      : null
+    const previousSwipeableTabKey = resolvePreviousSwipeableTabKey(activeKey)
+    const targetKey = internalBackButton
+      ? null
+      : canPreviewBack
+        ? (previousSwipeableTabKey ?? (swipeableTabKeys.includes(activeKey) ? null : (peekPreviousActiveKey() ?? (activeKey !== 'home' ? 'home' : null))))
+        : null
+    const intent: EdgeSwipeSession['intent'] = canPreviewBack
+      ? (internalBackButton ? 'internal' : previousSwipeableTabKey ? 'tab' : 'history')
+      : 'overlay'
 
     const touch = event.touches[0]
     edgeSwipeRef.current = {
@@ -576,6 +605,7 @@ function App() {
       startY: touch.clientY,
       mode: 'pending',
       targetKey,
+      intent,
     }
   }
 
@@ -611,6 +641,7 @@ function App() {
     const toX = fromX - width
 
     event.preventDefault()
+    scheduleInteractiveMotionFallback()
 
     updatePageMotionState((current) => {
       if (
@@ -648,12 +679,27 @@ function App() {
 
   const handleEdgeTouchEnd = (event: React.TouchEvent<HTMLDivElement>) => {
     const swipe = edgeSwipeRef.current
-    if (!swipe) return
+    if (!swipe) {
+      if (pageSwipeRef.current?.mode === 'horizontal' && pageSwipeRef.current.direction === 'left') {
+        finishContentSwipe()
+      }
+      return
+    }
+    clearInteractiveMotionFallback()
 
     const touch = event.changedTouches[0]
     const deltaX = touch.clientX - swipe.startX
     const deltaY = touch.clientY - swipe.startY
     edgeSwipeRef.current = null
+
+    if (swipe.intent === 'internal') {
+      if (deltaX < EDGE_BACK_COMMIT_PX) return
+      if (Math.abs(deltaY) > SWIPE_MAX_VERTICAL_PX) return
+      if (Math.abs(deltaX) < Math.abs(deltaY) * SWIPE_DIRECTION_RATIO) return
+
+      getInternalBackButton(appContentRef.current)?.click()
+      return
+    }
 
     if (swipe.mode === 'horizontal' && swipe.targetKey) {
       const currentMotion = pageMotionRef.current
@@ -665,11 +711,16 @@ function App() {
         currentMotion.toKey === swipe.targetKey
       ) {
         if (Math.abs(currentMotion.fromX) >= EDGE_BACK_COMMIT_PX) {
-          const consumedKey = consumePreviousActiveKey()
-          if (!consumedKey && swipe.targetKey === 'home') {
-            navigationHistoryRef.current = ['home']
+          if (swipe.intent === 'history') {
+            const consumedKey = consumePreviousActiveKey()
+            if (!consumedKey && swipe.targetKey === 'home') {
+              navigationHistoryRef.current = ['home']
+            }
           }
-          settleInteractivePageMotion(true, { suppressHistory: true })
+          settleInteractivePageMotion(
+            true,
+            swipe.intent === 'history' ? { suppressHistory: true } : undefined
+          )
         } else {
           settleInteractivePageMotion(false)
         }
@@ -685,7 +736,17 @@ function App() {
   }
 
   const handleContentTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
-    if (pageMotion || showAI || showMoreDrawer || showMoreEdit || showSettings) {
+    if (pageMotion) {
+      if (!pageMotion.animate) {
+        clearInteractiveMotionFallback()
+        updatePageMotionState(null)
+      } else {
+        pageSwipeRef.current = null
+        return
+      }
+    }
+
+    if (showAI || showMoreDrawer || showMoreEdit || showSettings) {
       pageSwipeRef.current = null
       return
     }
@@ -711,6 +772,7 @@ function App() {
     const currentMotion = pageMotionRef.current
     if (!currentMotion || currentMotion.animate) return
 
+    clearInteractiveMotionFallback()
     clearPageTransitionMotion()
 
     if (shouldCommit) {
@@ -734,8 +796,19 @@ function App() {
     schedulePageMotionCleanup()
   }
 
+  const scheduleInteractiveMotionFallback = () => {
+    clearInteractiveMotionFallback()
+    interactiveMotionFallbackTimerRef.current = window.setTimeout(() => {
+      edgeSwipeRef.current = null
+      pageSwipeRef.current = null
+      settleInteractivePageMotion(false)
+      interactiveMotionFallbackTimerRef.current = null
+    }, 220)
+  }
+
   const clearSwipeGestures = (cancelInteractiveMotion = false) => {
     edgeSwipeRef.current = null
+    clearInteractiveMotionFallback()
 
     if (cancelInteractiveMotion) {
       settleInteractivePageMotion(false)
@@ -779,6 +852,7 @@ function App() {
   useEffect(() => () => {
     clearAILongPressTimer()
     clearPageTransitionMotion()
+    clearInteractiveMotionFallback()
   }, [])
 
   useEffect(() => {
@@ -808,6 +882,12 @@ function App() {
     }
 
     return null
+  }
+
+  const resolvePreviousSwipeableTabKey = (key: string) => {
+    const currentIndex = swipeableTabKeys.indexOf(key)
+    if (currentIndex <= 0) return null
+    return swipeableTabKeys[currentIndex - 1] ?? null
   }
 
   const handleContentTouchMove = (event: React.TouchEvent<HTMLDivElement>) => {
@@ -861,6 +941,7 @@ function App() {
     const toX = direction === 'left' ? width + fromX : fromX - width
 
     event.preventDefault()
+    scheduleInteractiveMotionFallback()
 
     updatePageMotionState((current) => {
       if (
@@ -896,17 +977,23 @@ function App() {
     })
   }
 
-  const handleContentTouchEndWithCommit = () => {
+  const finishContentSwipe = () => {
     const swipe = pageSwipeRef.current
     pageSwipeRef.current = null
+    clearInteractiveMotionFallback()
 
-    if (!swipe || swipe.mode !== 'horizontal') return
+    if (!swipe || swipe.mode !== 'horizontal') return false
 
     const currentMotion = pageMotionRef.current
-    if (!currentMotion || currentMotion.animate) return
+    if (!currentMotion || currentMotion.animate) return false
 
     const shouldCommit = Math.abs(currentMotion.fromX) >= PAGE_SWIPE_COMMIT_PX
     settleInteractivePageMotion(shouldCommit)
+    return true
+  }
+
+  const handleContentTouchEndWithCommit = () => {
+    finishContentSwipe()
   }
 
   const sliderMotionIndex = (() => {
