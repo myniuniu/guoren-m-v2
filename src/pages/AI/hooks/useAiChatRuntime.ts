@@ -12,6 +12,7 @@ import {
   streamChatMessage,
 } from '../../../services/chat/api'
 import { createChatStreamBridge, type ChatStreamBridge } from '../../../services/chat/bridge'
+import { resolveChatEntrySubmitOptions } from '../../../services/chat/entryState'
 import {
   appendErrorToAssistantMessage,
   completeAssistantMessage,
@@ -708,9 +709,12 @@ export function useAiChatRuntime() {
     setDraftAttachments(state.attachments ?? [])
 
     if (state.autoSend) {
-      void submitPrompt(state.initialPrompt, state.toolType ?? null, state.attachments ?? [], {
-        forceNewSession: state.forceNewSession,
-      })
+      void submitPrompt(
+        state.initialPrompt,
+        state.toolType ?? null,
+        state.attachments ?? [],
+        resolveChatEntrySubmitOptions(state),
+      )
     } else {
       setInputValue((current) => current || state.initialPrompt)
     }

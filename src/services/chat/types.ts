@@ -153,6 +153,7 @@ export interface ChatEntryState {
   initialPrompt: string
   autoSend?: boolean
   forceNewSession?: boolean
+  enableWebSearch?: boolean
   toolType?: string | null
   attachments?: ChatAttachment[]
 }

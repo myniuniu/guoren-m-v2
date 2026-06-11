@@ -17,6 +17,7 @@ import {
 import { useMobileViewport } from './hooks/useMobileViewport'
 import AITabMicBadge from './components/AITabMicBadge'
 import VoiceCaptureOverlay from './components/VoiceCaptureOverlay'
+import { createVoiceChatEntryState } from './services/chat/entryState'
 import { shouldEmitVoiceReleaseSignal, type AiVoiceReleaseSource } from './utils/aiVoiceLongPress'
 import './App.css'
 
@@ -253,12 +254,7 @@ function AuthenticatedApp() {
     aiLongPressTriggeredRef.current = false
     setShowVoiceCaptureOverlay(false)
     navigate(APP_ROUTE_PATHS.ai, {
-      state: {
-        entryId: `voice-entry-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-        initialPrompt: transcript,
-        autoSend: true,
-        forceNewSession: true,
-      },
+      state: createVoiceChatEntryState(transcript),
     })
   }
 
