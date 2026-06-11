@@ -290,7 +290,7 @@ export default function LibraryPage() {
           </button>
         </div>
 
-        <div className="library-scope-switch">
+        <div className={`library-scope-switch ${scope === 'personal' ? 'is-personal' : 'is-org'}`}>
           <button
             className={`library-scope-btn ${scope === 'personal' ? 'is-active' : ''}`}
             type="button"

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import './index.css'
 
 const featureCards = [
@@ -6,6 +6,11 @@ const featureCards = [
   { icon: '📄', label1: '解读Harness', label2: 'Engineering', color: '#8E8E93' },
   { icon: '⭐', label1: '影视飓风同款', label2: '落地行动建…', color: '#5AC8FA' },
 ]
+
+type AIPageMode = 'default' | 'voice'
+type VoiceCaptureStage = 'listening' | 'review'
+
+const mockVoiceTranscript = '帮我整理今天关于资料库改版和 AI 语音入口的讨论重点，并列出 3 条下一步行动项。'
 
 function renderDrawerIcon(type: string) {
   switch (type) {
@@ -43,7 +48,7 @@ function renderDrawerIcon(type: string) {
   }
 }
 
-export default function AIPage({ onClose }: { onClose: () => void }) {
+export default function AIPage({ onClose, initialMode = 'default' }: { onClose: () => void; initialMode?: AIPageMode }) {
   const [inputValue, setInputValue] = useState('')
   const [showDrawer, setShowDrawer] = useState(false)
   const [showMore, setShowMore] = useState(false)
@@ -65,6 +70,10 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
   const [selectedLibraryIds, setSelectedLibraryIds] = useState<number[]>([])
   const [selectedOrgSpace, setSelectedOrgSpace] = useState('课堂评价')
   const [showOrgSpacePicker, setShowOrgSpacePicker] = useState(false)
+  const [showVoiceInput, setShowVoiceInput] = useState(initialMode === 'voice')
+  const [voiceStage, setVoiceStage] = useState<VoiceCaptureStage>(initialMode === 'voice' ? 'listening' : 'review')
+  const [voiceDuration, setVoiceDuration] = useState(0)
+  const [voiceTranscript, setVoiceTranscript] = useState('')
 
   const menuItems = [
     { key: 'new', label: '新建' },
@@ -242,6 +251,72 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
     { id: 6, title: 'AI案例仿真智能体', description: '让用户通过发起具体教育场景主题，与AI进行...', author: '朱永', chats: 37, avatar: 'AI', color: '#C68CE5' },
     { id: 7, title: '学习公社6.0答疑助手', description: '基于产品知识库，为用户解答学习公社6.0相...', author: '朱永', chats: 7, avatar: '答', color: '#F0A35E' },
   ]
+
+  const openVoiceInput = () => {
+    setShowDrawer(false)
+    setShowPlusSheet(false)
+    setShowFileMenu(false)
+    setShowLibraryPage(false)
+    setShowSidebarLibrary(false)
+    setShowDiscoverPage(false)
+    setShowSkillsPage(false)
+    setShowCreateSkillSheet(false)
+    setShowCreateSkillChat(false)
+    setShowAgentChat(false)
+    setShowMySkillsPage(false)
+    setShowOrgSpacePicker(false)
+    setSelectedAgentId(null)
+    setVoiceStage('listening')
+    setVoiceDuration(0)
+    setVoiceTranscript('')
+    setShowVoiceInput(true)
+  }
+
+  const closeVoiceInput = () => {
+    setShowVoiceInput(false)
+    setVoiceStage('listening')
+    setVoiceDuration(0)
+    setVoiceTranscript('')
+  }
+
+  const stopVoiceInput = () => {
+    setVoiceStage('review')
+    setVoiceTranscript((current) => current || mockVoiceTranscript)
+  }
+
+  const sendVoiceToChat = () => {
+    setInputValue(voiceTranscript || mockVoiceTranscript)
+    closeVoiceInput()
+  }
+
+  const moveVoiceToTextInput = () => {
+    setInputValue(voiceTranscript || mockVoiceTranscript)
+    closeVoiceInput()
+  }
+
+  useEffect(() => {
+    if (initialMode === 'voice') {
+      openVoiceInput()
+    }
+  }, [initialMode])
+
+  useEffect(() => {
+    if (!showVoiceInput || voiceStage !== 'listening') return
+
+    const durationTimer = window.setInterval(() => {
+      setVoiceDuration((current) => current + 1)
+    }, 1000)
+
+    const transcriptTimer = window.setTimeout(() => {
+      setVoiceStage('review')
+      setVoiceTranscript(mockVoiceTranscript)
+    }, 3200)
+
+    return () => {
+      window.clearInterval(durationTimer)
+      window.clearTimeout(transcriptTimer)
+    }
+  }, [showVoiceInput, voiceStage])
 
   const openSkillsPage = () => {
     setShowPlusSheet(false)
@@ -425,6 +500,9 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
     }
   }
 
+  const voiceElapsedLabel = `${Math.max(1, voiceDuration)}秒`
+  const voicePreviewText = voiceTranscript || mockVoiceTranscript
+
   return (
     <div className="ai-page">
       {/* 背景 */}
@@ -491,17 +569,82 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
           />
-          <div className="ai-input-mic">
+          <button className="ai-input-mic" type="button" onClick={openVoiceInput}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
               <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
               <line x1="12" y1="19" x2="12" y2="23" />
               <line x1="8" y1="23" x2="16" y2="23" />
             </svg>
-          </div>
+          </button>
         </div>
         <p className="ai-page-disclaimer">使用国内合规模型并严格遵循权限隔离，保障企业数据安全</p>
       </div>
+
+      {showVoiceInput && (
+        <div className={`ai-voice-overlay ${voiceStage === 'review' ? 'is-review' : 'is-listening'}`}>
+          <div className="ai-voice-feedback">
+            <div className="ai-voice-feedback-status">
+              <span className="ai-voice-feedback-state">{voiceStage === 'listening' ? '正在聆听' : '已停止'}</span>
+              <span className="ai-voice-feedback-time">{voiceElapsedLabel}</span>
+            </div>
+
+            {voiceStage === 'review' && (
+              <div className="ai-voice-feedback-card">
+                <span className="ai-voice-feedback-card-icon" aria-hidden="true">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 3v18" />
+                    <path d="M8 7v10" />
+                    <path d="M16 7v10" />
+                  </svg>
+                </span>
+                <span className="ai-voice-feedback-card-text">{voicePreviewText}</span>
+              </div>
+            )}
+          </div>
+
+          <div className="ai-voice-bottom-stage">
+            <div className="ai-voice-signal-bubble" aria-hidden="true">
+              <div className={`ai-voice-signal-wave ${voiceStage === 'listening' ? 'is-listening' : ''}`}>
+                {Array.from({ length: 9 }).map((_, index) => (
+                  <span className="ai-voice-signal-bar" key={index} style={{ animationDelay: `${index * 0.07}s` }} />
+                ))}
+              </div>
+            </div>
+
+            <div className="ai-voice-control-row">
+              <button className="ai-voice-control-btn" type="button" onClick={closeVoiceInput} aria-label="取消语音输入">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+
+              <button
+                className="ai-voice-center-action"
+                type="button"
+                onClick={voiceStage === 'listening' ? stopVoiceInput : sendVoiceToChat}
+              >
+                {voiceStage === 'listening' ? '松开发送' : '发送给 AI'}
+              </button>
+
+              <button className="ai-voice-control-btn is-text" type="button" onClick={moveVoiceToTextInput} aria-label="转为文字输入">
+                文
+              </button>
+            </div>
+
+            <div className="ai-voice-arc-surface" aria-hidden="true">
+              <div className="ai-voice-arc-icon">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M7 9a5 5 0 0 1 0 6" />
+                  <path d="M4.5 6.5a8.5 8.5 0 0 1 0 11" />
+                  <path d="M14.5 8 11 11H8.5v2H11l3.5 3z" />
+                </svg>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showDrawer && (
         <div className="ai-drawer-overlay" onClick={() => setShowDrawer(false)}>

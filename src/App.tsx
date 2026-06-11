@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Home from './pages/Home'
 import MessagePage from './pages/Message'
 import SpacePage from './pages/Space'
@@ -217,10 +217,13 @@ const editableAppTabs: TabItem[] = apps.map((app) => ({
 
 const allEditableTabs: TabItem[] = [...defaultMainTabs, ...optionalSystemTabs, ...editableAppTabs]
 const AI_VOICE_TOOLTIP_STORAGE_KEY = 'guoren-ai-voice-tooltip-seen'
+const AI_LONG_PRESS_MS = 420
+type AIEntryMode = 'default' | 'voice'
 
 function App() {
   const [activeKey, setActiveKey] = useState('message')
   const [showAI, setShowAI] = useState(false)
+  const [aiEntryMode, setAIEntryMode] = useState<AIEntryMode>('default')
   const [showMoreDrawer, setShowMoreDrawer] = useState(false)
   const [showMoreEdit, setShowMoreEdit] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
@@ -228,6 +231,23 @@ function App() {
   const [elderMode, setElderMode] = useState(false)
   const [draggedTabKey, setDraggedTabKey] = useState<string | null>(null)
   const [showAIVoiceTooltip, setShowAIVoiceTooltip] = useState(false)
+  const aiLongPressTimerRef = useRef<number | null>(null)
+  const aiLongPressTriggeredRef = useRef(false)
+
+  const clearAILongPressTimer = () => {
+    if (aiLongPressTimerRef.current !== null) {
+      window.clearTimeout(aiLongPressTimerRef.current)
+      aiLongPressTimerRef.current = null
+    }
+  }
+
+  const openAIPage = (mode: AIEntryMode = 'default') => {
+    setShowAIVoiceTooltip(false)
+    setShowMoreDrawer(false)
+    setActiveKey('ai')
+    setAIEntryMode(mode)
+    setShowAI(true)
+  }
 
   const handleSelectApp = (appKey: string) => {
     setShowMoreDrawer(false)
@@ -241,10 +261,39 @@ function App() {
       setShowMoreDrawer(true)
       return
     }
-    setActiveKey(key)
     if (key === 'ai') {
-      setShowAI(true)
+      openAIPage('default')
+      return
     }
+    setActiveKey(key)
+  }
+
+  const handleAIPointerDown = () => {
+    clearAILongPressTimer()
+    aiLongPressTriggeredRef.current = false
+    aiLongPressTimerRef.current = window.setTimeout(() => {
+      aiLongPressTimerRef.current = null
+      aiLongPressTriggeredRef.current = true
+      openAIPage('voice')
+    }, AI_LONG_PRESS_MS)
+  }
+
+  const handleAIPointerRelease = () => {
+    clearAILongPressTimer()
+  }
+
+  const handleAIPointerCancel = () => {
+    clearAILongPressTimer()
+    aiLongPressTriggeredRef.current = false
+  }
+
+  const handleAIClick = () => {
+    clearAILongPressTimer()
+    if (aiLongPressTriggeredRef.current) {
+      aiLongPressTriggeredRef.current = false
+      return
+    }
+    openAIPage('default')
   }
 
   useEffect(() => {
@@ -279,6 +328,10 @@ function App() {
     }
   }, [showAI])
 
+  useEffect(() => () => {
+    clearAILongPressTimer()
+  }, [])
+
   const activeCustomTab = useMemo(
     () => mainTabs.find((tab) => tab.key === activeKey && tab.source === 'app'),
     [activeKey, mainTabs]
@@ -289,7 +342,7 @@ function App() {
   return (
     <div className={`app-container ${elderMode ? 'elder-mode' : ''}`}>
       <div className="app-content">
-        {activeKey === 'home' && <Home onOpenAI={() => setShowAI(true)} elderMode={elderMode} onToggleElderMode={() => setElderMode(!elderMode)} />}
+        {activeKey === 'home' && <Home onOpenAI={() => openAIPage('default')} elderMode={elderMode} onToggleElderMode={() => setElderMode(!elderMode)} />}
         {activeKey === 'message' && <MessagePage />}
         {activeKey === 'task' && <TaskPage />}
         {activeKey === 'calendar' && <CalendarPage />}
@@ -358,7 +411,17 @@ function App() {
               )
             })}
           </div>
-          <div className={`ai-tab ${activeKey === 'ai' ? 'ai-tab-active' : ''}`} onClick={() => handleTabChange('ai')}>
+          <button
+            className={`ai-tab ${activeKey === 'ai' ? 'ai-tab-active' : ''}`}
+            type="button"
+            onClick={handleAIClick}
+            onPointerDown={handleAIPointerDown}
+            onPointerUp={handleAIPointerRelease}
+            onPointerLeave={handleAIPointerRelease}
+            onPointerCancel={handleAIPointerCancel}
+            onContextMenu={(e) => e.preventDefault()}
+            aria-label="AI 助手，长按进入语音输入"
+          >
             {showAIVoiceTooltip && (
               <div className="ai-tab-tooltip" aria-hidden="true">
                 长按调出语音
@@ -374,14 +437,15 @@ function App() {
               <AIIcon active={activeKey === 'ai'} />
               <span className="tab-label">AI</span>
             </div>
-          </div>
+          </button>
         </div>
       </div>
 
       {/* AI全屏页面 */}
       {showAI && (
-        <AIPage onClose={() => {
+        <AIPage initialMode={aiEntryMode} onClose={() => {
           setShowAI(false)
+          setAIEntryMode('default')
           setActiveKey('home')
         }} />
       )}

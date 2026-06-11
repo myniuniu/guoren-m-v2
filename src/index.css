@@ -11,8 +11,11 @@ html, body, #root {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background-color: #f5f6f8;
+  overflow: hidden;
+  overscroll-behavior-y: none;
 }
 
 body {
   overflow-x: hidden;
+  overflow-y: hidden;
 }
