@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { AgentCategoryKey, DiscoverAgentItem } from '../../../services/agents'
 import DisplayName from '../../../components/DisplayName'
 import { useDisplayNamePrefetch } from '../../IM/utils/displayNameHooks'
+import { AiNameAvatar, type AiNameAvatarTone } from './AiNameAvatar'
 import { AiDiscoverHeader } from './AiDiscoverHeader'
 
 type AiDiscoverPageProps = {
@@ -32,11 +33,6 @@ function createInitialCategoryPages(): Record<AgentCategoryKey, number> {
   }
 }
 
-function getAgentAvatarLetter(name: string): string {
-  const normalizedName = name.trim()
-  return normalizedName ? normalizedName[0] : '智'
-}
-
 function formatAgentMeta(agent: DiscoverAgentItem): string {
   if (agent.publishScope === 'specified') {
     return '协作'
@@ -51,24 +47,23 @@ function formatAgentMeta(agent: DiscoverAgentItem): string {
 
 function DiscoverAgentCard({
   agent,
+  tone,
   onClick,
 }: {
   agent: DiscoverAgentItem
+  tone: AiNameAvatarTone
   onClick: () => void
 }) {
   return (
     <button className="ai-discover-card" key={agent.agentId} type="button" onClick={onClick}>
-      <div
+      <AiNameAvatar
+        ariaLabel={`${agent.agentName}头像`}
+        avatarUrl={agent.avatarUrl}
         className="ai-discover-card-avatar"
-        style={agent.avatarUrl ? {
-          backgroundImage: `url(${agent.avatarUrl})`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          backgroundColor: 'transparent',
-        } : { backgroundColor: '#4A7CFF' }}
-      >
-        {!agent.avatarUrl && getAgentAvatarLetter(agent.agentName)}
-      </div>
+        imageClassName="ai-discover-card-avatar-image"
+        name={agent.agentName}
+        tone={tone}
+      />
       <div className="ai-discover-card-body">
         <div className="ai-discover-card-title">{agent.agentName}</div>
         <div className="ai-discover-card-desc">{agent.description || '暂无描述'}</div>
@@ -233,6 +228,7 @@ export function AiDiscoverPage({
                     <DiscoverAgentCard
                       key={agent.agentId}
                       agent={agent}
+                      tone={section.key === 'mine' ? 'white' : 'blue'}
                       onClick={() => { onOpenAgentChat(agent) }}
                     />
                   ))

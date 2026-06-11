@@ -77,18 +77,24 @@
   width: 76px;
   height: 76px;
   border-radius: 22px;
-  background: linear-gradient(135deg, #5b5ff8 0%, #4f46e5 100%);
-  color: #fff;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  box-shadow: 0 16px 34px rgba(79, 70, 229, 0.22);
+  overflow: hidden;
+  font-size: 30px;
+  font-weight: 700;
 }
 
 .ai-skill-detail-hero-badge span {
   font-size: 30px;
   font-weight: 700;
+}
+
+.ai-skill-detail-hero-badge-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .ai-skill-detail-hero-main {

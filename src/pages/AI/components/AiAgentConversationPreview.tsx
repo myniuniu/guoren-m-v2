@@ -144,6 +144,7 @@ export function AiAgentConversationPreview({
                 className="ai-agent-chat-preview-avatar"
                 imageClassName="ai-agent-chat-preview-avatar-image"
                 name={resolvedAgentName}
+                tone="white"
               />
               <div className="ai-agent-chat-preview-title-row">
                 <div className="ai-agent-chat-preview-name">{resolvedAgentName}</div>
@@ -305,6 +306,7 @@ export function AiAgentConversationPreview({
                     className="ai-agent-profile-sheet-avatar"
                     imageClassName="ai-agent-profile-sheet-avatar-image"
                     name={resolvedAgentName}
+                    tone="white"
                   />
                   <button
                     aria-label={avatarUploading ? '头像上传中' : '上传头像'}

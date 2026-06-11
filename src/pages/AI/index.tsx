@@ -60,12 +60,17 @@ import {
   type AiAgentConfigDraft,
   type AiAgentPublishSuccessPayload,
 } from './components/AiAgentConfigPage'
+import { AiAgentUsageList } from './components/AiAgentUsageList'
 import { AiCustomAgentConversationPage } from './components/AiCustomAgentConversationPage'
 import AiCommandsPage, { type AiCommandsPageTabKey } from './components/AiCommandsPage'
+import { AiConversationHeaderActions } from './components/AiConversationHeaderActions'
 import { AiCreateAgentModal } from './components/AiCreateAgentModal'
 import { AiDiscoverPage } from './components/AiDiscoverPage'
+import { AiDrawerSessionGroup } from './components/AiDrawerSessionGroup'
 import AiLibraryFilePreview from './components/AiLibraryFilePreview'
+import { AiManageSkillCard } from './components/AiManageSkillCard'
 import { AI_DRAWER_MENU_ITEMS, renderAiDrawerMenuIcon } from './components/AiDrawerMenuIcons'
+import { AiNameAvatar } from './components/AiNameAvatar'
 import AiSidebarLibraryPage from './components/AiSidebarLibraryPage'
 import AiSkillDetailPage from './components/AiSkillDetailPage'
 import { resolveArtifactPreviewUrl, useAiChatRuntime, type ActiveAgentContext } from './hooks/useAiChatRuntime'
@@ -148,11 +153,6 @@ function filterSkillItems(items: SkillSummaryItem[], keyword: string): SkillSumm
 
 function getSkillCardTags(skill: SkillSummaryItem): string[] {
   return skill.tags.slice(0, 3)
-}
-
-function getAgentAvatarLetter(name: string): string {
-  const normalizedName = name.trim()
-  return normalizedName ? normalizedName[0] : '智'
 }
 
 function isScrollerNearBottom(scroller: HTMLDivElement): boolean {
@@ -427,7 +427,6 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
   const navigate = useNavigate()
   const isPartnerRoute = location.pathname === APP_ROUTE_PATHS.partner
   const [showDrawer, setShowDrawer] = useState(false)
-  const [showMore, setShowMore] = useState(false)
   const [showPlusSheet, setShowPlusSheet] = useState(false)
   const [showSkillsPage, setShowSkillsPage] = useState(false)
   const [showSkillSelectorPage, setShowSkillSelectorPage] = useState(false)
@@ -552,6 +551,9 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
   const uploadAbortControllersRef = useRef<Map<string, AbortController>>(new Map())
   const customAgentConversationAbortRef = useRef<AbortController | null>(null)
   const hasConversation = messages.length > 0 || Boolean(routeSessionId)
+  const currentRouteSession = useMemo(() => (
+    routeSessionId ? sessions.find((session) => session.session_id === routeSessionId) ?? null : null
+  ), [routeSessionId, sessions])
   const groupedSessions = useMemo(() => groupChatSessionsByTime(sessions), [sessions])
   const hasGroupedSessions = groupedSessions.today.length > 0
     || groupedSessions.within7Days.length > 0
@@ -563,9 +565,7 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
     return {
       id: 'partner',
       name: agentName,
-      avatar: agentName[0] || '建',
       avatarUrl: partnerConfig?.avatarUrl?.trim() || '',
-      color: '#E8734A',
     }
   }, [partnerConfig])
   const groupedDiscoverAgents = useMemo(() => groupVisibleAgents(visibleAgents, currentUserId), [currentUserId, visibleAgents])
@@ -575,7 +575,20 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
   const canEditCustomAgentConversation = useMemo(() => (
     Boolean(customAgentConversationDetail && customAgentConversationDetail.creator_user_id === currentUserId)
   ), [currentUserId, customAgentConversationDetail])
-  const visibleAgentUsageLogs = showMore ? agentUsageLogs : agentUsageLogs.slice(0, 6)
+  const isAiMainPageVisible = !showDrawer
+    && !showSidebarLibrary
+    && !showDiscoverPage
+    && !showCustomAgentConversationPage
+    && !showSkillsPage
+    && !showMySkillsPage
+    && !showSkillSelectorPage
+    && !showLibraryPage
+    && !showAgentConfigPage
+    && !showCreateAgentModal
+    && !showCommandsPage
+    && !showPartnerSettings
+    && !selectedArtifact
+  const canDeleteCurrentSession = Boolean(currentRouteSession) && !isPartnerRoute && isAiMainPageVisible
   const plusCardItems = [
     { key: 'file', label: '图片 / 文件' },
     { key: 'doc', label: '资料库' },
@@ -1822,49 +1835,6 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
     }
   }
 
-  const renderDrawerSessionGroup = (title: '今天' | '7天内' | '7天外', items: ChatSession[]) => {
-    if (items.length === 0) {
-      return null
-    }
-
-    return (
-      <div className="ai-drawer-chat-group" key={title}>
-        <div className="ai-drawer-chat-group-title">{title}</div>
-        {items.map((session) => (
-          <div
-            className={`ai-drawer-chat-row ${removingSessionIds.has(session.session_id) ? 'is-removing' : ''}`}
-            key={session.session_id}
-          >
-            <button
-              className={`ai-drawer-chat-item ${routeSessionId === session.session_id ? 'is-active' : ''}`}
-              disabled={removingSessionIds.has(session.session_id)}
-              type="button"
-              onClick={() => {
-                openSession(session.session_id)
-                closeNavigationOverlays()
-              }}
-            >
-              <div className="ai-drawer-chat-icon">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                </svg>
-              </div>
-              <span className="ai-drawer-chat-title">{session.session_name?.trim() || '话题'}</span>
-            </button>
-            <button
-              className="ai-drawer-chat-delete"
-              disabled={removingSessionIds.has(session.session_id)}
-              type="button"
-              onClick={() => { openDeleteSessionDialog(session) }}
-            >
-              {removingSessionIds.has(session.session_id) ? '删除中' : '删除'}
-            </button>
-          </div>
-        ))}
-      </div>
-    )
-  }
-
   const addSelectedLibraryItemsToDraft = () => {
     const nextAttachments: ChatAttachment[] = visibleLibraryItems
       .filter((item) => selectedLibraryIds.includes(item.nodeId))
@@ -1948,25 +1918,19 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
           </svg>
         </div>
         {isPartnerRoute ? <div className="ai-page-header-title">{builtInAgent.name}</div> : <div className="ai-page-header-spacer" />}
-        <div className="ai-page-header-right">
-          {isPartnerRoute ? (
-            <button
-              className="ai-page-header-action"
-              type="button"
-              onClick={openPartnerSettings}
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round">
-                <circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /><circle cx="5" cy="12" r="1" />
-              </svg>
-            </button>
-          ) : null}
-          <div className="ai-page-close" onClick={onClose}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round">
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          </div>
-        </div>
+        <AiConversationHeaderActions
+          showDeleteSessionAction={canDeleteCurrentSession}
+          showPartnerSettingsAction={isPartnerRoute}
+          onClose={onClose}
+          onDeleteSession={() => {
+            if (!currentRouteSession) {
+              return
+            }
+
+            openDeleteSessionDialog(currentRouteSession)
+          }}
+          onOpenPartnerSettings={openPartnerSettings}
+        />
       </div>
 
       {!hasConversation ? (
@@ -1976,18 +1940,14 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
               <>
                 <h1>{builtInAgent.name} 已经准备好了</h1>
                 <div className="ai-page-partner-intro">
-                  <div className="ai-page-partner-avatar">
-                    {builtInAgent.avatarUrl ? (
-                      <img
-                        alt={builtInAgent.name}
-                        decoding="async"
-                        loading="lazy"
-                        src={builtInAgent.avatarUrl}
-                      />
-                    ) : (
-                      builtInAgent.avatar
-                    )}
-                  </div>
+                  <AiNameAvatar
+                    ariaLabel={`${builtInAgent.name}头像`}
+                    avatarUrl={builtInAgent.avatarUrl}
+                    className="ai-page-partner-avatar"
+                    imageClassName="ai-page-partner-avatar-image"
+                    name={builtInAgent.name}
+                    tone="white"
+                  />
                   <div className="ai-page-partner-copy">
                     <div className="ai-page-partner-title">伙伴聊天和普通会话共用同一套流式链路</div>
                     <div className="ai-page-partner-desc">右上角可以改伙伴名称和人设文档，底部可以直接上传本地文件后发起对话。</div>
@@ -2157,13 +2117,14 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
             {partnerSettingsPage === 'basic' ? (
               <div className="ai-partner-settings-body">
                 <div className="ai-partner-settings-avatar-card">
-                  <div className="ai-partner-settings-avatar-preview">
-                    {partnerDraft?.avatarUrl ? (
-                      <img alt={partnerDraft.agentName || builtInAgent.name} src={partnerDraft.avatarUrl} />
-                    ) : (
-                      <span>{(partnerDraft?.agentName || builtInAgent.name || '建')[0]}</span>
-                    )}
-                  </div>
+                  <AiNameAvatar
+                    ariaLabel={`${partnerDraft?.agentName || builtInAgent.name}头像`}
+                    avatarUrl={partnerDraft?.avatarUrl}
+                    className="ai-partner-settings-avatar-preview"
+                    imageClassName="ai-partner-settings-avatar-preview-image"
+                    name={partnerDraft?.agentName || builtInAgent.name || '建'}
+                    tone="white"
+                  />
                   <div className="ai-partner-settings-avatar-meta">
                     <div className="ai-partner-settings-avatar-title">伙伴头像</div>
                     <div className="ai-partner-settings-avatar-desc">支持直接上传图片，也可以继续手动填地址。</div>
@@ -2297,69 +2258,28 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
                   <div className="ai-drawer-section">
                     <div className="ai-drawer-section-title">智能伙伴</div>
                     <button className="ai-drawer-agent-item" type="button" onClick={openPartnerPage}>
-                      <div
+                      <AiNameAvatar
+                        ariaLabel={`${builtInAgent.name}头像`}
+                        avatarUrl={builtInAgent.avatarUrl}
                         className="ai-drawer-agent-avatar"
-                        style={builtInAgent.avatarUrl ? {
-                          backgroundImage: `url(${builtInAgent.avatarUrl})`,
-                          backgroundSize: 'cover',
-                          backgroundPosition: 'center',
-                          backgroundColor: 'transparent',
-                        } : { background: builtInAgent.color }}
-                      >
-                        {!builtInAgent.avatarUrl && builtInAgent.avatar}
-                      </div>
+                        imageClassName="ai-drawer-agent-avatar-image"
+                        name={builtInAgent.name}
+                        tone="white"
+                      />
                       <span className="ai-drawer-agent-name">{builtInAgent.name}</span>
                     </button>
                   </div>
 
                   <div className="ai-drawer-section">
                     <div className="ai-drawer-section-title">自定义智能体</div>
-                    {agentUsageLogsLoading ? (
-                      <div className="ai-drawer-chat-empty">正在刷新智能体…</div>
-                    ) : agentUsageLogsError ? (
-                      <div className="ai-drawer-chat-empty">{agentUsageLogsError}</div>
-                    ) : visibleAgentUsageLogs.length === 0 ? (
-                      <div className="ai-drawer-chat-empty">还没有智能体使用记录</div>
-                    ) : visibleAgentUsageLogs.map((agent) => (
-                      <div className={`ai-drawer-agent-row ${removingAgentIds.has(agent.agentId) ? 'is-removing' : ''}`} key={agent.agentId}>
-                        <button
-                          className="ai-drawer-agent-item"
-                          disabled={removingAgentIds.has(agent.agentId)}
-                          type="button"
-                          onClick={() => { openAgentUsageLogChat(agent) }}
-                        >
-                          <div
-                            className="ai-drawer-agent-avatar"
-                            style={agent.avatarUrl ? {
-                              backgroundImage: `url(${agent.avatarUrl})`,
-                              backgroundSize: 'cover',
-                              backgroundPosition: 'center',
-                              backgroundColor: 'transparent',
-                            } : { backgroundColor: '#4A7CFF' }}
-                          >
-                            {!agent.avatarUrl && getAgentAvatarLetter(agent.agentName)}
-                          </div>
-                          <span className="ai-drawer-agent-name">{agent.agentName}</span>
-                        </button>
-                        <button
-                          className="ai-drawer-agent-delete"
-                          disabled={removingAgentIds.has(agent.agentId)}
-                          type="button"
-                          onClick={() => { openDeleteAgentUsageDialog(agent) }}
-                        >
-                          {removingAgentIds.has(agent.agentId) ? '删除中' : '删除'}
-                        </button>
-                      </div>
-                    ))}
-
-                    {!showMore && agentUsageLogs.length > visibleAgentUsageLogs.length && (
-                      <button className="ai-drawer-more" type="button" onClick={() => setShowMore(true)}>
-                        更多
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                          <polyline points="6 9 12 15 18 9" />
-                        </svg>
-                      </button>
-                    )}
+                    <AiAgentUsageList
+                      agents={agentUsageLogs}
+                      error={agentUsageLogsError}
+                      loading={agentUsageLogsLoading}
+                      removingAgentIds={removingAgentIds}
+                      onDeleteAgent={openDeleteAgentUsageDialog}
+                      onOpenAgent={openAgentUsageLogChat}
+                    />
                   </div>
 
                   <div className="ai-drawer-section">
@@ -2370,9 +2290,36 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
                       <div className="ai-drawer-chat-empty">还没有历史会话</div>
                     ) : (
                       <>
-                        {renderDrawerSessionGroup('今天', groupedSessions.today)}
-                        {renderDrawerSessionGroup('7天内', groupedSessions.within7Days)}
-                        {renderDrawerSessionGroup('7天外', groupedSessions.beyond7Days)}
+                        <AiDrawerSessionGroup
+                          activeSessionId={routeSessionId}
+                          items={groupedSessions.today}
+                          removingSessionIds={removingSessionIds}
+                          title="今天"
+                          onOpenSession={(sessionId) => {
+                            openSession(sessionId)
+                            closeNavigationOverlays()
+                          }}
+                        />
+                        <AiDrawerSessionGroup
+                          activeSessionId={routeSessionId}
+                          items={groupedSessions.within7Days}
+                          removingSessionIds={removingSessionIds}
+                          title="7天内"
+                          onOpenSession={(sessionId) => {
+                            openSession(sessionId)
+                            closeNavigationOverlays()
+                          }}
+                        />
+                        <AiDrawerSessionGroup
+                          activeSessionId={routeSessionId}
+                          items={groupedSessions.beyond7Days}
+                          removingSessionIds={removingSessionIds}
+                          title="7天外"
+                          onOpenSession={(sessionId) => {
+                            openSession(sessionId)
+                            closeNavigationOverlays()
+                          }}
+                        />
                       </>
                     )}
                   </div>
@@ -2582,15 +2529,15 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
                   {skillsLoading ? <div className="ai-data-status">技能加载中…</div> : null}
                   {!skillsLoading && skillsError ? <div className="ai-data-status">{skillsError}</div> : null}
                   {!skillsLoading && !skillsError && featuredSkills.length === 0 ? <div className="ai-data-status">暂无精选技能</div> : null}
-                  {!skillsLoading && !skillsError && featuredSkills.map((skill, index) => (
+                  {!skillsLoading && !skillsError && featuredSkills.map((skill) => (
                     <button className="ai-skill-community-featured-item" key={skill.id} type="button" onClick={() => openOfficialSkillDetail(skill)}>
-                      <div className="ai-skill-community-all-icon" style={{ background: getFeatureCardColor(index) }}>
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M14.5 4.5a3 3 0 0 1 4.24 4.24l-1.42 1.42-4.24-4.24z" />
-                          <path d="M13.09 5.91 5.3 13.7a2 2 0 0 0 0 2.83l2.17 2.17a2 2 0 0 0 2.83 0l7.79-7.79" />
-                          <path d="m8.5 11.5 4 4" />
-                        </svg>
-                      </div>
+                      <AiNameAvatar
+                        ariaLabel={`${skill.title}头像`}
+                        className="ai-skill-community-all-icon"
+                        imageClassName="ai-skill-community-all-icon-image"
+                        name={skill.title}
+                        tone="blue"
+                      />
                       <div className="ai-skill-community-all-body">
                         <div className="ai-skill-community-all-title-row">
                           <span className="ai-skill-community-all-title">{skill.title}</span>
@@ -2621,15 +2568,15 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
                   </div>
                   <div className="ai-skill-community-all-list">
                     {!skillsLoading && !skillsError && filteredClawhubSkills.length === 0 ? <div className="ai-data-status">暂无 ClawHub 技能</div> : null}
-                    {!skillsLoading && !skillsError && visibleClawhubSkills.map((skill, index) => (
+                    {!skillsLoading && !skillsError && visibleClawhubSkills.map((skill) => (
                       <button className="ai-skill-community-all-item" key={skill.id} type="button" onClick={() => openClawhubSkillDetail(skill)}>
-                        <div className="ai-skill-community-all-icon" style={{ background: getFeatureCardColor(index) }}>
-                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M14.5 4.5a3 3 0 0 1 4.24 4.24l-1.42 1.42-4.24-4.24z" />
-                            <path d="M13.09 5.91 5.3 13.7a2 2 0 0 0 0 2.83l2.17 2.17a2 2 0 0 0 2.83 0l7.79-7.79" />
-                            <path d="m8.5 11.5 4 4" />
-                          </svg>
-                        </div>
+                        <AiNameAvatar
+                          ariaLabel={`${skill.title}头像`}
+                          className="ai-skill-community-all-icon"
+                          imageClassName="ai-skill-community-all-icon-image"
+                          name={skill.title}
+                          tone="blue"
+                        />
                         <div className="ai-skill-community-all-body">
                           <div className="ai-skill-community-all-title-row">
                             <span className="ai-skill-community-all-title">{skill.title}</span>
@@ -2913,7 +2860,7 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
             {userSkillsLoading ? <div className="ai-data-status">技能加载中…</div> : null}
             {!userSkillsLoading && userSkillsError ? <div className="ai-data-status">{userSkillsError}</div> : null}
             {!userSkillsLoading && !userSkillsError && visibleSelectableSkills.length === 0 ? <div className="ai-data-status">暂无可用技能</div> : null}
-            {!userSkillsLoading && !userSkillsError && visibleSelectableSkills.map((skill, index) => {
+            {!userSkillsLoading && !userSkillsError && visibleSelectableSkills.map((skill) => {
               const resolvedSkillName = skill.skillName || skill.id
               const tags = getSkillCardTags(skill)
               const isActive = selectedSkillName === resolvedSkillName
@@ -2925,13 +2872,13 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
                   type="button"
                   onClick={() => applySkillItem(skill)}
                 >
-                  <div className="ai-chat-skill-picker-item-icon" style={{ background: getFeatureCardColor(index) }}>
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M14.5 4.5a3 3 0 0 1 4.24 4.24l-1.42 1.42-4.24-4.24z" />
-                      <path d="M13.09 5.91 5.3 13.7a2 2 0 0 0 0 2.83l2.17 2.17a2 2 0 0 0 2.83 0l7.79-7.79" />
-                      <path d="m8.5 11.5 4 4" />
-                    </svg>
-                  </div>
+                  <AiNameAvatar
+                    ariaLabel={`${skill.title}头像`}
+                    className="ai-chat-skill-picker-item-icon"
+                    imageClassName="ai-chat-skill-picker-item-icon-image"
+                    name={skill.title}
+                    tone="blue"
+                  />
 
                   <div className="ai-chat-skill-picker-item-body">
                     <div className="ai-chat-skill-picker-item-top">
@@ -2999,58 +2946,15 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
             {mySkillsLoading ? <div className="ai-data-status">我的技能加载中…</div> : null}
             {!mySkillsLoading && mySkillsError ? <div className="ai-data-status">{mySkillsError}</div> : null}
             {!mySkillsLoading && !mySkillsError && visibleManageSkills.length === 0 ? <div className="ai-data-status">暂无技能数据</div> : null}
-            {!mySkillsLoading && !mySkillsError && visibleManageSkills.map((skill, index) => (
-              <div
-                aria-label={`查看技能详情 ${skill.title}`}
-                className="ai-my-skill-card"
+            {!mySkillsLoading && !mySkillsError && visibleManageSkills.map((skill) => (
+              <AiManageSkillCard
                 key={skill.id}
-                role="button"
-                tabIndex={0}
-                onClick={() => openManageSkillDetail(skill)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' || event.key === ' ') {
-                    event.preventDefault()
-                    openManageSkillDetail(skill)
-                  }
-                }}
-              >
-                <div className="ai-my-skill-card-header">
-                  <div className="ai-my-skill-card-icon" style={{ background: getFeatureCardColor(index) }}>
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M14.5 4.5a3 3 0 0 1 4.24 4.24l-1.42 1.42-4.24-4.24z" />
-                      <path d="M13.09 5.91 5.3 13.7a2 2 0 0 0 0 2.83l2.17 2.17a2 2 0 0 0 2.83 0l7.79-7.79" />
-                      <path d="m8.5 11.5 4 4" />
-                    </svg>
-                  </div>
-                  <div className="ai-my-skill-card-title">{skill.title}</div>
-                  <button
-                    aria-label="删除技能"
-                    className="ai-my-skill-card-remove"
-                    disabled={removeSkillLoadingId === skill.id}
-                    type="button"
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      openDeleteManageSkillDialog(skill)
-                    }}
-                  >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                      <line x1="18" y1="6" x2="6" y2="18" />
-                      <line x1="6" y1="6" x2="18" y2="18" />
-                    </svg>
-                  </button>
-                </div>
-                <div className="ai-my-skill-card-desc">{skill.description || '暂无描述'}</div>
-                <button
-                  className="ai-my-skill-card-btn"
-                  type="button"
-                  onClick={(event) => {
-                    event.stopPropagation()
-                    applySkillItem(skill)
-                  }}
-                >
-                  立即使用
-                </button>
-              </div>
+                loading={removeSkillLoadingId === skill.id}
+                skill={skill}
+                onDelete={openDeleteManageSkillDialog}
+                onOpenDetail={openManageSkillDetail}
+                onUse={applySkillItem}
+              />
             ))}
           </div>
         </div>

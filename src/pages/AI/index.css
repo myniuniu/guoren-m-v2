@@ -321,7 +321,7 @@
 .ai-page-partner-avatar {
   width: 52px;
   height: 52px;
-  border-radius: 16px;
+  border-radius: 50%;
   background: #E8734A;
   color: #fff;
   font-size: 22px;
@@ -334,6 +334,12 @@
 }
 
 .ai-page-partner-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.ai-page-partner-avatar-image {
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -1395,16 +1401,23 @@
 }
 
 .ai-drawer-agent-avatar {
-  width: 22px;
-  height: 22px;
+  width: 38px;
+  height: 38px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   color: #fff;
-  font-size: 10px;
+  font-size: 16px;
   font-weight: 700;
   flex-shrink: 0;
+  overflow: hidden;
+}
+
+.ai-drawer-agent-avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .ai-drawer-agent-name {
@@ -1445,19 +1458,6 @@
 
 .ai-drawer-agent-delete:disabled {
   opacity: 0.48;
-}
-
-.ai-drawer-more {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  margin: 8px 0 0 14px;
-  padding: 0;
-  border: none;
-  background: transparent;
-  color: #9a9aa2;
-  font-size: 15px;
-  cursor: pointer;
 }
 
 /* 会话历史记录 */
@@ -1890,6 +1890,13 @@
   font-weight: 700;
   color: #fff;
   flex-shrink: 0;
+  overflow: hidden;
+}
+
+.ai-discover-card-avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .ai-discover-card-body {
@@ -4160,6 +4167,16 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1;
+  overflow: hidden;
+}
+
+.ai-skill-community-all-icon-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .ai-skill-community-all-body {
@@ -4295,6 +4312,16 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1;
+  overflow: hidden;
+}
+
+.ai-chat-skill-picker-item-icon-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .ai-chat-skill-picker-item-body {
@@ -4496,6 +4523,16 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1;
+  overflow: hidden;
+}
+
+.ai-my-skill-card-icon-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .ai-my-skill-card-title {
@@ -4843,7 +4880,7 @@
 .ai-partner-settings-avatar-preview {
   width: 52px;
   height: 52px;
-  border-radius: 18px;
+  border-radius: 50%;
   background: linear-gradient(135deg, #f6b34f, #e8734a);
   color: #fff;
   display: flex;
@@ -4855,6 +4892,12 @@
 }
 
 .ai-partner-settings-avatar-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.ai-partner-settings-avatar-preview-image {
   width: 100%;
   height: 100%;
   object-fit: cover;

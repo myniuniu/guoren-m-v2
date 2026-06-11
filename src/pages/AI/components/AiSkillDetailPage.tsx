@@ -9,6 +9,7 @@ import {
   type SkillDetailItem,
   type SkillSummaryItem,
 } from '../../../services/skills'
+import { AiNameAvatar } from './AiNameAvatar'
 import './AiSkillDetailPage.css'
 
 type AiSkillDetailPageProps = {
@@ -56,11 +57,6 @@ function buildCreatedSkillDetail(skill: SkillSummaryItem): SkillDetailItem {
     stars: 0,
     summary: skill.description || '',
   }
-}
-
-function getSkillBadgeLetter(skill: SkillSummaryItem, detail: SkillDetailItem | null): string {
-  const base = detail?.title || skill.title || skill.skillName || skill.id
-  return base.trim().charAt(0).toUpperCase() || 'S'
 }
 
 function formatLargeCount(value: number): string {
@@ -222,9 +218,13 @@ export default function AiSkillDetailPage({
         {!loading && !error ? (
           <div className="ai-skill-detail-body">
             <section className="ai-skill-detail-hero">
-              <div className="ai-skill-detail-hero-badge">
-                <span>{getSkillBadgeLetter(skill, detail)}</span>
-              </div>
+              <AiNameAvatar
+                ariaLabel={`${detail?.title || skill.title}头像`}
+                className="ai-skill-detail-hero-badge"
+                imageClassName="ai-skill-detail-hero-badge-image"
+                name={detail?.title || skill.title || skill.skillName || skill.id}
+                tone="blue"
+              />
               <div className="ai-skill-detail-hero-main">
                 <div className="ai-skill-detail-hero-title-row">
                   <h1>{detail?.title || skill.title}</h1>
