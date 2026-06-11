@@ -5,6 +5,7 @@ import { Toast } from 'antd-mobile'
 import {
   fetchClawhubSkillDetail,
   fetchOfficialSkillDetail,
+  type SkillSource,
   type SkillDetailItem,
   type SkillSummaryItem,
 } from '../../../services/skills'
@@ -18,6 +19,44 @@ type AiSkillDetailPageProps = {
 }
 
 type DetailTabKey = 'intro' | 'version'
+
+function getSkillSourceLabel(source: SkillSource): string {
+  if (source === 'clawhub') {
+    return 'ClawHub'
+  }
+
+  if (source === 'created') {
+    return '我创建的'
+  }
+
+  if (source === 'added') {
+    return '我添加的'
+  }
+
+  return '官方推荐'
+}
+
+function buildCreatedSkillDetail(skill: SkillSummaryItem): SkillDetailItem {
+  const resolvedSkillName = skill.skillName || skill.id
+
+  return {
+    skillName: resolvedSkillName,
+    title: skill.title,
+    description: skill.description || '',
+    source: 'created',
+    skillType: 'custom',
+    skillMarkdown: skill.description || '',
+    template: skill.template || '',
+    placeholders: [],
+    configFields: [],
+    tags: skill.tags,
+    owner: '',
+    version: '',
+    downloads: 0,
+    stars: 0,
+    summary: skill.description || '',
+  }
+}
 
 function getSkillBadgeLetter(skill: SkillSummaryItem, detail: SkillDetailItem | null): string {
   const base = detail?.title || skill.title || skill.skillName || skill.id
@@ -38,17 +77,28 @@ function buildMetaItems(skill: SkillSummaryItem, detail: SkillDetailItem | null)
     return []
   }
 
+  const sourceLabel = getSkillSourceLabel(skill.source)
+
   if (skill.source === 'clawhub') {
     return [
       { label: '开发者', value: detail.owner || '未知' },
-      { label: '来源', value: 'ClawHub' },
+      { label: '来源', value: sourceLabel },
       { label: '添加次数', value: formatLargeCount(detail.downloads) },
       { label: '收藏次数', value: formatLargeCount(detail.stars) },
     ]
   }
 
+  if (skill.source === 'created') {
+    return [
+      { label: '来源', value: sourceLabel },
+      { label: '技能类型', value: detail.skillType || 'custom' },
+      { label: '配置项', value: String(detail.configFields.length) },
+      { label: '标签数', value: String(detail.tags.length) },
+    ]
+  }
+
   return [
-    { label: '来源', value: '官方推荐' },
+    { label: '来源', value: sourceLabel },
     { label: '技能类型', value: detail.skillType || 'official' },
     { label: '配置项', value: String(detail.configFields.length) },
     { label: '模板变量', value: String(detail.placeholders.length) },
@@ -102,6 +152,13 @@ export default function AiSkillDetailPage({
   const [error, setError] = useState('')
 
   useEffect(() => {
+    if (skill.source === 'created') {
+      setLoading(false)
+      setError('')
+      setDetail(buildCreatedSkillDetail(skill))
+      return
+    }
+
     const controller = new AbortController()
 
     void (async () => {
@@ -136,7 +193,7 @@ export default function AiSkillDetailPage({
   const metaItems = useMemo(() => buildMetaItems(skill, detail), [detail, skill])
   const sceneCards = useMemo(() => buildSceneCards(skill, detail), [detail, skill])
   const examplePrompts = useMemo(() => buildExamplePrompts(skill, detail), [detail, skill])
-  const actionLabel = skill.isSelected ? '使用' : '添加'
+  const actionLabel = skill.isSelected || skill.source === 'added' || skill.source === 'created' ? '使用' : '添加'
 
   const handleCopyPrompt = async (content: string) => {
     try {
@@ -265,7 +322,7 @@ export default function AiSkillDetailPage({
                   </div>
                   <div className="ai-skill-detail-version-item">
                     <span className="ai-skill-detail-version-label">技能来源</span>
-                    <span className="ai-skill-detail-version-value">{skill.source === 'clawhub' ? 'ClawHub' : '官方推荐'}</span>
+                    <span className="ai-skill-detail-version-value">{getSkillSourceLabel(skill.source)}</span>
                   </div>
                 </div>
               </section>

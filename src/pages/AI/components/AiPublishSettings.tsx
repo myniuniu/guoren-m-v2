@@ -11,6 +11,7 @@ type AiPublishSettingsProps = {
   isPublishingToCommunity: boolean
   communityCategoryId: string
   applyReason: string
+  actionLabel?: string
   publishing?: boolean
   publishStatus?: 'idle' | 'success' | 'error'
   publishMessage?: string
@@ -41,6 +42,7 @@ export function AiPublishSettings({
   isPublishingToCommunity,
   communityCategoryId,
   applyReason,
+  actionLabel = '发布',
   publishing = false,
   publishStatus = 'idle',
   publishMessage = '',
@@ -60,6 +62,9 @@ export function AiPublishSettings({
   const subCategories = useMemo(() => (
     smartAgentCategory ? sortCategoryItems(smartAgentCategory.subCategories) : []
   ), [smartAgentCategory])
+  const actionLoadingLabel = `${actionLabel}中`
+  const actionSuccessLabel = `${actionLabel}成功`
+  const actionErrorLabel = `${actionLabel}失败`
 
   useEffect(() => {
     if (!isPublishingToCommunity) {
@@ -111,7 +116,7 @@ export function AiPublishSettings({
           type="button"
           onClick={onPublish}
         >
-          {publishing ? '发布中' : publishStatus === 'success' ? '发布成功' : publishStatus === 'error' ? '发布失败' : '发布'}
+          {publishing ? actionLoadingLabel : publishStatus === 'success' ? actionSuccessLabel : publishStatus === 'error' ? actionErrorLabel : actionLabel}
         </button>
       </div>
 

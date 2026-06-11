@@ -52,6 +52,7 @@ import {
   searchClawhubSkills,
   type SkillSummaryItem,
 } from '../../services/skills'
+import { viewCustomAgent, type CustomAgentDetail } from '../../services/customAgents'
 import { AiConversationThread } from './components/AiConversationThread'
 import {
   AiAgentConfigPage,
@@ -59,6 +60,7 @@ import {
   type AiAgentConfigDraft,
   type AiAgentPublishSuccessPayload,
 } from './components/AiAgentConfigPage'
+import { AiCustomAgentConversationPage } from './components/AiCustomAgentConversationPage'
 import AiCommandsPage, { type AiCommandsPageTabKey } from './components/AiCommandsPage'
 import { AiCreateAgentModal } from './components/AiCreateAgentModal'
 import { AiDiscoverPage } from './components/AiDiscoverPage'
@@ -119,7 +121,7 @@ const EMPTY_COMMANDS_DATA: CommandsData = {
 }
 
 const featureCardColors = ['#FF8C00', '#8E8E93', '#5AC8FA', '#4A7CFF', '#33C39B', '#34C759']
-const FEATURED_SKILLS_PAGE_SIZE = 5
+const SKILL_COMMUNITY_PAGE_SIZE = 10
 const SKILL_CREATOR_TOOL_TYPE = 'skill-creator'
 const SKILL_CREATOR_INITIAL_PROMPT = '/skill-creator 帮我创建一个技能：/技能描述'
 
@@ -157,11 +159,107 @@ function isScrollerNearBottom(scroller: HTMLDivElement): boolean {
   return scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight <= AUTO_SCROLL_RESUME_THRESHOLD
 }
 
-function buildAgentContext(agent: DiscoverAgentItem): ActiveAgentContext {
+function buildAgentContextFromDetail(detail: CustomAgentDetail): ActiveAgentContext {
   return {
-    agentId: agent.agentId,
-    agentName: agent.agentName,
-    description: agent.description,
+    agentId: detail.agent_id,
+    agentName: detail.agent_name,
+    description: detail.description,
+  }
+}
+
+function buildAgentUsageLogEntry(
+  agentId: string,
+  userId: string,
+  agentName: string,
+  avatarUrl: string | null,
+): AgentUsageLog {
+  return {
+    agentId,
+    userId,
+    agentName,
+    avatarUrl,
+    usedAt: new Date().toISOString(),
+  }
+}
+
+function buildCustomAgentConversationQuestions(detail: CustomAgentDetail) {
+  return detail.preset_questions.map((item, index) => ({
+    id: `custom-agent-question-${detail.agent_id}-${index}`,
+    question: item.question,
+    instruction: item.instruction?.trim() || item.question,
+  }))
+}
+
+function buildConfigDraftFromCustomAgentDetail(detail: CustomAgentDetail): AiAgentConfigDraft {
+  return createEmptyAiAgentConfigDraft({
+    agentName: detail.agent_name,
+    description: detail.description,
+    instruction: detail.agent_prompt,
+    webSearchEnabled: detail.enable_web_search === true,
+    publishScope: detail.publish_scope ?? (detail.is_public ? 'public' : 'private'),
+    selectedUsers: Array.isArray(detail.authorized_user_ids)
+      ? detail.authorized_user_ids.map((userId) => ({
+          id: userId,
+          realname: userId,
+        }))
+      : [],
+    selectedSkills: detail.enabled_skills.map((skill, index) => ({
+      id: skill.skill_name || `custom-agent-skill-${index}`,
+      skillName: skill.skill_name,
+      title: skill.chinese_name?.trim() || skill.skill_name,
+      description: skill.description?.trim() || '',
+      source: 'added',
+      tags: [],
+    })),
+    knowledgeSpaces: detail.knowledge_spaces.map((space) => ({
+      id: space.id,
+      name: space.spaceName,
+    })),
+    presetQuestions: detail.preset_questions.map((item, index) => ({
+      id: `custom-agent-preset-${detail.agent_id}-${index}`,
+      category: item.category,
+      question: item.question,
+      instruction: item.instruction?.trim() || item.question,
+    })),
+  })
+}
+
+function buildDetailFromConfigDraft(
+  detail: CustomAgentDetail | null,
+  draft: AiAgentConfigDraft,
+  payload: AiAgentPublishSuccessPayload,
+): CustomAgentDetail {
+  return {
+    agent_id: payload.agentId,
+    creator_user_id: detail?.creator_user_id ?? '',
+    agent_name: payload.agentName,
+    description: payload.description,
+    avatar_url: payload.avatarUrl,
+    agent_prompt: draft.instruction.trim(),
+    enabled_skills: draft.selectedSkills.map((skill) => ({
+      skill_name: skill.skillName,
+      chinese_name: skill.title,
+      description: skill.description,
+      source: skill.source,
+    })),
+    knowledge_spaces: draft.knowledgeSpaces.map((space) => ({
+      id: space.id,
+      spaceName: space.name,
+    })),
+    preset_questions: draft.presetQuestions.map((item) => ({
+      category: item.category,
+      question: item.question,
+      instruction: item.instruction,
+    })),
+    enable_web_search: draft.webSearchEnabled === true,
+    is_active: detail?.is_active ?? true,
+    is_public: draft.publishScope === 'public',
+    publish_scope: draft.publishScope,
+    authorized_user_ids: draft.publishScope === 'specified'
+      ? draft.selectedUsers.map((user) => user.id)
+      : [],
+    created_at: detail?.created_at ?? '',
+    updated_at: new Date().toISOString(),
   }
 }
 
@@ -337,6 +435,7 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
   const [showLibraryPage, setShowLibraryPage] = useState(false)
   const [showSidebarLibrary, setShowSidebarLibrary] = useState(false)
   const [showDiscoverPage, setShowDiscoverPage] = useState(false)
+  const [showCustomAgentConversationPage, setShowCustomAgentConversationPage] = useState(false)
   const [showAgentConfigPage, setShowAgentConfigPage] = useState(false)
   const [showCreateAgentModal, setShowCreateAgentModal] = useState(false)
   const [showCommandsPage, setShowCommandsPage] = useState(false)
@@ -354,12 +453,14 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
   const [commandsError, setCommandsError] = useState('')
   const [skillSearchValue, setSkillSearchValue] = useState('')
   const [featuredGroupIndex, setFeaturedGroupIndex] = useState(0)
+  const [clawhubGroupIndex, setClawhubGroupIndex] = useState(0)
   const [skillSelectorSearchValue, setSkillSelectorSearchValue] = useState('')
   const [debouncedSkillSearchValue, setDebouncedSkillSearchValue] = useState('')
   const [mySkillSearchValue, setMySkillSearchValue] = useState('')
   const [officialSkills, setOfficialSkills] = useState<SkillSummaryItem[]>([])
   const [communitySkills, setCommunitySkills] = useState<SkillSummaryItem[]>([])
   const [selectedSkillDetail, setSelectedSkillDetail] = useState<SkillSummaryItem | null>(null)
+  const [skillDetailReturnTarget, setSkillDetailReturnTarget] = useState<'community' | 'my-skills'>('community')
   const [skillActionLoadingId, setSkillActionLoadingId] = useState<string | null>(null)
   const [removeSkillLoadingId, setRemoveSkillLoadingId] = useState<string | null>(null)
   const [deleteTargetManageSkill, setDeleteTargetManageSkill] = useState<SkillSummaryItem | null>(null)
@@ -407,6 +508,10 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
   const [agentConfigMode, setAgentConfigMode] = useState<'create' | 'edit'>('create')
   const [agentConfigAgentId, setAgentConfigAgentId] = useState('')
   const [agentConfigAvatarUrl, setAgentConfigAvatarUrl] = useState<string | null>(null)
+  const [agentConfigReturnTarget, setAgentConfigReturnTarget] = useState<'default' | 'custom-conversation'>('default')
+  const [customAgentConversationDetail, setCustomAgentConversationDetail] = useState<CustomAgentDetail | null>(null)
+  const [customAgentConversationLoading, setCustomAgentConversationLoading] = useState(false)
+  const [customAgentConversationError, setCustomAgentConversationError] = useState('')
 
   const {
     activeAgent,
@@ -445,6 +550,7 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const partnerAvatarInputRef = useRef<HTMLInputElement | null>(null)
   const uploadAbortControllersRef = useRef<Map<string, AbortController>>(new Map())
+  const customAgentConversationAbortRef = useRef<AbortController | null>(null)
   const hasConversation = messages.length > 0 || Boolean(routeSessionId)
   const groupedSessions = useMemo(() => groupChatSessionsByTime(sessions), [sessions])
   const hasGroupedSessions = groupedSessions.today.length > 0
@@ -463,6 +569,12 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
     }
   }, [partnerConfig])
   const groupedDiscoverAgents = useMemo(() => groupVisibleAgents(visibleAgents, currentUserId), [currentUserId, visibleAgents])
+  const customAgentConversationQuestions = useMemo(() => (
+    customAgentConversationDetail ? buildCustomAgentConversationQuestions(customAgentConversationDetail) : []
+  ), [customAgentConversationDetail])
+  const canEditCustomAgentConversation = useMemo(() => (
+    Boolean(customAgentConversationDetail && customAgentConversationDetail.creator_user_id === currentUserId)
+  ), [currentUserId, customAgentConversationDetail])
   const visibleAgentUsageLogs = showMore ? agentUsageLogs : agentUsageLogs.slice(0, 6)
   const plusCardItems = [
     { key: 'file', label: '图片 / 文件' },
@@ -543,6 +655,7 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
     setShowDrawer(false)
     setShowSidebarLibrary(false)
     setShowDiscoverPage(false)
+    setShowCustomAgentConversationPage(false)
     setShowSkillsPage(false)
     setShowMySkillsPage(false)
     setShowSkillSelectorPage(false)
@@ -554,6 +667,7 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
   const openPartnerPage = () => {
     setShowDrawer(false)
     setShowDiscoverPage(false)
+    setShowCustomAgentConversationPage(false)
     setShowSkillsPage(false)
     setShowSidebarLibrary(false)
     setShowAgentConfigPage(false)
@@ -563,18 +677,26 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
     navigate(APP_ROUTE_PATHS.partner)
   }
 
+  useEffect(() => {
+    return () => {
+      customAgentConversationAbortRef.current?.abort()
+    }
+  }, [])
+
   const openAgentConfigPage = (
     initialDraft?: Partial<AiAgentConfigDraft>,
     options: {
       mode?: 'create' | 'edit'
       agentId?: string
       avatarUrl?: string | null
+      returnTarget?: 'default' | 'custom-conversation'
     } = {},
   ) => {
     setAgentConfigDraft(createEmptyAiAgentConfigDraft(initialDraft))
     setAgentConfigMode(options.mode ?? 'create')
     setAgentConfigAgentId(options.agentId ?? '')
     setAgentConfigAvatarUrl(options.avatarUrl ?? null)
+    setAgentConfigReturnTarget(options.returnTarget ?? 'default')
     setShowCreateAgentModal(false)
     setShowAgentConfigPage(true)
   }
@@ -624,13 +746,12 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
     }
 
     setAgentUsageLogs((current) => {
-      const nextEntry: AgentUsageLog = {
-        agentId: payload.agentId,
-        userId: currentUserId,
-        agentName: payload.agentName,
-        avatarUrl: payload.avatarUrl || null,
-        usedAt: new Date().toISOString(),
-      }
+      const nextEntry = buildAgentUsageLogEntry(
+        payload.agentId,
+        currentUserId,
+        payload.agentName,
+        payload.avatarUrl || null,
+      )
 
       if (createdUsageLog || !current.some((item) => item.agentId === payload.agentId)) {
         return [nextEntry, ...current.filter((item) => item.agentId !== payload.agentId)]
@@ -639,14 +760,41 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
       return current.map((item) => item.agentId === payload.agentId ? nextEntry : item)
     })
 
+    setVisibleAgents((current) => current.map((item) => (
+      item.agentId === payload.agentId
+        ? {
+            ...item,
+            agentName: payload.agentName,
+            description: payload.description,
+            avatarUrl: payload.avatarUrl || null,
+          }
+        : item
+    )))
+
     activateAgent({
       agentId: payload.agentId,
       agentName: payload.agentName,
       description: payload.description,
     })
+
+    if (payload.mode === 'edit' && agentConfigReturnTarget === 'custom-conversation') {
+      setCustomAgentConversationDetail((current) => buildDetailFromConfigDraft(current, agentConfigDraft, payload))
+      setShowAgentConfigPage(false)
+      setAgentConfigReturnTarget('default')
+      setLocalBannerMessage('智能体已保存。')
+      void refreshVisibleAgents()
+
+      if (showDrawer) {
+        void refreshAgentUsageLogs()
+      }
+
+      return
+    }
+
     startNewChat({ keepAgent: true })
     setShowCreateAgentModal(false)
     setShowAgentConfigPage(false)
+    setAgentConfigReturnTarget('default')
     setLocalBannerMessage(payload.mode === 'edit' ? '智能体已更新。' : '智能体已发布，可继续对话。')
 
     void refreshVisibleAgents()
@@ -654,7 +802,16 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
     if (showDrawer) {
       void refreshAgentUsageLogs()
     }
-  }, [activateAgent, currentUserId, refreshAgentUsageLogs, refreshVisibleAgents, showDrawer, startNewChat])
+  }, [
+    activateAgent,
+    agentConfigDraft,
+    agentConfigReturnTarget,
+    currentUserId,
+    refreshAgentUsageLogs,
+    refreshVisibleAgents,
+    showDrawer,
+    startNewChat,
+  ])
 
   const openLocalFilePicker = (mode: 'all' | 'image' | 'camera') => {
     setShowFileMenu(false)
@@ -844,13 +1001,18 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
     return filterSkillItems(officialSkills, skillSearchValue)
   }, [officialSkills, skillSearchValue])
   const featuredSkills = useMemo(() => {
-    const startIndex = featuredGroupIndex * FEATURED_SKILLS_PAGE_SIZE
+    const startIndex = featuredGroupIndex * SKILL_COMMUNITY_PAGE_SIZE
 
-    return filteredOfficialSkills.slice(startIndex, startIndex + FEATURED_SKILLS_PAGE_SIZE)
+    return filteredOfficialSkills.slice(startIndex, startIndex + SKILL_COMMUNITY_PAGE_SIZE)
   }, [featuredGroupIndex, filteredOfficialSkills])
-  const visibleClawhubSkills = useMemo(() => {
+  const filteredClawhubSkills = useMemo(() => {
     return filterSkillItems(communitySkills, skillSearchValue)
   }, [communitySkills, skillSearchValue])
+  const visibleClawhubSkills = useMemo(() => {
+    const startIndex = clawhubGroupIndex * SKILL_COMMUNITY_PAGE_SIZE
+
+    return filteredClawhubSkills.slice(startIndex, startIndex + SKILL_COMMUNITY_PAGE_SIZE)
+  }, [clawhubGroupIndex, filteredClawhubSkills])
   const visibleManageSkills = useMemo(() => {
     const sourceList = mySkillsTab === 'added' ? addedSkills : createdSkills
     return filterSkillItems(sourceList, mySkillSearchValue)
@@ -878,7 +1040,7 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
     : 'image/*'
 
   useEffect(() => {
-    const totalGroups = Math.ceil(filteredOfficialSkills.length / FEATURED_SKILLS_PAGE_SIZE)
+    const totalGroups = Math.ceil(filteredOfficialSkills.length / SKILL_COMMUNITY_PAGE_SIZE)
 
     if (totalGroups === 0) {
       if (featuredGroupIndex !== 0) {
@@ -891,6 +1053,26 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
       setFeaturedGroupIndex(0)
     }
   }, [featuredGroupIndex, filteredOfficialSkills.length])
+
+  useEffect(() => {
+    const totalGroups = Math.ceil(filteredClawhubSkills.length / SKILL_COMMUNITY_PAGE_SIZE)
+
+    if (totalGroups === 0) {
+      if (clawhubGroupIndex !== 0) {
+        setClawhubGroupIndex(0)
+      }
+      return
+    }
+
+    if (clawhubGroupIndex >= totalGroups) {
+      setClawhubGroupIndex(0)
+    }
+  }, [clawhubGroupIndex, filteredClawhubSkills.length])
+
+  useEffect(() => {
+    setFeaturedGroupIndex(0)
+    setClawhubGroupIndex(0)
+  }, [skillSearchValue])
 
   useEffect(() => {
     if (!isPartnerRoute || !activeAgent) {
@@ -1099,12 +1281,20 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
   }, [debouncedSkillSearchValue, showSkillsPage])
 
   const handleRefreshFeatured = useCallback(() => {
-    const totalGroups = Math.ceil(filteredOfficialSkills.length / FEATURED_SKILLS_PAGE_SIZE)
+    const totalGroups = Math.ceil(filteredOfficialSkills.length / SKILL_COMMUNITY_PAGE_SIZE)
 
     if (totalGroups > 1) {
       setFeaturedGroupIndex((current) => (current + 1) % totalGroups)
     }
   }, [filteredOfficialSkills.length])
+
+  const handleRefreshClawhub = useCallback(() => {
+    const totalGroups = Math.ceil(filteredClawhubSkills.length / SKILL_COMMUNITY_PAGE_SIZE)
+
+    if (totalGroups > 1) {
+      setClawhubGroupIndex((current) => (current + 1) % totalGroups)
+    }
+  }, [filteredClawhubSkills.length])
 
   useEffect(() => {
     if (!showMySkillsPage) {
@@ -1301,6 +1491,7 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
   }
 
   const openOfficialSkillDetail = (skill: SkillSummaryItem) => {
+    setSkillDetailReturnTarget('community')
     setSelectedSkillDetail({
       ...skill,
       source: 'official',
@@ -1308,10 +1499,30 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
   }
 
   const openClawhubSkillDetail = (skill: SkillSummaryItem) => {
+    setSkillDetailReturnTarget('community')
     setSelectedSkillDetail({
       ...skill,
       source: 'clawhub',
     })
+  }
+
+  const openManageSkillDetail = (skill: SkillSummaryItem) => {
+    setShowMySkillsPage(false)
+    setSkillDetailReturnTarget('my-skills')
+    setSelectedSkillDetail({
+      ...skill,
+      isSelected: true,
+    })
+  }
+
+  const closeSkillDetailPage = () => {
+    setSelectedSkillDetail(null)
+
+    if (skillDetailReturnTarget === 'my-skills') {
+      setShowMySkillsPage(true)
+    }
+
+    setSkillDetailReturnTarget('community')
   }
 
   const markSkillSelected = (skill: SkillSummaryItem) => {
@@ -1443,55 +1654,99 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
     }
   }
 
-  const openAgentChat = async (agent: DiscoverAgentItem) => {
+  const openCustomAgentConversation = async (
+    params: {
+      agentId: string
+    },
+  ) => {
+    customAgentConversationAbortRef.current?.abort()
+    const controller = new AbortController()
+    customAgentConversationAbortRef.current = controller
+
+    closeNavigationOverlays()
+    setShowCustomAgentConversationPage(true)
+    setCustomAgentConversationLoading(true)
+    setCustomAgentConversationError('')
+    setCustomAgentConversationDetail(null)
+
     let createdUsageLog = false
 
     try {
-      createdUsageLog = await ensureAgentUsageLog(agent.agentId)
+      const detail = await viewCustomAgent(params.agentId, controller.signal)
+
+      if (!detail) {
+        throw new Error('没有获取到智能体详情')
+      }
+
+      try {
+        createdUsageLog = await ensureAgentUsageLog(detail.agent_id)
+      } catch (error) {
+        console.warn('[ai-page] 补写智能体使用记录失败：', error)
+      }
+
+      setAgentUsageLogs((current) => {
+        const nextEntry = buildAgentUsageLogEntry(
+          detail.agent_id,
+          currentUserId,
+          detail.agent_name,
+          detail.avatar_url || null,
+        )
+
+        if (createdUsageLog || !current.some((item) => item.agentId === detail.agent_id)) {
+          return [nextEntry, ...current.filter((item) => item.agentId !== detail.agent_id)]
+        }
+
+        return current.map((item) => item.agentId === detail.agent_id ? nextEntry : item)
+      })
+
+      setCustomAgentConversationDetail(detail)
+      activateAgent(buildAgentContextFromDetail(detail))
+      startNewChat({ keepAgent: true })
     } catch (error) {
-      console.warn('[ai-page] 补写智能体使用记录失败：', error)
+      if (!controller.signal.aborted) {
+        setCustomAgentConversationError(error instanceof Error ? error.message : '智能体详情加载失败')
+      }
+    } finally {
+      if (!controller.signal.aborted) {
+        setCustomAgentConversationLoading(false)
+      }
     }
-
-    setAgentUsageLogs((current) => {
-      const nextEntry: AgentUsageLog = {
-        agentId: agent.agentId,
-        userId: currentUserId,
-        agentName: agent.agentName,
-        avatarUrl: agent.avatarUrl,
-        usedAt: new Date().toISOString(),
-      }
-
-      if (createdUsageLog || !current.some((item) => item.agentId === agent.agentId)) {
-        return [nextEntry, ...current.filter((item) => item.agentId !== agent.agentId)]
-      }
-
-      return current.map((item) => item.agentId === agent.agentId ? {
-        ...item,
-        agentName: agent.agentName,
-        avatarUrl: agent.avatarUrl,
-      } : item)
-    })
-
-    activateAgent(buildAgentContext(agent))
-    startNewChat({ keepAgent: true })
-    closeNavigationOverlays()
   }
 
-  const openAgentUsageLogChat = (agent: AgentUsageLog) => {
-    const matchedAgent = visibleAgents.find((item) => item.agentId === agent.agentId)
+  const openAgentChat = async (agent: DiscoverAgentItem) => {
+    await openCustomAgentConversation({
+      agentId: agent.agentId,
+    })
+  }
 
-    if (matchedAgent) {
-      void openAgentChat(matchedAgent)
+  const closeCustomAgentConversation = () => {
+    customAgentConversationAbortRef.current?.abort()
+    setShowCustomAgentConversationPage(false)
+    setShowPlusSheet(false)
+    setShowFileMenu(false)
+    setCustomAgentConversationDetail(null)
+    setCustomAgentConversationError('')
+    setCustomAgentConversationLoading(false)
+    startNewChat()
+  }
+
+  const openCustomAgentConfigFromConversation = () => {
+    if (!customAgentConversationDetail) {
       return
     }
 
-    activateAgent({
-      agentId: agent.agentId,
-      agentName: agent.agentName,
-      description: '',
+    openAgentConfigPage(buildConfigDraftFromCustomAgentDetail(customAgentConversationDetail), {
+      mode: 'edit',
+      agentId: customAgentConversationDetail.agent_id,
+      avatarUrl: customAgentConversationDetail.avatar_url || null,
+      returnTarget: 'custom-conversation',
     })
-    startNewChat({ keepAgent: true })
-    closeNavigationOverlays()
+  }
+
+  const openAgentUsageLogChat = (agent: AgentUsageLog) => {
+    void openCustomAgentConversation({
+      agentId: agent.agentId,
+    })
   }
 
   const openDeleteAgentUsageDialog = (agent: AgentUsageLog) => {
@@ -1694,19 +1949,17 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
         </div>
         {isPartnerRoute ? <div className="ai-page-header-title">{builtInAgent.name}</div> : <div className="ai-page-header-spacer" />}
         <div className="ai-page-header-right">
-          <button
-            className="ai-page-header-action"
-            type="button"
-            onClick={() => {
-              if (isPartnerRoute) {
-                openPartnerSettings()
-              }
-            }}
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round">
-              <circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /><circle cx="5" cy="12" r="1" />
-            </svg>
-          </button>
+          {isPartnerRoute ? (
+            <button
+              className="ai-page-header-action"
+              type="button"
+              onClick={openPartnerSettings}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round">
+                <circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /><circle cx="5" cy="12" r="1" />
+              </svg>
+            </button>
+          ) : null}
           <div className="ai-page-close" onClick={onClose}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round">
               <line x1="18" y1="6" x2="6" y2="18" />
@@ -1797,13 +2050,6 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
       <div className="ai-page-bottom">
         {(requestError || localBannerMessage) && (
           <div className="ai-page-error-banner">{requestError || localBannerMessage}</div>
-        )}
-        {activeAgent && (
-          <button className="ai-page-active-agent-chip" type="button" onClick={clearActiveAgent}>
-            <span className="ai-page-active-agent-label">当前智能体</span>
-            <span className="ai-page-active-agent-name">{activeAgent.agentName}</span>
-            <span className="ai-page-active-agent-remove">关闭</span>
-          </button>
         )}
         {draftAttachments.length > 0 && (
           <div className="ai-page-draft-attachments">
@@ -2279,7 +2525,7 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
             <AiSkillDetailPage
               actionLoading={skillActionLoadingId === selectedSkillDetail.id}
               onAction={handleSkillDetailAction}
-              onBack={() => setSelectedSkillDetail(null)}
+              onBack={closeSkillDetailPage}
               skill={selectedSkillDetail}
             />
           ) : (
@@ -2363,9 +2609,18 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
                 <div className="ai-skill-community-all-skills">
                   <div className="ai-skill-community-all-skills-header">
                     <div className="ai-skill-community-all-skills-title">ClawHub</div>
+                    <button className="ai-skill-community-refresh" type="button" onClick={handleRefreshClawhub}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21.5 2v6h-6" />
+                        <path d="M2.5 12a9.5 9.5 0 0 1 16.5-6.5L21.5 8" />
+                        <path d="M2.5 22v-6h6" />
+                        <path d="M21.5 12a9.5 9.5 0 0 1-16.5 6.5L2.5 16" />
+                      </svg>
+                      换一换
+                    </button>
                   </div>
                   <div className="ai-skill-community-all-list">
-                    {!skillsLoading && !skillsError && visibleClawhubSkills.length === 0 ? <div className="ai-data-status">暂无 ClawHub 技能</div> : null}
+                    {!skillsLoading && !skillsError && filteredClawhubSkills.length === 0 ? <div className="ai-data-status">暂无 ClawHub 技能</div> : null}
                     {!skillsLoading && !skillsError && visibleClawhubSkills.map((skill, index) => (
                       <button className="ai-skill-community-all-item" key={skill.id} type="button" onClick={() => openClawhubSkillDetail(skill)}>
                         <div className="ai-skill-community-all-icon" style={{ background: getFeatureCardColor(index) }}>
@@ -2588,6 +2843,32 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
         />
       )}
 
+      {showCustomAgentConversationPage && (
+        <AiCustomAgentConversationPage
+          agentName={customAgentConversationDetail?.agent_name || activeAgent?.agentName || ''}
+          avatarUrl={customAgentConversationDetail?.avatar_url || null}
+          canEdit={canEditCustomAgentConversation}
+          canSubmit={canSend}
+          description={customAgentConversationDetail?.description || activeAgent?.description || ''}
+          error={customAgentConversationError}
+          inputValue={inputValue}
+          isResponding={isResponding}
+          isStopping={isStopping}
+          loading={customAgentConversationLoading}
+          messages={messages}
+          questions={customAgentConversationQuestions}
+          requestError={requestError}
+          onBack={closeCustomAgentConversation}
+          onInputChange={setInputValue}
+          onOpenEdit={openCustomAgentConfigFromConversation}
+          onPlusClick={() => setShowPlusSheet(true)}
+          onSelectArtifact={setSelectedArtifact}
+          onStop={stopResponding}
+          onSubmit={submitPrompt}
+          onSuggestionClick={setInputValue}
+        />
+      )}
+
       {showAgentConfigPage && (
         <AiAgentConfigPage
           agentId={agentConfigAgentId || undefined}
@@ -2595,6 +2876,7 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
           draft={agentConfigDraft}
           mode={agentConfigMode}
           onBack={() => setShowAgentConfigPage(false)}
+          onClose={agentConfigReturnTarget === 'custom-conversation' ? () => setShowAgentConfigPage(false) : undefined}
           onDraftChange={setAgentConfigDraft}
           onPublishSuccess={handleAgentPublishSuccess}
         />
@@ -2718,7 +3000,20 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
             {!mySkillsLoading && mySkillsError ? <div className="ai-data-status">{mySkillsError}</div> : null}
             {!mySkillsLoading && !mySkillsError && visibleManageSkills.length === 0 ? <div className="ai-data-status">暂无技能数据</div> : null}
             {!mySkillsLoading && !mySkillsError && visibleManageSkills.map((skill, index) => (
-              <div className="ai-my-skill-card" key={skill.id}>
+              <div
+                aria-label={`查看技能详情 ${skill.title}`}
+                className="ai-my-skill-card"
+                key={skill.id}
+                role="button"
+                tabIndex={0}
+                onClick={() => openManageSkillDetail(skill)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault()
+                    openManageSkillDetail(skill)
+                  }
+                }}
+              >
                 <div className="ai-my-skill-card-header">
                   <div className="ai-my-skill-card-icon" style={{ background: getFeatureCardColor(index) }}>
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -2733,7 +3028,10 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
                     className="ai-my-skill-card-remove"
                     disabled={removeSkillLoadingId === skill.id}
                     type="button"
-                    onClick={() => { openDeleteManageSkillDialog(skill) }}
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      openDeleteManageSkillDialog(skill)
+                    }}
                   >
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                       <line x1="18" y1="6" x2="6" y2="18" />
@@ -2742,7 +3040,16 @@ export default function AIPage({ onClose }: { onClose: () => void }) {
                   </button>
                 </div>
                 <div className="ai-my-skill-card-desc">{skill.description || '暂无描述'}</div>
-                <button className="ai-my-skill-card-btn" type="button" onClick={() => applySkillItem(skill)}>立即使用</button>
+                <button
+                  className="ai-my-skill-card-btn"
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    applySkillItem(skill)
+                  }}
+                >
+                  立即使用
+                </button>
               </div>
             ))}
           </div>

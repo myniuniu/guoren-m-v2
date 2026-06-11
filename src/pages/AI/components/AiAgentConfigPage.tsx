@@ -7,7 +7,7 @@ import { applySquareAudit } from '../../../services/aiCommunity'
 import type { AgentPublishScope } from '../../../services/agents'
 import type { OrgUserItem } from '../../../services/aiOrgMembers'
 import type { ChatMessage } from '../../../services/chat/types'
-import { createCustomAgent, updateCustomAgent } from '../../../services/customAgents'
+import { createCustomAgent, updateCustomAgent, uploadCustomAgentAvatar } from '../../../services/customAgents'
 import {
   appendErrorToAssistantMessage,
   appendReasoningDeltaToMessages,
@@ -63,6 +63,7 @@ type AiAgentConfigPageProps = {
   draft: AiAgentConfigDraft
   mode?: 'create' | 'edit'
   onBack: () => void
+  onClose?: () => void
   onDraftChange: (draft: AiAgentConfigDraft) => void
   onPublishSuccess?: (payload: AiAgentPublishSuccessPayload) => void | Promise<void>
 }
@@ -283,6 +284,7 @@ export function AiAgentConfigPage({
   draft,
   mode = 'create',
   onBack,
+  onClose,
   onDraftChange,
   onPublishSuccess,
 }: AiAgentConfigPageProps) {
@@ -310,6 +312,8 @@ export function AiAgentConfigPage({
   const [clawhubSkillsError, setClawhubSkillsError] = useState('')
   const [knowledgeError, setKnowledgeError] = useState('')
   const [clawhubInstallingSkillId, setClawhubInstallingSkillId] = useState('')
+  const [agentAvatarUrl, setAgentAvatarUrl] = useState(avatarUrl?.trim() || '')
+  const [agentAvatarUploading, setAgentAvatarUploading] = useState(false)
   const [publishing, setPublishing] = useState(false)
   const [publishStatus, setPublishStatus] = useState<'idle' | 'success' | 'error'>('idle')
   const [publishMessage, setPublishMessage] = useState('')
@@ -349,12 +353,29 @@ export function AiAgentConfigPage({
   }, [debugMessages])
 
   useEffect(() => {
+    setAgentAvatarUrl(avatarUrl?.trim() || '')
+  }, [avatarUrl])
+
+  useEffect(() => {
     return () => {
       debugAbortControllerRef.current?.abort()
       debugAbortControllerRef.current = null
       debugActiveMessageIdRef.current = null
       publishAbortControllerRef.current?.abort()
       publishAbortControllerRef.current = null
+    }
+  }, [])
+
+  const handleAgentAvatarChange = useCallback(async (file: File) => {
+    setAgentAvatarUploading(true)
+
+    try {
+      const uploadedUrl = await uploadCustomAgentAvatar(file)
+      setAgentAvatarUrl(uploadedUrl)
+    } catch (error) {
+      Toast.show({ content: error instanceof Error ? error.message : '头像上传失败，请重试' })
+    } finally {
+      setAgentAvatarUploading(false)
     }
   }, [])
 
@@ -823,7 +844,7 @@ export function AiAgentConfigPage({
     publishAbortControllerRef.current?.abort()
     const controller = new AbortController()
     publishAbortControllerRef.current = controller
-    const normalizedAvatarUrl = avatarUrl?.trim() || ''
+    const normalizedAvatarUrl = agentAvatarUrl.trim()
 
     setPublishing(true)
     setPublishStatus('idle')
@@ -909,11 +930,13 @@ export function AiAgentConfigPage({
 
       setPublishing(false)
     }
-  }, [agentId, avatarUrl, draft, mode, onPublishSuccess, presetQuestions, publishing, selectedUsers])
+  }, [agentAvatarUrl, agentId, draft, mode, onPublishSuccess, presetQuestions, publishing, selectedUsers])
 
   const renderDebugTab = () => (
     <AiAgentConversationPreview
       description={draft.description}
+      avatarUrl={agentAvatarUrl}
+      avatarUploading={agentAvatarUploading}
       canSubmit={canSubmitDebugPrompt}
       configuredSkills={selectedSkills.map((skill) => ({
         id: skill.id,
@@ -934,7 +957,12 @@ export function AiAgentConfigPage({
       onLockedWebSearchClick={() => {
         Toast.show({ content: '当前智能体未开启联网检索，无法配置' })
       }}
+      onAvatarChange={handleAgentAvatarChange}
       onToggleWebSearch={() => updateDraft({ webSearchEnabled: !webSearchEnabled })}
+      onProfileSave={(profile) => updateDraft({
+        agentName: profile.agentName,
+        description: profile.description,
+      })}
       webSearchEnabled={webSearchEnabled}
       webSearchLocked={!webSearchEnabled}
     />
@@ -942,40 +970,6 @@ export function AiAgentConfigPage({
 
   const renderConfigTab = () => (
     <div className="ai-agent-config-content">
-      <section className="ai-agent-config-card">
-        <div className="ai-agent-config-card-title">
-          基础信息 <span className="ai-agent-config-required">*</span>
-        </div>
-
-        <label className="ai-agent-config-field">
-          <span className="ai-agent-config-field-label">
-            名称 <span className="ai-agent-config-required">*</span>
-          </span>
-          <input
-            className="ai-agent-config-input"
-            maxLength={50}
-            placeholder="请输入智能体名称"
-            type="text"
-            value={draft.agentName}
-            onChange={(event) => updateDraft({ agentName: event.target.value })}
-          />
-        </label>
-
-        <label className="ai-agent-config-field">
-          <span className="ai-agent-config-field-label">
-            简介 <span className="ai-agent-config-required">*</span>
-          </span>
-          <input
-            className="ai-agent-config-input"
-            maxLength={120}
-            placeholder="请输入一句话介绍"
-            type="text"
-            value={draft.description}
-            onChange={(event) => updateDraft({ description: event.target.value })}
-          />
-        </label>
-      </section>
-
       <section className="ai-agent-config-card">
         <div className="ai-agent-config-card-title">
           指令 <span className="ai-agent-config-required">*</span>
@@ -1175,6 +1169,7 @@ export function AiAgentConfigPage({
 
       <section className="ai-agent-config-card">
         <AiPublishSettings
+          actionLabel={mode === 'edit' ? '保存' : '发布'}
           applyReason={draft.applyReason}
           communityCategoryId={draft.communityCategoryId}
           publishMessage={publishMessage}
@@ -1214,7 +1209,7 @@ export function AiAgentConfigPage({
             type="button"
             onClick={() => setActiveTab('debug')}
           >
-            对话调试
+            测试与预览
           </button>
           <button
             aria-pressed={activeTab === 'config'}
@@ -1222,10 +1217,24 @@ export function AiAgentConfigPage({
             type="button"
             onClick={() => setActiveTab('config')}
           >
-            配置
+            搭建
           </button>
         </div>
-        <div aria-hidden="true" className="ai-agent-config-header-spacer" />
+        {onClose ? (
+          <button
+            aria-label="关闭配置页并返回会话"
+            className="ai-agent-config-close"
+            type="button"
+            onClick={onClose}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        ) : (
+          <div aria-hidden="true" className="ai-agent-config-header-spacer" />
+        )}
       </div>
 
       {activeTab === 'debug' ? renderDebugTab() : renderConfigTab()}

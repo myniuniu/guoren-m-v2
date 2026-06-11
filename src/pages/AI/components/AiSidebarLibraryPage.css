@@ -64,23 +64,47 @@
 .ai-library-hub-toolbar {
   padding: 0 16px 12px;
   display: flex;
-  flex-direction: column;
-  gap: 12px;
+  align-items: stretch;
+  gap: 8px;
   flex-shrink: 0;
+}
+
+.ai-library-hub-search-shell {
+  flex: 0 0 40px;
+}
+
+.ai-library-hub-search-shell.is-open {
+  flex: 1 1 100%;
+}
+
+.ai-library-hub-search-trigger,
+.ai-library-hub-search {
+  width: 100%;
+  height: 40px;
+  border: none;
+  border-radius: 14px;
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+.ai-library-hub-search-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
 }
 
 .ai-library-hub-search {
   display: flex;
   align-items: center;
-  gap: 10px;
-  height: 42px;
-  border-radius: 14px;
-  background: #f3f4f6;
-  padding: 0 14px;
-  color: #6b7280;
+  min-width: 0;
+  gap: 8px;
+  padding: 0 12px;
 }
 
 .ai-library-hub-search input {
+  flex: 1;
+  min-width: 0;
   border: none;
   background: transparent;
   width: 100%;
@@ -91,19 +115,28 @@
 
 .ai-library-hub-select-region {
   display: flex;
-  flex-direction: column;
-  gap: 10px;
+  flex: 1 1 0;
+  min-width: 0;
 }
 
 .ai-library-hub-select-row {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  display: flex;
+  width: 100%;
+  gap: 8px;
 }
 
 .ai-library-hub-select-cell {
   position: relative;
   min-width: 0;
+  flex: 1 1 0;
+}
+
+.ai-library-hub-select-cell-source {
+  flex: 1.2 1 0;
+}
+
+.ai-library-hub-select-cell-type {
+  flex: 0.8 1 0;
 }
 
 .ai-library-hub-select-cell.is-open {
@@ -112,27 +145,28 @@
 
 .ai-library-hub-select {
   position: relative;
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
   min-width: 0;
   width: 100%;
   height: 40px;
-  padding: 0 34px 0 12px;
+  padding: 0 24px 0 8px;
   border: none;
   border-radius: 14px;
   background: #f3f4f6;
   color: #111827;
   text-align: left;
+  white-space: nowrap;
 }
 
 .ai-library-hub-select::after {
   content: '';
   position: absolute;
-  right: 14px;
+  right: 10px;
   top: 50%;
-  width: 7px;
-  height: 7px;
+  width: 6px;
+  height: 6px;
   border-right: 1.6px solid #6b7280;
   border-bottom: 1.6px solid #6b7280;
   transform: translateY(-65%) rotate(45deg);
@@ -145,15 +179,15 @@
 
 .ai-library-hub-select-label {
   flex-shrink: 0;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   color: #6b7280;
 }
 
 .ai-library-hub-select-value {
-  flex: 1;
+  flex: 1 1 auto;
   min-width: 0;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
@@ -217,13 +251,6 @@
   border-color: #bfd5ff;
   background: #eaf2ff;
   color: #1d4ed8;
-}
-
-.ai-library-hub-select-option-mark {
-  flex-shrink: 0;
-  font-size: 12px;
-  font-weight: 700;
-  color: #2563eb;
 }
 
 .ai-library-hub-list,

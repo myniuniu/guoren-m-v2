@@ -1,5 +1,5 @@
 import { Toast } from 'antd-mobile'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   fetchKnowledgeSpaces,
   fetchLibraryFileDownloadUrl,
@@ -11,6 +11,7 @@ import {
   type LibraryPageFileType,
 } from '../../../services/library'
 import AiLibraryFilePreview from './AiLibraryFilePreview'
+import './AiSidebarLibraryPage.css'
 
 type AiSidebarLibraryPageProps = {
   onOpenDrawer: () => void
@@ -153,6 +154,8 @@ export function AiSidebarLibraryPage({
   const [knowledgeSpaces, setKnowledgeSpaces] = useState<KnowledgeSpaceOption[]>([])
   const [actionTargetFile, setActionTargetFile] = useState<LibraryPageFileItem | null>(null)
   const [actionLoadingKey, setActionLoadingKey] = useState<string | null>(null)
+  const [isSearchOpen, setIsSearchOpen] = useState(false)
+  const toolbarRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -163,6 +166,34 @@ export function AiSidebarLibraryPage({
       window.clearTimeout(timer)
     }
   }, [keyword])
+
+  useEffect(() => {
+    if (!isSearchOpen && !openFilterMenu) {
+      return
+    }
+
+    // 搜索框或筛选菜单展开后，点工具栏外部的空白区域都统一收起，避免顶部浮层残留。
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target
+
+      if (!(target instanceof Node)) {
+        return
+      }
+
+      if (toolbarRef.current?.contains(target)) {
+        return
+      }
+
+      setIsSearchOpen(false)
+      setOpenFilterMenu(null)
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown)
+
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown)
+    }
+  }, [isSearchOpen, openFilterMenu])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -228,6 +259,14 @@ export function AiSidebarLibraryPage({
       setSourceFilter('all')
     }
   }, [sourceFilter, sourceOptions])
+
+  useEffect(() => {
+    if (!actionTargetFile && !selectedFile) {
+      return
+    }
+
+    setOpenFilterMenu(null)
+  }, [actionTargetFile, selectedFile])
 
   const visibleFiles = useMemo(() => {
     if (sourceFilter === 'all') {
@@ -356,28 +395,46 @@ export function AiSidebarLibraryPage({
         <div className="ai-library-hub-header-spacer" />
       </div>
 
-      <div className="ai-library-hub-toolbar">
-        <label className="ai-library-hub-search">
-          <SearchIcon />
-          <input
-            placeholder="搜索库文件"
-            type="text"
-            value={keyword}
-            onChange={(event) => {
-              setKeyword(event.target.value)
-              setOpenFilterMenu(null)
-            }}
-          />
-        </label>
+      <div className={`ai-library-hub-toolbar ${isSearchOpen ? 'is-searching' : ''}`} ref={toolbarRef}>
+        <div className={`ai-library-hub-search-shell ${isSearchOpen ? 'is-open' : ''}`}>
+          {isSearchOpen ? (
+            <label className="ai-library-hub-search">
+              <SearchIcon />
+              <input
+                autoFocus
+                placeholder="搜索库文件"
+                type="text"
+                value={keyword}
+                onChange={(event) => {
+                  setKeyword(event.target.value)
+                  setOpenFilterMenu(null)
+                }}
+              />
+            </label>
+          ) : (
+            <button
+              aria-label="展开搜索"
+              className="ai-library-hub-search-trigger"
+              type="button"
+              onClick={() => {
+                setIsSearchOpen(true)
+                setOpenFilterMenu(null)
+              }}
+            >
+              <SearchIcon />
+            </button>
+          )}
+        </div>
 
-        <div className="ai-library-hub-select-region">
+        {!isSearchOpen ? (
+          <div className="ai-library-hub-select-region">
           <div className="ai-library-hub-select-row">
-            <div className={`ai-library-hub-select-cell ${openFilterMenu === 'source' ? 'is-open' : ''}`}>
+            <div className={`ai-library-hub-select-cell ai-library-hub-select-cell-source ${openFilterMenu === 'source' ? 'is-open' : ''}`}>
               <button
                 aria-expanded={openFilterMenu === 'source'}
                 className={`ai-library-hub-select ${openFilterMenu === 'source' ? 'is-open' : ''}`}
                 type="button"
-                onClick={() => setOpenFilterMenu((current) => current === 'source' ? null : 'source')}
+                onClick={() => setOpenFilterMenu('source')}
               >
                 <span className="ai-library-hub-select-label">来源</span>
                 <span className="ai-library-hub-select-value">{sourceFilter === 'all' ? '全部来源' : sourceFilter}</span>
@@ -401,7 +458,6 @@ export function AiSidebarLibraryPage({
                           }}
                         >
                           <span>{option.label}</span>
-                          {selected ? <span className="ai-library-hub-select-option-mark">已选</span> : null}
                         </button>
                       )
                     })}
@@ -410,12 +466,12 @@ export function AiSidebarLibraryPage({
               ) : null}
             </div>
 
-            <div className={`ai-library-hub-select-cell ${openFilterMenu === 'type' ? 'is-open' : ''}`}>
+            <div className={`ai-library-hub-select-cell ai-library-hub-select-cell-type ${openFilterMenu === 'type' ? 'is-open' : ''}`}>
               <button
                 aria-expanded={openFilterMenu === 'type'}
                 className={`ai-library-hub-select ${openFilterMenu === 'type' ? 'is-open' : ''}`}
                 type="button"
-                onClick={() => setOpenFilterMenu((current) => current === 'type' ? null : 'type')}
+                onClick={() => setOpenFilterMenu('type')}
               >
                 <span className="ai-library-hub-select-label">类型</span>
                 <span className="ai-library-hub-select-value">{typeMenuOptions.find((option) => option.value === fileTypeFilter)?.label ?? '全部'}</span>
@@ -439,7 +495,6 @@ export function AiSidebarLibraryPage({
                           }}
                         >
                           <span>{option.label}</span>
-                          {selected ? <span className="ai-library-hub-select-option-mark">已选</span> : null}
                         </button>
                       )
                     })}
@@ -448,7 +503,8 @@ export function AiSidebarLibraryPage({
               ) : null}
             </div>
           </div>
-        </div>
+          </div>
+        ) : null}
       </div>
 
       <div className="ai-library-hub-list">

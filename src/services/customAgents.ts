@@ -1,8 +1,9 @@
 import { type AgentPublishScope } from './agents'
 import { getChatUserId } from './chat/api'
-import { authorizedFetch, buildAiApiUrl } from '../utils/request'
+import { authorizedFetch, buildAiApiUrl, buildAuthorizedHeaders } from '../utils/request'
 
 const CUSTOM_AGENTS_PATH = '/api/v1/custom-agents'
+const CUSTOM_AGENT_AVATAR_UPLOAD_PATH = '/api/v1/admin/images/upload'
 
 export type CustomAgentPresetQuestion = {
   category?: string
@@ -93,6 +94,24 @@ type UpdateCustomAgentResponse = {
   } | null
 }
 
+type CustomAgentAvatarUploadResponse = {
+  success?: boolean
+  code?: number | string
+  msg?: string
+  message?: string
+  data?: unknown
+}
+
+type ViewCustomAgentResponse = {
+  success?: boolean
+  code?: number | string
+  msg?: string
+  message?: string
+  data?: {
+    agent?: CustomAgentDetail | null
+  } | null
+}
+
 function getRequiredUserId(): string {
   const userId = getChatUserId()
 
@@ -101,6 +120,31 @@ function getRequiredUserId(): string {
   }
 
   return userId
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
+}
+
+function asString(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : ''
+}
+
+function extractCustomAgentUploadUrl(data: unknown): string {
+  const record = asRecord(data)
+  const nestedImage = record.image ? asRecord(record.image) : null
+
+  return (
+    asString(record.url)
+    || asString(record.image_url)
+    || asString(record.file_url)
+    || asString(record.oss_url)
+    || asString(nestedImage?.url)
+    || asString(nestedImage?.image_url)
+    || asString(nestedImage?.file_url)
+    || asString(nestedImage?.oss_url)
+    || ''
+  )
 }
 
 export async function createCustomAgent(
@@ -166,4 +210,75 @@ export async function updateCustomAgent(
   }
 
   return result.data?.agent ?? null
+}
+
+export async function viewCustomAgent(
+  agentId: string,
+  signal?: AbortSignal,
+): Promise<CustomAgentDetail | null> {
+  const userId = getRequiredUserId()
+  const requestUrl = buildAiApiUrl(`${CUSTOM_AGENTS_PATH}/${encodeURIComponent(agentId)}`, {
+    user_id: userId,
+  })
+
+  const response = await authorizedFetch(requestUrl, {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json',
+    },
+    signal,
+  })
+
+  const result = await response.json() as ViewCustomAgentResponse
+
+  if (!response.ok) {
+    throw new Error(result.msg || result.message || '获取智能体详情失败')
+  }
+
+  if (result.success === false) {
+    throw new Error(result.msg || result.message || '获取智能体详情失败')
+  }
+
+  return result.data?.agent ?? null
+}
+
+export async function uploadCustomAgentAvatar(file: File, signal?: AbortSignal): Promise<string> {
+  const requestUrl = buildAiApiUrl(CUSTOM_AGENT_AVATAR_UPLOAD_PATH)
+  const headers = await buildAuthorizedHeaders(requestUrl, 'POST', {
+    Accept: 'application/json',
+  })
+  const formData = new FormData()
+
+  // 自定义智能体头像沿用统一图片上传接口，避免前端额外维护一套上传链路。
+  formData.append('file', file)
+  formData.append('name', file.name)
+  formData.append('category', 'avatar')
+  formData.append('tags', 'custom-agent-avatar')
+  formData.append('description', '自定义智能体头像')
+
+  const response = await fetch(requestUrl, {
+    method: 'POST',
+    headers,
+    body: formData,
+    signal,
+    credentials: 'omit',
+  })
+
+  if (!response.ok) {
+    throw new Error(`上传智能体头像失败（HTTP ${response.status}）`)
+  }
+
+  const result = await response.json() as CustomAgentAvatarUploadResponse
+
+  if (result.success === false) {
+    throw new Error(result.msg || result.message || '上传智能体头像失败')
+  }
+
+  const uploadedUrl = extractCustomAgentUploadUrl(result.data)
+
+  if (!uploadedUrl) {
+    throw new Error('头像上传成功，但服务端没有返回可用图片地址')
+  }
+
+  return uploadedUrl
 }
