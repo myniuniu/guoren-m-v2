@@ -1,12 +1,13 @@
 /**
  * 消息列表数据管理 Hook
- * 优先使用 SDK 拉取消息，镜像 API 作为分页增强（突破 7 天限制）
- * 文字消息走 SDK 原生通道，图片/文件走 OSS + CustomMessage
+ * 历史消息对齐 PC 端，统一从镜像 API 拉取
+ * 发送和实时消息仍然走 SDK，避免扩大本次改动范围
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import TencentCloudChat from '@tencentcloud/lite-chat';
 import { getChatInstance } from './useIMLogin';
+import { fetchMessages, type MessageItem } from '../api/messagingApi';
 import { buildImOssImageMessagePayload } from '../utils/imOssImageMessage';
 import { buildImOssAssetMessagePayload, type ImOssAssetType } from '../utils/imOssAssetMessage';
 import { parseSeminarInviteCustomMessage, type SeminarInviteCustomData } from '../utils/seminarInviteCustomMessage';
@@ -16,6 +17,9 @@ import { parseForwardMessage } from '../utils/forwardMessageParser';
 import { parseSeminarInvite } from '../utils/seminarInviteParser';
 import { resolveCustomMessageFallbackText } from '../utils/customMessageFallbackText';
 import { uploadImAssetToOss } from '../utils/imOssUpload';
+import { toMirrorConversationID } from '../utils/messagingConversationID';
+import { apiTimeToSeconds } from '../utils/messagingTime';
+import { parseGroupCreateTipInfo, type GroupCreateTipInfo } from '../utils/groupTipMessage';
 
 /** 消息类型枚举 */
 export type MessageCategory =
@@ -61,6 +65,8 @@ export interface UnifiedMessage {
     forwardParsed?: any;
     // 机器人 Markdown 原始文本
     botMarkdownText?: string;
+    // 群提示
+    groupTip?: GroupCreateTipInfo;
   };
 }
 
@@ -76,6 +82,333 @@ function normalizeSdkUserID(userID: unknown): string {
   }
 
   return String(userID);
+}
+
+function pickMirrorString(content: Record<string, any>, keys: string[]): string {
+  for (const key of keys) {
+    const value = content[key];
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim();
+    }
+  }
+  return '';
+}
+
+function pickMirrorNumber(value: unknown): number | undefined {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return undefined;
+  return parsed;
+}
+
+function getMirrorMessageHead(message: MessageItem): MessageItem['msg_body'][number] | undefined {
+  return Array.isArray(message.msg_body) ? message.msg_body[0] : undefined;
+}
+
+function getMirrorMessageContent(message: MessageItem): Record<string, any> {
+  const content = getMirrorMessageHead(message)?.MsgContent;
+  if (content && typeof content === 'object') {
+    return content as Record<string, any>;
+  }
+  return {};
+}
+
+function parseMirrorCustomPayload(rawData: unknown): Record<string, any> | null {
+  if (!rawData) return null;
+
+  try {
+    const parsed = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
+    if (!parsed || typeof parsed !== 'object') return null;
+    return parsed as Record<string, any>;
+  } catch {
+    return null;
+  }
+}
+
+function buildMirrorCustomMessageLike(message: MessageItem) {
+  const content = getMirrorMessageContent(message);
+
+  return {
+    type: 'TIMCustomElem',
+    from: message.from_account || '',
+    messageForShow: message.text_preview || '',
+    payload: {
+      data: content.Data ?? content.data ?? '',
+      description: content.Desc ?? content.description ?? '',
+      extension: content.Ext ?? content.extension ?? '',
+      text: message.text_preview || '',
+    },
+  };
+}
+
+function resolveMirrorImageInfo(content: Record<string, any>, fallbackName: string) {
+  const imageInfoList = Array.isArray(content.ImageInfoArray)
+    ? (content.ImageInfoArray as Array<Record<string, any>>)
+    : [];
+
+  const preferredImage =
+    imageInfoList.find((item) => Number(item?.Type) === 1)
+    || imageInfoList.find((item) => Number(item?.Type) === 3)
+    || imageInfoList.find((item) => Number(item?.Type) === 2)
+    || imageInfoList[0]
+    || content;
+
+  return {
+    url: pickMirrorString(preferredImage, ['URL', 'Url', 'url', 'ImageUrl', 'imageUrl']),
+    width: pickMirrorNumber(preferredImage.Width ?? content.Width),
+    height: pickMirrorNumber(preferredImage.Height ?? content.Height),
+    size: pickMirrorNumber(preferredImage.Size ?? content.Size ?? content.FileSize),
+    showName: fallbackName,
+  };
+}
+
+function buildMirrorBaseMessage(message: MessageItem, currentUserID: string) {
+  const from = message.from_account || '';
+
+  return {
+    id: message.msg_id || '',
+    from,
+    fromMe: from === currentUserID,
+    time: apiTimeToSeconds(message.send_time),
+    rawMessage: message,
+    avatar: '',
+    status: 'success' as const,
+    isRecalled: false,
+  };
+}
+
+/** 把镜像消息 DTO 转成移动端详情页当前使用的统一结构 */
+function parseMirrorMessage(message: MessageItem, currentUserID: string): UnifiedMessage {
+  const baseMessage = buildMirrorBaseMessage(message, currentUserID);
+  const headType = getMirrorMessageHead(message)?.MsgType || '';
+  const content = getMirrorMessageContent(message);
+
+  if (message.recalled) {
+    return {
+      ...baseMessage,
+      category: 'recalled',
+      isRecalled: true,
+    };
+  }
+
+  if (headType === 'TIMTextElem' || message.msg_type === 'text') {
+    const text = String(content.Text ?? message.text_preview ?? '');
+    const forwardParsed = parseForwardMessage(text);
+    if (forwardParsed.isForwarded) {
+      return {
+        ...baseMessage,
+        category: 'forward',
+        text: `[转发自「${forwardParsed.sourceName}」]`,
+        extraData: {
+          forwardParsed,
+        },
+      };
+    }
+
+    const seminarInvite = parseSeminarInvite({
+      from: message.from_account,
+      payload: { text },
+      messageForShow: text,
+    });
+    if (seminarInvite) {
+      return {
+        ...baseMessage,
+        category: 'seminar_invite',
+        text: `[研讨会邀请] ${seminarInvite.roomName || '未命名研讨会'}`,
+        extraData: {
+          seminarInvite: {
+            type: 'seminar_invite',
+            joinUrl: seminarInvite.joinUrl,
+            roomName: seminarInvite.roomName,
+            scheduleStartTime: undefined,
+            scheduleEndTime: undefined,
+          } as SeminarInviteCustomData,
+        },
+      };
+    }
+
+    if (typeof message.from_account === 'string' && message.from_account.startsWith('@RBT#')) {
+      return {
+        ...baseMessage,
+        category: 'bot_markdown',
+        text,
+        extraData: {
+          botMarkdownText: text,
+        },
+      };
+    }
+
+    return {
+      ...baseMessage,
+      category: 'text',
+      text,
+    };
+  }
+
+  if (headType === 'TIMImageElem' || message.msg_type === 'image') {
+    const imageInfo = resolveMirrorImageInfo(content, message.text_preview || '图片');
+    return {
+      ...baseMessage,
+      category: 'image',
+      imageUrl: imageInfo.url,
+      imageFileName: imageInfo.showName || '图片',
+      imageWidth: imageInfo.width,
+      imageHeight: imageInfo.height,
+      imageSize: imageInfo.size,
+    };
+  }
+
+  if (headType === 'TIMFileElem' || message.msg_type === 'file') {
+    return {
+      ...baseMessage,
+      category: 'file',
+      assetType: 'file',
+      assetUrl: pickMirrorString(content, ['URL', 'Url', 'url', 'DownloadUrl', 'FileUrl']),
+      assetFileName: pickMirrorString(content, ['FileName', 'fileName', 'Name', 'name']) || message.text_preview || '附件',
+      assetMimeType: pickMirrorString(content, ['FileType', 'fileType', 'ContentType', 'contentType']),
+      assetSize: pickMirrorNumber(content.FileSize ?? content.Size),
+    };
+  }
+
+  if (headType === 'TIMVideoFileElem' || message.msg_type === 'video') {
+    return {
+      ...baseMessage,
+      category: 'video',
+      assetType: 'video',
+      assetUrl: pickMirrorString(content, ['VideoUrl', 'videoUrl', 'URL', 'Url', 'url']),
+      assetFileName: pickMirrorString(content, ['FileName', 'fileName', 'Name', 'name']) || message.text_preview || '视频',
+      assetMimeType: pickMirrorString(content, ['VideoType', 'videoType', 'FileType', 'fileType']),
+      assetSize: pickMirrorNumber(content.VideoSize ?? content.FileSize ?? content.Size),
+    };
+  }
+
+  if (
+    headType === 'TIMGroupTipElem'
+    || headType === 'TIMGroupSystemNoticeElem'
+    || message.msg_type === 'group_system_notice'
+    || message.msg_type === 'tip'
+  ) {
+    return {
+      ...baseMessage,
+      category: 'system',
+      fromMe: false,
+      text: message.text_preview || '[群通知]',
+    };
+  }
+
+  if (headType === 'TIMCustomElem' || message.msg_type === 'custom') {
+    const mirrorCustomMessage = buildMirrorCustomMessageLike(message);
+    const rawData = mirrorCustomMessage.payload.data;
+    const parsedData = parseMirrorCustomPayload(rawData);
+
+    if (parsedData) {
+      const groupCreateTip = parseGroupCreateTipInfo({
+        parsedData,
+        fromUserID: message.from_account,
+        fallbackName: String(parsedData.showName || message.from_account || ''),
+      });
+      if (groupCreateTip) {
+        return {
+          ...baseMessage,
+          category: 'system',
+          text: '创建群聊',
+          extraData: {
+            groupTip: groupCreateTip,
+          },
+        };
+      }
+
+      const businessID = String(parsedData.businessID || parsedData.type || '').trim();
+
+      if (businessID === 'im_oss_image') {
+        return {
+          ...baseMessage,
+          category: 'image',
+          imageUrl: String(parsedData.url || ''),
+          imageFileName: String(parsedData.fileName || 'image'),
+          imageWidth: pickMirrorNumber(parsedData.width),
+          imageHeight: pickMirrorNumber(parsedData.height),
+          imageSize: pickMirrorNumber(parsedData.size),
+        };
+      }
+
+      if (businessID === 'im_oss_asset') {
+        const assetType = parsedData.assetType === 'video' ? 'video' : 'file';
+        return {
+          ...baseMessage,
+          category: assetType === 'video' ? 'video' : 'file',
+          assetType,
+          assetUrl: String(parsedData.url || ''),
+          assetFileName: String(parsedData.fileName || '附件'),
+          assetMimeType: String(parsedData.mimeType || ''),
+          assetSize: pickMirrorNumber(parsedData.size),
+        };
+      }
+
+      if (
+        (parsedData.chatbotPlugin === 1 || parsedData.chatbotPlugin === 2)
+        && Array.isArray(parsedData.chunks)
+      ) {
+        const streamText = parsedData.chunks.join('');
+        return {
+          ...baseMessage,
+          category: 'stream_ai',
+          text: streamText,
+          extraData: {
+            streamText,
+            streamIsFinished: parsedData.isFinished === 1,
+          },
+        };
+      }
+    }
+
+    const seminarInvite = parseSeminarInviteCustomMessage(mirrorCustomMessage);
+    if (seminarInvite) {
+      return {
+        ...baseMessage,
+        category: 'seminar_invite',
+        text: `[研讨会邀请] ${seminarInvite.roomName || '未命名研讨会'}`,
+        extraData: {
+          seminarInvite,
+        },
+      };
+    }
+
+    const calendarNotification = parseCalendarNotificationCustomMessage(mirrorCustomMessage);
+    if (calendarNotification) {
+      return {
+        ...baseMessage,
+        category: 'calendar_notification',
+        text: '[日历通知]',
+        extraData: {
+          calendarNotification,
+        },
+      };
+    }
+
+    const skillOutput = parseSkillOutputMessage(mirrorCustomMessage);
+    if (skillOutput.isSkillOutput) {
+      return {
+        ...baseMessage,
+        category: 'skill_output',
+        text: '[技能输出]',
+        extraData: {
+          skillOutput,
+        },
+      };
+    }
+
+    return {
+      ...baseMessage,
+      category: 'text',
+      text: resolveCustomMessageFallbackText(mirrorCustomMessage),
+    };
+  }
+
+  return {
+    ...baseMessage,
+    category: 'text',
+    text: message.text_preview || '[消息]',
+  };
 }
 
 /** 从 SDK 消息对象解析为统一消息 */
@@ -189,6 +522,29 @@ function parseSDKMessage(msg: any, currentUserID: string): UnifiedMessage {
     } catch { /* 忽略 */ }
 
     if (parsedData) {
+      const groupCreateTip = parseGroupCreateTipInfo({
+        parsedData,
+        fromUserID: msg.from || '',
+        fallbackName: String(parsedData.showName || msg.nameCard || msg.nick || msg.from || ''),
+      });
+      if (groupCreateTip) {
+        return {
+          id: msg.ID || '',
+          category: 'system',
+          from: msg.from || '',
+          fromMe: false,
+          time: msg.time || 0,
+          rawMessage: msg,
+          avatar: '',
+          text: '创建群聊',
+          extraData: {
+            groupTip: groupCreateTip,
+          },
+          status: 'success',
+          isRecalled: false,
+        };
+      }
+
       const businessID = String(parsedData.businessID || parsedData.type || '').trim();
 
       // 图片消息
@@ -376,7 +732,7 @@ export function useMessageList(options: UseMessageListOptions) {
   const [status, setStatus] = useState<MessageListStatus>('idle');
   const [error, setError] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(true);
-  const nextReqMessageIDRef = useRef('');
+  const nextCursorRef = useRef<string | undefined>(undefined);
 
   const getCurrentUserID = useCallback(() => {
     const chat = getChatInstance();
@@ -397,7 +753,7 @@ export function useMessageList(options: UseMessageListOptions) {
     return '';
   }, []);
 
-  // 加载历史消息（优先使用 SDK）
+  // 加载镜像历史消息，和 PC 端详情页保持一致
   const loadHistoryMessages = useCallback(async () => {
     if (!hasMore) return;
     setStatus('loading');
@@ -406,6 +762,7 @@ export function useMessageList(options: UseMessageListOptions) {
     try {
       const chat = getChatInstance();
       const currentUserID = getCurrentUserID();
+      const mirrorConversationID = toMirrorConversationID(conversationID, currentUserID);
 
       if (!chat) {
         setError('SDK 未就绪');
@@ -413,32 +770,40 @@ export function useMessageList(options: UseMessageListOptions) {
         return;
       }
 
-      // 使用 SDK 拉取消息
-      const sdkResult = await chat.getMessageList({
-        conversationID,
-        nextReqMessageID: nextReqMessageIDRef.current || undefined,
-      });
+      const beforeCursor = nextCursorRef.current;
+      const response = await fetchMessages(mirrorConversationID, beforeCursor, 50);
+      const parsed = (response.items || [])
+        .slice()
+        .reverse()
+        .map((item) => parseMirrorMessage(item, currentUserID));
 
-      const sdkList = sdkResult?.data?.messageList || [];
-      nextReqMessageIDRef.current = sdkResult?.data?.nextReqMessageID || '';
+      nextCursorRef.current =
+        response.next_cursor === null || response.next_cursor === undefined
+          ? undefined
+          : String(response.next_cursor);
 
-      const parsed = sdkList.map((m: any) => parseSDKMessage(m, currentUserID));
-
-      if (nextReqMessageIDRef.current) {
-        // 有更多历史消息，追加到列表头部（更旧的消息在前）
+      if (beforeCursor) {
+        // 翻页取到的是更老一段，插到现有列表前面
         setMessages((prev) => [...parsed, ...prev]);
       } else {
-        // 首次加载
         setMessages(parsed);
       }
 
-      setHasMore(Boolean(nextReqMessageIDRef.current));
+      setHasMore(Boolean(nextCursorRef.current));
       setStatus('success');
     } catch (err) {
       setError(err instanceof Error ? err.message : '加载消息失败');
       setStatus('error');
     }
   }, [conversationID, hasMore, getCurrentUserID]);
+
+  useEffect(() => {
+    setMessages([]);
+    setStatus('idle');
+    setError(null);
+    setHasMore(true);
+    nextCursorRef.current = undefined;
+  }, [conversationID]);
 
   // 发送文字消息（SDK 原生通道）
   const sendTextMessage = useCallback(async (text: string) => {

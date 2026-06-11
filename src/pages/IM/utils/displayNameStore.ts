@@ -68,8 +68,7 @@ export function shouldSkipDisplayNameLookup(userID: string): boolean {
   if (!userID) return true;
   // 群组 ID 不是用户，跳过
   if (userID.startsWith('@TGS#')) return true;
-  // 机器人 ID 跳过（SDK 兜底查询 nick）
-  if (userID.startsWith('@RBT#')) return true;
+  // 机器人 ID 保留查询，优先走 SDK nick
   return false;
 }
 

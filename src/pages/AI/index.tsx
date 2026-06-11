@@ -25,7 +25,6 @@ import { getChatUserId } from '../../services/chat/api'
 import {
   fetchKnowledgeSpaces,
   fetchLibraryFiles,
-  type KnowledgeSpaceOption,
   type LibraryFileDetail,
   type LibraryPageFileItem,
   type LibraryResourceFile,
@@ -88,6 +87,7 @@ import { filterSkillItems, getSkillCardTags } from './utils/skillDisplay'
 import AppComposerInput from '../../components/AppComposerInput'
 import DisplayName from '../../components/DisplayName'
 import { APP_ROUTE_PATHS } from '../../routes'
+import LibraryScopeTabs, { type LibraryScopeTabKey } from '../Library/components/LibraryScopeTabs'
 import '../Library/index.css'
 import './index.css'
 
@@ -254,13 +254,6 @@ function buildDetailFromConfigDraft(
     created_at: detail?.created_at ?? '',
     updated_at: new Date().toISOString(),
   }
-}
-
-function resolveLibrarySpaceName(
-  spaces: KnowledgeSpaceOption[],
-  selectedSpaceId: string,
-): string {
-  return spaces.find((item) => item.id === selectedSpaceId)?.name ?? ''
 }
 
 function formatLibraryPickerDateTime(value: string): string {
@@ -431,10 +424,9 @@ export default function AIPage({
   const [showMySkillsPage, setShowMySkillsPage] = useState(false)
   const [mySkillsTab, setMySkillsTab] = useState<'added' | 'created'>('added')
   const [showCreateSkillSheet, setShowCreateSkillSheet] = useState(false)
-  const [libraryTab, setLibraryTab] = useState<'personal' | 'org'>('personal')
+  const [libraryTab, setLibraryTab] = useState<LibraryScopeTabKey>('personal')
   const [selectedLibraryIds, setSelectedLibraryIds] = useState<string[]>([])
   const [selectedOrgSpaceId, setSelectedOrgSpaceId] = useState('')
-  const [showOrgSpacePicker, setShowOrgSpacePicker] = useState(false)
   const [featureCards, setFeatureCards] = useState<CommandPromptItem[]>(fallbackFeatureCards)
   const [commandsData, setCommandsData] = useState<CommandsData>(EMPTY_COMMANDS_DATA)
   const [commandsLoading, setCommandsLoading] = useState(false)
@@ -473,9 +465,6 @@ export default function AIPage({
   const [removingSessionIds, setRemovingSessionIds] = useState<Set<string>>(new Set())
   const [discoverLoading, setDiscoverLoading] = useState(false)
   const [discoverError, setDiscoverError] = useState('')
-  const [librarySearchValue, setLibrarySearchValue] = useState('')
-  const [debouncedLibrarySearchValue, setDebouncedLibrarySearchValue] = useState('')
-  const [knowledgeSpaces, setKnowledgeSpaces] = useState<KnowledgeSpaceOption[]>([])
   const [libraryFiles, setLibraryFiles] = useState<LibraryResourceFile[]>([])
   const [libraryLoading, setLibraryLoading] = useState(false)
   const [libraryError, setLibraryError] = useState('')
@@ -682,8 +671,6 @@ export default function AIPage({
   const openLibraryPage = () => {
     setShowPlusSheet(false)
     setShowFileMenu(false)
-    setShowOrgSpacePicker(false)
-    setLibrarySearchValue('')
     setSelectedLibraryIds([])
     setShowAgentConfigPage(false)
     setShowCreateAgentModal(false)
@@ -1161,7 +1148,6 @@ export default function AIPage({
     { key: 'collaboration', title: '共创', items: groupedDiscoverAgents.collaboration },
     { key: 'mine', title: '我的智能体', items: groupedDiscoverAgents.mine },
   ]), [groupedDiscoverAgents])
-  const selectedOrgSpaceName = useMemo(() => resolveLibrarySpaceName(knowledgeSpaces, selectedOrgSpaceId), [knowledgeSpaces, selectedOrgSpaceId])
   const visibleLibraryItems = libraryFiles
   const draftResourceIds = useMemo(() => new Set(
     draftAttachments.flatMap((attachment) => attachment.resourceId ? [attachment.resourceId] : []),
@@ -1369,16 +1355,6 @@ export default function AIPage({
   }, [skillSearchValue])
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      setDebouncedLibrarySearchValue(librarySearchValue.trim())
-    }, 300)
-
-    return () => {
-      window.clearTimeout(timer)
-    }
-  }, [librarySearchValue])
-
-  useEffect(() => {
     if (!showSkillsPage) {
       return
     }
@@ -1528,7 +1504,6 @@ export default function AIPage({
     void (async () => {
       try {
         const nextSpaces = await fetchKnowledgeSpaces(controller.signal)
-        setKnowledgeSpaces(nextSpaces)
 
         if (!selectedOrgSpaceId && nextSpaces.length > 0) {
           setSelectedOrgSpaceId(nextSpaces[0].id)
@@ -1563,7 +1538,6 @@ export default function AIPage({
       try {
         const nextFiles = await fetchLibraryFiles({
           scope: libraryTab,
-          keyword: debouncedLibrarySearchValue,
           knowledgeSpaceOwnerId: libraryTab === 'org' ? selectedOrgSpaceId : undefined,
           signal: controller.signal,
         })
@@ -1584,7 +1558,7 @@ export default function AIPage({
     return () => {
       controller.abort()
     }
-  }, [debouncedLibrarySearchValue, libraryTab, selectedOrgSpaceId, showLibraryPage])
+  }, [libraryTab, selectedOrgSpaceId, showLibraryPage])
 
   const applyFeatureCard = (card: CommandPromptItem) => {
     setInputValue(card.template)
@@ -2746,61 +2720,7 @@ export default function AIPage({
       {showLibraryPage && (
         <div className="library-page ai-library-picker-page">
           <div className="library-header ai-library-picker-header">
-            <div className="library-nav">
-              <div className="library-icon-placeholder" />
-              <div className="library-title-wrap">
-                <div className="library-title">选择资料</div>
-              </div>
-              <button className="library-icon-btn ai-library-picker-close" type="button" onClick={() => setShowLibraryPage(false)}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                  <line x1="18" y1="6" x2="6" y2="18" />
-                  <line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
-              </button>
-            </div>
-
-            <div className="library-scope-switch">
-              <button
-                className={`library-scope-btn ${libraryTab === 'personal' ? 'is-active' : ''}`}
-                type="button"
-                onClick={() => {
-                  setLibraryTab('personal')
-                  setShowOrgSpacePicker(false)
-                }}
-              >
-                个人资料库
-              </button>
-              <button
-                className={`library-scope-btn ${libraryTab === 'org' ? 'is-active' : ''}`}
-                type="button"
-                onClick={() => setLibraryTab('org')}
-              >
-                组织资料库
-              </button>
-            </div>
-
-            {libraryTab === 'org' ? (
-              <button className="library-org-space-trigger" type="button" onClick={() => setShowOrgSpacePicker(true)}>
-                <span>知识空间</span>
-                <span className="library-org-space-value">{selectedOrgSpaceName || '请选择知识空间'}</span>
-              </button>
-            ) : null}
-
-            <div className="ai-library-picker-toolbar">
-              <div className="library-search">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                  <circle cx="11" cy="11" r="7" />
-                  <line x1="20" y1="20" x2="16.65" y2="16.65" />
-                </svg>
-                <input
-                  className="ai-inline-search-input"
-                  placeholder="搜索文件名"
-                  value={librarySearchValue}
-                  onChange={(event) => setLibrarySearchValue(event.target.value)}
-                />
-              </div>
-              <div className="ai-library-picker-selected">已选 {selectedLibraryIds.length}</div>
-            </div>
+            <LibraryScopeTabs activeScope={libraryTab} onScopeChange={setLibraryTab} />
           </div>
 
           <div className="library-content ai-library-picker-content">
@@ -2810,7 +2730,6 @@ export default function AIPage({
               {!libraryLoading && !libraryError && visibleLibraryItems.length === 0 ? (
                 <div className="library-empty">
                   <div className="library-empty-title">暂无可引用文件</div>
-                  <div className="library-empty-desc">当前直接使用资料库接口返回的数据，没有额外做前端过滤。</div>
                 </div>
               ) : null}
               {!libraryLoading && !libraryError && visibleLibraryItems.map((item) => {
@@ -2865,31 +2784,6 @@ export default function AIPage({
             </button>
           </div>
 
-          {showOrgSpacePicker ? (
-            <div className="library-filter-sheet-overlay" onClick={() => setShowOrgSpacePicker(false)}>
-              <div className="library-filter-sheet" onClick={(event) => event.stopPropagation()}>
-                <div className="library-filter-sheet-handle" />
-                <div className="library-filter-sheet-title">选择知识空间</div>
-                <div className="library-org-save-options">
-                  {knowledgeSpaces.map((space) => (
-                    <button
-                      className={`library-sheet-option ${selectedOrgSpaceId === space.id ? 'is-active' : ''}`}
-                      key={space.id}
-                      type="button"
-                      onClick={() => {
-                        setSelectedOrgSpaceId(space.id)
-                        setShowOrgSpacePicker(false)
-                      }}
-                    >
-                      <span>{space.name}</span>
-                      {selectedOrgSpaceId === space.id ? <span>已选</span> : null}
-                    </button>
-                  ))}
-                  {knowledgeSpaces.length === 0 ? <div className="library-empty">当前没有可用知识空间。</div> : null}
-                </div>
-              </div>
-            </div>
-          ) : null}
         </div>
       )}
       {/* 侧边栏库全屏页 */}

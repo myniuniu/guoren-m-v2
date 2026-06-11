@@ -8,6 +8,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { UnifiedMessage } from '../hooks/useMessageList';
 import { openImagePreviewOverlay } from '../utils/imagePreview';
+import { useDisplayName } from '../utils/displayNameHooks';
 import SeminarInviteCard from './SeminarInviteCard';
 import CalendarNotificationCard from './CalendarNotificationCard';
 import ForwardMessageBubble from './ForwardMessageBubble';
@@ -21,6 +22,8 @@ interface MessageBubbleProps {
 
 const MessageBubble: React.FC<MessageBubbleProps> = ({ message, onResend, onRevoke: _onRevoke }) => {
   const { category, fromMe, isRecalled } = message;
+  const groupTip = message.extraData?.groupTip;
+  const groupTipOperatorName = useDisplayName(groupTip?.operatorUserID, groupTip?.operatorFallbackName);
 
   // 撤回消息
   if (isRecalled || category === 'recalled') {
@@ -33,9 +36,13 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, onResend, onRevo
 
   // 系统消息
   if (category === 'system') {
+    const systemText = groupTip?.type === 'group_create'
+      ? `${groupTipOperatorName || groupTip?.operatorFallbackName || '有人'} 创建群聊`
+      : message.text;
+
     return (
       <div className="im-msg-bubble im-msg-system">
-        <span className="im-msg-system-text">{message.text}</span>
+        <span className="im-msg-system-text">{systemText}</span>
       </div>
     );
   }

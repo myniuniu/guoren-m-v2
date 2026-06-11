@@ -138,9 +138,22 @@ async function messagingRequest<T = any>(
     throw new Error(data?.message || data?.msg || 'Token失效，请重新登录!');
   }
 
-  // 镜像 API 响应格式: { code: 0, msg: "ok", data: {...} }
-  // code !== 0 表示业务错误
-  if (data?.code !== 0 && data?.code !== undefined) {
+  // 兼容两种镜像响应风格：
+  // 1. 老格式：{ code: 0, msg: "ok", data: {...} }
+  // 2. 现格式：{ success: true, code: "200", msg: "success", data: {...} }
+  const bizCode = data?.code;
+  const bizCodeNumber =
+    typeof bizCode === 'string' || typeof bizCode === 'number'
+      ? Number(bizCode)
+      : Number.NaN;
+  const isBusinessSuccess =
+    bizCode === undefined ||
+    bizCode === 0 ||
+    bizCode === '0' ||
+    data?.success === true ||
+    (Number.isFinite(bizCodeNumber) && bizCodeNumber >= 200 && bizCodeNumber < 300);
+
+  if (!isBusinessSuccess) {
     // 403 鉴权失败
     if (data?.code === 40300 || response.status === 403) {
       throw new Error(data?.msg || '无权访问该会话');

@@ -11,7 +11,7 @@ import Avatar from './Avatar';
 import MessageInputBar from './MessageInputBar';
 import { formatMessageTime } from '../utils/formatTime';
 import type { MergedConversation } from '../hooks/useConversationList';
-import { useDisplayName, useDisplayNameLookup } from '../utils/displayNameHooks';
+import { useDisplayName } from '../utils/displayNameHooks';
 
 interface ChatPageProps {
   conversation: MergedConversation;
@@ -41,9 +41,6 @@ const ChatPage: React.FC<ChatPageProps> = ({ conversation, onBack }) => {
   // 提取对方 userID，用于 displayName 查询
   const targetUserID = extractTargetUserID(conversation);
   const displayName = useDisplayName(targetUserID, conversation.title);
-
-  // 消息 sender displayName lookup
-  const lookupDisplayName = useDisplayNameLookup();
 
   // 进入聊天页面时隐藏底部导航栏，退出时恢复
   useEffect(() => {
@@ -151,14 +148,21 @@ const ChatPage: React.FC<ChatPageProps> = ({ conversation, onBack }) => {
             ) : (
               <div className={`im-msg-with-avatar ${msg.fromMe ? 'im-msg-with-avatar--right' : 'im-msg-with-avatar--left'}`}>
                 {/* 对方消息（C2C 中即对话对方），直接用对话 displayName */}
-                {!msg.fromMe && <Avatar url={msg.avatar} name={displayName || msg.from} />}
+                {!msg.fromMe && (
+                  <MessageSenderAvatar
+                    url={msg.avatar}
+                    userID={msg.from}
+                    conversation={conversation}
+                    conversationDisplayName={displayName}
+                  />
+                )}
                 <MessageBubble
                   message={msg}
                   onResend={resendMessage}
                   onRevoke={revokeMessage}
                 />
-                {/* 自己的消息，用 lookupDisplayName 获取当前用户 displayName */}
-                {msg.fromMe && <Avatar url={msg.avatar} name={lookupDisplayName(msg.from, msg.from)} />}
+                {/* 自己的消息也统一走发送人 displayName，避免继续显示用户 ID */}
+                {msg.fromMe && <MessageSenderAvatar url={msg.avatar} userID={msg.from} conversation={conversation} />}
               </div>
             )}
           </React.Fragment>
@@ -205,3 +209,36 @@ function extractTargetUserID(conversation: MergedConversation): string {
 }
 
 export default ChatPage;
+
+function resolveAvatarDisplayName(
+  userID: string,
+  conversation: MergedConversation,
+  conversationDisplayName?: string,
+): string {
+  if (!userID) {
+    return conversationDisplayName || '';
+  }
+
+  if (conversation.type === 'group' || conversation.type === 'community') {
+    return userID;
+  }
+
+  return conversationDisplayName || userID;
+}
+
+function MessageSenderAvatar({
+  url,
+  userID,
+  conversation,
+  conversationDisplayName,
+}: {
+  url?: string;
+  userID: string;
+  conversation: MergedConversation;
+  conversationDisplayName?: string;
+}) {
+  const fallbackName = resolveAvatarDisplayName(userID, conversation, conversationDisplayName);
+  const displayName = useDisplayName(userID, fallbackName);
+
+  return <Avatar url={url} name={displayName || fallbackName || userID} />;
+}

@@ -76,12 +76,29 @@ export function useConversationList() {
   // 从镜像 API 获取会话列表
   const getMirrorConversations = useCallback(async (): Promise<MergedConversation[]> => {
     try {
+      const currentUserID = getCurrentUserID();
       const response = await fetchConversations(undefined, 100);
-      return response.items.map((item) => ({
-        ...item,
-        conversation_id: normalizeConversationID(item.conversation_id, item.type),
-        unread_count: item.unread_count || 0,
-      }));
+      return response.items
+        .filter((item) => isSupportedConversationType(item.type))
+        .map((item) => ({
+          conversation_id: normalizeConversationID(
+            item.conversation_id,
+            item.type,
+            item.participants,
+            currentUserID,
+          ),
+          type: item.type,
+          title: item.title || '',
+          avatar: item.avatar || null,
+          last_msg_preview: item.last_msg_preview || '',
+          last_msg_time: normalizeApiTime(item.last_msg_time),
+          last_msg_from: item.last_msg_from || null,
+          pinned: Boolean(item.pinned),
+          muted: Boolean(item.muted),
+          order_seq: Number(item.order_seq || 0),
+          unread_count: item.unread_count || 0,
+          last_read_msg_time: item.last_read_msg_time || null,
+        }));
     } catch {
       return [];
     }
@@ -104,10 +121,14 @@ export function useConversationList() {
           // 合并：SDK 的未读数、最后消息时间优先
           map.set(sdkItem.conversation_id, {
             ...existing,
-            unread_count: sdkItem.unread_count || existing.unread_count,
+            title: existing.title || sdkItem.title,
+            avatar: existing.avatar || sdkItem.avatar,
+            unread_count: sdkItem.unread_count ?? existing.unread_count,
             last_msg_preview: sdkItem.last_msg_preview || existing.last_msg_preview,
             last_msg_time: sdkItem.last_msg_time || existing.last_msg_time,
+            last_msg_from: existing.last_msg_from || sdkItem.last_msg_from,
             pinned: sdkItem.pinned || existing.pinned,
+            muted: existing.muted || sdkItem.muted,
           });
         } else {
           // SDK 有但镜像没有的会话（最近7天内的活跃会话）
@@ -225,6 +246,30 @@ export function useConversationList() {
     []
   );
 
+  // 标记会话已读
+  const markConversationRead = useCallback(async (conversation: MergedConversation) => {
+    if (!conversation?.conversation_id) return;
+
+    setConversations((prev) =>
+      prev.map((item) =>
+        item.conversation_id === conversation.conversation_id
+          ? { ...item, unread_count: 0 }
+          : item
+      )
+    );
+
+    try {
+      const chat = getChatInstance();
+      if (chat?.setMessageRead) {
+        await chat.setMessageRead({
+          conversationID: conversation.conversation_id,
+        });
+      }
+    } catch (err) {
+      console.error('标记已读失败:', err);
+    }
+  }, []);
+
   // 删除会话
   const removeConversation = useCallback(async (conversationId: string) => {
     setConversations((prev) => prev.filter((item) => item.conversation_id !== conversationId));
@@ -250,6 +295,7 @@ export function useConversationList() {
     setSearchKeyword,
     refresh,
     pinConversation,
+    markConversationRead,
     removeConversation,
   };
 }
@@ -265,7 +311,9 @@ export function useConversationList() {
  */
 function normalizeConversationID(
   rawConversationID: string,
-  type: string
+  type: string,
+  participants: string[] | null,
+  selfUserID: string | null,
 ): string {
   // 已经是 SDK 格式，直接返回
   if (rawConversationID.startsWith('C2C') || rawConversationID.startsWith('GROUP')) {
@@ -277,18 +325,24 @@ function normalizeConversationID(
     return `GROUP${rawConversationID}`;
   }
 
-  // AI C2C (机器人): userID:@RBT#botName → C2C@RBT#botName
-  if (type === 'ai_c2c' && rawConversationID.includes('@RBT#')) {
-    const match = rawConversationID.match(/@RBT#(.+)$/);
-    if (match) return `C2C@RBT#${match[1]}`;
-  }
-
-  // 普通 C2C: userID:targetUserID → C2C#targetUserID
-  if (type === 'c2c') {
-    const parts = rawConversationID.split(':');
-    if (parts.length >= 2) {
-      return `C2C#${parts[parts.length - 1]}`;
+  // C2C / AI C2C：优先从 participants 拿对端；没有时再从 mirror 的 min:max 里减去自己
+  if (type === 'c2c' || type === 'ai_c2c') {
+    const peerFromParticipants = participants?.find((item) => item && item !== selfUserID) || '';
+    if (peerFromParticipants) {
+      return `C2C${peerFromParticipants}`;
     }
+
+    if (selfUserID && rawConversationID.includes(':')) {
+      const peerFromConversationID = rawConversationID
+        .split(':')
+        .filter((item) => item && item !== selfUserID)
+        .join(':');
+      if (peerFromConversationID) {
+        return `C2C${peerFromConversationID}`;
+      }
+    }
+
+    return `C2C${rawConversationID}`;
   }
 
   return rawConversationID;
@@ -305,4 +359,26 @@ function extractConversationUserID(conversationId: string, type: string): string
   if (!conversationId.startsWith('C2C')) return null;
   const after = conversationId.slice(3);
   return after.startsWith('#') ? after.slice(1) : after;
+}
+
+function isSupportedConversationType(
+  type: string
+): type is MergedConversation['type'] {
+  return type === 'c2c' || type === 'ai_c2c' || type === 'group' || type === 'community';
+}
+
+function getCurrentUserID(): string | null {
+  try {
+    const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+    const userID = String(userInfo?.id || '').trim();
+    return userID || null;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeApiTime(value: string | null): string | null {
+  if (!value) return null;
+  const normalized = String(value).trim().replace(' ', 'T');
+  return normalized || null;
 }

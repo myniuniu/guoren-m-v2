@@ -1,26 +1,135 @@
 /**
  * 会话列表主页面
- * 搜索栏 + 置顶区/普通区 + 下拉刷新 + 空状态
+ * 顶部视觉结构对齐 master 的消息页，会话数据和点击逻辑继续走当前分支
  */
 
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { SearchBar, PullToRefresh, Empty, SwipeAction, SpinLoading } from 'antd-mobile';
 import { SearchOutline } from 'antd-mobile-icons';
 import { useConversationList } from '../hooks/useConversationList';
 import ConversationItem from './ConversationItem';
 import type { MergedConversation } from '../hooks/useConversationList';
+import { useDisplayName } from '../utils/displayNameHooks';
 
 interface ConversationListPageProps {
   onConversationClick?: (conversation: MergedConversation) => void;
 }
 
-type ConversationFilterKey = 'all' | 'unread' | 'pinned';
+type ConversationFilterKey = 'message' | 'unread' | 'pinned';
+type ChannelAvatarTone = 'olive' | 'gold' | 'green' | 'violet' | 'pink' | 'teal' | 'peach' | 'blue' | 'lilac';
 
 const conversationFilters: Array<{ key: ConversationFilterKey; label: string }> = [
-  { key: 'all', label: '全部' },
+  { key: 'message', label: '消息' },
   { key: 'unread', label: '未读' },
   { key: 'pinned', label: '置顶' },
 ];
+
+function SearchIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="11" cy="11" r="7.5" />
+      <path d="m16.5 16.5 4 4" />
+    </svg>
+  );
+}
+
+function PlusCircleIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="8.75" />
+      <path d="M12 8v8" />
+      <path d="M8 12h8" />
+    </svg>
+  );
+}
+
+function MenuLinesIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#474c54" strokeWidth="2.2" strokeLinecap="round">
+      <path d="M7 6.5h10" />
+      <path d="M5 12h8" />
+      <path d="M7 17.5h10" />
+    </svg>
+  );
+}
+
+const filledAvatarTones: ChannelAvatarTone[] = ['peach', 'blue', 'lilac'];
+const outlineAvatarTones: ChannelAvatarTone[] = ['olive', 'gold', 'green', 'violet', 'pink', 'teal'];
+
+function extractConversationUserID(conversation: MergedConversation) {
+  if (conversation.type !== 'c2c' && conversation.type !== 'ai_c2c') {
+    return undefined;
+  }
+
+  const convId = conversation.conversation_id;
+  if (!convId.startsWith('C2C')) {
+    return undefined;
+  }
+
+  const after = convId.slice(3);
+  return after.startsWith('#') ? after.slice(1) : after;
+}
+
+function buildAvatarLines(title: string) {
+  const compactTitle = title.replace(/\s+/g, '').replace(/[^\u4e00-\u9fa5a-zA-Z0-9]/g, '');
+  if (!compactTitle) return ['?'];
+  if (compactTitle.length === 1) return [compactTitle];
+  return [compactTitle.slice(0, 2), compactTitle.slice(2, 4)].filter(Boolean);
+}
+
+function pickAvatarTone(seed: string, tones: readonly ChannelAvatarTone[]) {
+  let hash = 0;
+  for (const char of seed) {
+    hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  }
+  return tones[hash % tones.length];
+}
+
+function PinnedConversationChip({
+  conversation,
+  onClick,
+}: {
+  conversation: MergedConversation;
+  onClick?: (conversation: MergedConversation) => void;
+}) {
+  const targetUserID = extractConversationUserID(conversation);
+  const displayName = useDisplayName(targetUserID, conversation.title);
+  const finalTitle =
+    conversation.type === 'c2c' || conversation.type === 'ai_c2c' ? displayName : conversation.title;
+  const isGroupConversation = conversation.type === 'group' || conversation.type === 'community';
+  const avatarTone = isGroupConversation
+    ? pickAvatarTone(conversation.conversation_id || finalTitle, outlineAvatarTones)
+    : pickAvatarTone(conversation.conversation_id || finalTitle, filledAvatarTones);
+  const avatarLines = buildAvatarLines(finalTitle);
+
+  return (
+    <button
+      className="im-message-channel-item"
+      type="button"
+      onClick={() => onClick?.(conversation)}
+      aria-label={finalTitle}
+    >
+      {conversation.avatar ? (
+        <div className="im-message-chip-avatar is-image">
+          <img src={conversation.avatar} alt={finalTitle} />
+        </div>
+      ) : (
+        <div className={`im-message-chip-avatar ${isGroupConversation ? `is-outline-${avatarTone}` : `is-filled-${avatarTone}`}`}>
+          {isGroupConversation ? (
+            <div className="im-message-chip-avatar-stack">
+              {avatarLines.map((line) => (
+                <span key={line}>{line}</span>
+              ))}
+            </div>
+          ) : (
+            <span className="im-message-chip-avatar-single">{avatarLines[0]?.slice(0, 1) || '?'}</span>
+          )}
+        </div>
+      )}
+      <span className="im-message-channel-label">{finalTitle}</span>
+    </button>
+  );
+}
 
 const ConversationListPage: React.FC<ConversationListPageProps> = ({ onConversationClick }) => {
   const {
@@ -32,9 +141,23 @@ const ConversationListPage: React.FC<ConversationListPageProps> = ({ onConversat
     setSearchKeyword,
     refresh,
     pinConversation,
+    markConversationRead,
     removeConversation,
   } = useConversationList();
-  const [activeFilter, setActiveFilter] = useState<ConversationFilterKey>('all');
+  const [activeFilter, setActiveFilter] = useState<ConversationFilterKey>('message');
+  const [showSearchBar, setShowSearchBar] = useState(false);
+
+  const handleConversationOpen = useCallback((conversation: MergedConversation) => {
+    const nextConversation = conversation.unread_count > 0
+      ? { ...conversation, unread_count: 0 }
+      : conversation;
+
+    if (conversation.unread_count > 0) {
+      void markConversationRead(conversation);
+    }
+
+    onConversationClick?.(nextConversation);
+  }, [markConversationRead, onConversationClick]);
 
   // 渲染会话项，带左滑操作
   const renderConversationItem = (conversation: MergedConversation) => {
@@ -62,39 +185,30 @@ const ConversationListPage: React.FC<ConversationListPageProps> = ({ onConversat
           },
         ]}
       >
-        <ConversationItem
-          conversation={conversation}
-          onClick={onConversationClick}
-        />
+        <ConversationItem conversation={conversation} onClick={handleConversationOpen} />
       </SwipeAction>
     );
   };
 
-  const visiblePinnedConversations = useMemo(() => {
-    if (activeFilter === 'unread') {
-      return pinnedConversations.filter((conversation) => conversation.unread_count > 0);
-    }
+  const visibleConversations = useMemo(() => {
+    const visiblePinned =
+      activeFilter === 'unread'
+        ? pinnedConversations.filter((conversation) => conversation.unread_count > 0)
+        : pinnedConversations;
+
+    const visibleNormal =
+      activeFilter === 'unread'
+        ? normalConversations.filter((conversation) => conversation.unread_count > 0)
+        : activeFilter === 'pinned'
+        ? []
+        : normalConversations;
 
     if (activeFilter === 'pinned') {
-      return pinnedConversations;
+      return visiblePinned;
     }
 
-    return pinnedConversations;
-  }, [activeFilter, pinnedConversations]);
-
-  const visibleNormalConversations = useMemo(() => {
-    if (activeFilter === 'unread') {
-      return normalConversations.filter((conversation) => conversation.unread_count > 0);
-    }
-
-    if (activeFilter === 'pinned') {
-      return [];
-    }
-
-    return normalConversations;
-  }, [activeFilter, normalConversations]);
-
-  const totalVisibleCount = visiblePinnedConversations.length + visibleNormalConversations.length;
+    return [...visiblePinned, ...visibleNormal];
+  }, [activeFilter, normalConversations, pinnedConversations]);
 
   // loading 状态
   if (status === 'loading' && pinnedConversations.length === 0 && normalConversations.length === 0) {
@@ -132,38 +246,58 @@ const ConversationListPage: React.FC<ConversationListPageProps> = ({ onConversat
   return (
     <div className="im-conversation-list-page">
       <div className="im-message-shell">
-        <div className="im-message-titlebar">
-          <div className="im-message-title-wrap">
-            <h1 className="im-message-title">消息</h1>
-            <div className="im-message-subtitle">{totalVisibleCount} 个会话</div>
+        <div className="im-page-inset im-message-titlebar">
+          <h1 className="im-message-title">消息</h1>
+          <div className="im-message-profile-actions">
+            <button
+              className="im-message-header-button"
+              type="button"
+              aria-label="搜索会话"
+              onClick={() => setShowSearchBar((current) => !current)}
+            >
+              <SearchIcon />
+            </button>
+            <button className="im-message-header-button" type="button" aria-label="刷新会话" onClick={refresh}>
+              <PlusCircleIcon />
+            </button>
           </div>
-          <button className="im-message-refresh-btn" type="button" onClick={refresh}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 2v6h-6" />
-              <path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
-              <path d="M3 22v-6h6" />
-              <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
-            </svg>
+        </div>
+
+        {(showSearchBar || searchKeyword) && (
+          <div className="im-page-inset im-conversation-list-search">
+            <SearchBar
+              placeholder="搜索会话"
+              value={searchKeyword}
+              onChange={setSearchKeyword}
+              icon={<SearchOutline fontSize={16} color="#999" />}
+              style={{
+                '--border-radius': '20px',
+                '--background': '#eff1f5',
+                '--height': '38px',
+                '--placeholder-color': '#98a0ad',
+                '--padding-left': '12px',
+              }}
+            />
+          </div>
+        )}
+
+        {pinnedConversations.length > 0 && (
+          <div className="im-message-channel-scroll">
+            {pinnedConversations.map((conversation) => (
+              <PinnedConversationChip
+                key={conversation.conversation_id}
+                conversation={conversation}
+                onClick={handleConversationOpen}
+              />
+            ))}
+          </div>
+        )}
+
+        <div className="im-page-inset im-message-filter-row">
+          <button className="im-message-filter-menu" type="button" aria-label="会话菜单">
+            <MenuLinesIcon />
           </button>
-        </div>
 
-        <div className="im-conversation-list-search">
-          <SearchBar
-            placeholder="搜索会话"
-            value={searchKeyword}
-            onChange={setSearchKeyword}
-            icon={<SearchOutline fontSize={16} color="#999" />}
-            style={{
-              '--border-radius': '20px',
-              '--background': '#eff1f5',
-              '--height': '38px',
-              '--placeholder-color': '#98a0ad',
-              '--padding-left': '12px',
-            }}
-          />
-        </div>
-
-        <div className="im-message-filter-row">
           <div className="im-message-filter-segment">
             {conversationFilters.map((filter) => (
               <button
@@ -179,57 +313,27 @@ const ConversationListPage: React.FC<ConversationListPageProps> = ({ onConversat
         </div>
       </div>
 
-      {/* 会话列表 */}
-      <PullToRefresh onRefresh={refresh}>
-        <div className="im-conversation-list-content">
-          {/* 置顶会话 */}
-          {visiblePinnedConversations.length > 0 && (
-            <div className="im-conversation-section">
-              <div className="im-conversation-section-header">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="3">
-                  <line x1="12" y1="2" x2="12" y2="22" />
-                </svg>
-                <span>置顶会话</span>
+      <div className="im-conversation-scroll-region">
+        <PullToRefresh onRefresh={refresh}>
+          <div className="im-conversation-list-content">
+            {visibleConversations.length > 0 ? (
+              <div className="im-conversation-flat-list">{visibleConversations.map(renderConversationItem)}</div>
+            ) : (
+              <div className="im-conversation-empty">
+                <Empty
+                  description={activeFilter === 'unread' ? '暂无未读会话' : activeFilter === 'pinned' ? '暂无置顶会话' : '暂无消息'}
+                  image={
+                    <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#c0c4cc" strokeWidth="1.5">
+                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                    </svg>
+                  }
+                />
+                <p className="im-conversation-empty-text">{activeFilter === 'message' ? '暂无消息，开始聊天吧' : '换个筛选条件再看看'}</p>
               </div>
-              <div className="im-conversation-section-list">
-                {visiblePinnedConversations.map(renderConversationItem)}
-              </div>
-            </div>
-          )}
-
-          {/* 普通会话 */}
-          {visibleNormalConversations.length > 0 && (
-            <div className="im-conversation-section">
-              <div className="im-conversation-section-header">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="2">
-                  <line x1="8" y1="6" x2="21" y2="6" />
-                  <line x1="8" y1="12" x2="21" y2="12" />
-                  <line x1="8" y1="18" x2="21" y2="18" />
-                </svg>
-                <span>{activeFilter === 'unread' ? '未读会话' : '全部会话'}</span>
-              </div>
-              <div className="im-conversation-section-list">
-                {visibleNormalConversations.map(renderConversationItem)}
-              </div>
-            </div>
-          )}
-
-          {/* 空状态 */}
-          {visiblePinnedConversations.length === 0 && visibleNormalConversations.length === 0 && (
-            <div className="im-conversation-empty">
-              <Empty
-                description={activeFilter === 'unread' ? '暂无未读会话' : activeFilter === 'pinned' ? '暂无置顶会话' : '暂无会话'}
-                image={
-                  <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#c0c4cc" strokeWidth="1.5">
-                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                  </svg>
-                }
-              />
-              <p className="im-conversation-empty-text">{activeFilter === 'all' ? '暂无会话，开始聊天吧' : '换个筛选条件再看看'}</p>
-            </div>
-          )}
-        </div>
-      </PullToRefresh>
+            )}
+          </div>
+        </PullToRefresh>
+      </div>
     </div>
   );
 };

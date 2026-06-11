@@ -6,9 +6,9 @@ import {
   type KnowledgeSpaceOption,
   type LibraryTreeNode,
 } from '../../services/library'
+import LibraryScopeTabs, { type LibraryScopeTabKey } from './components/LibraryScopeTabs'
 import './index.css'
 
-type LibraryScope = 'personal' | 'org'
 type LibraryDisplayType = 'folder' | 'document' | 'image' | 'video' | 'audio' | 'other'
 
 type LibraryTreeListItem = LibraryTreeNode & {
@@ -236,7 +236,7 @@ function LibraryNodePreview({
 }
 
 export default function LibraryPage() {
-  const [activeScope, setActiveScope] = useState<LibraryScope>('personal')
+  const [activeScope, setActiveScope] = useState<LibraryScopeTabKey>('personal')
   const [knowledgeSpaces, setKnowledgeSpaces] = useState<KnowledgeSpaceOption[]>([])
   const [knowledgeSpacesLoading, setKnowledgeSpacesLoading] = useState(false)
   const [knowledgeSpacesError, setKnowledgeSpacesError] = useState('')
@@ -395,31 +395,7 @@ export default function LibraryPage() {
   return (
     <div className="library-page">
       <div className="library-header">
-        <div className="library-nav">
-          <div className="library-icon-placeholder" />
-          <div className="library-title-wrap">
-            <div className="library-title">资料库</div>
-            <div className="library-subtitle">这里直接复用会话里的个人 / 组织资料库接口，不再额外做前端筛选。</div>
-          </div>
-          <div className="library-icon-placeholder" />
-        </div>
-
-        <div className="library-scope-switch">
-          <button
-            className={`library-scope-btn ${activeScope === 'personal' ? 'is-active' : ''}`}
-            type="button"
-            onClick={() => setActiveScope('personal')}
-          >
-            个人资料库
-          </button>
-          <button
-            className={`library-scope-btn ${activeScope === 'org' ? 'is-active' : ''}`}
-            type="button"
-            onClick={() => setActiveScope('org')}
-          >
-            组织资料库
-          </button>
-        </div>
+        <LibraryScopeTabs activeScope={activeScope} onScopeChange={setActiveScope} />
 
         {activeScope === 'org' ? (
           <button
