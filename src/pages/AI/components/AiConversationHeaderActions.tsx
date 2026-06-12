@@ -6,6 +6,7 @@ type AiConversationHeaderActionsProps = {
   showPartnerSettingsAction?: boolean
   showCustomAgentMoreAction?: boolean
   showSessionMoreAction?: boolean
+  showCloseAction?: boolean
   onDeleteSession?: () => void
   onOpenPartnerSettings?: () => void
   onOpenCustomAgentDetail?: () => void
@@ -18,6 +19,7 @@ export function AiConversationHeaderActions({
   showPartnerSettingsAction = false,
   showCustomAgentMoreAction = false,
   showSessionMoreAction = false,
+  showCloseAction = true,
   onDeleteSession,
   onOpenPartnerSettings,
   onOpenCustomAgentDetail,
@@ -169,17 +171,19 @@ export function AiConversationHeaderActions({
         </button>
       ) : null}
 
-      <button
-        aria-label="关闭页面"
-        className="ai-page-close ai-page-header-action"
-        type="button"
-        onClick={onClose}
-      >
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round">
-          <line x1="18" y1="6" x2="6" y2="18" />
-          <line x1="6" y1="6" x2="18" y2="18" />
-        </svg>
-      </button>
+      {showCloseAction ? (
+        <button
+          aria-label="关闭页面"
+          className="ai-page-close ai-page-header-action"
+          type="button"
+          onClick={onClose}
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
+      ) : null}
     </div>
   )
 }

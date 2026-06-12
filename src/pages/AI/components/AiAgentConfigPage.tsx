@@ -1294,7 +1294,9 @@ export function AiAgentConfigPage({
             搭建
           </button>
         </div>
-        {onClose ? (
+        {mode === 'edit' || !onClose ? (
+          <div aria-hidden="true" className="ai-agent-config-header-spacer" />
+        ) : (
           <button
             aria-label="关闭配置页并返回会话"
             className="ai-agent-config-close"
@@ -1306,8 +1308,6 @@ export function AiAgentConfigPage({
               <line x1="6" y1="6" x2="18" y2="18" />
             </svg>
           </button>
-        ) : (
-          <div aria-hidden="true" className="ai-agent-config-header-spacer" />
         )}
       </div>
 

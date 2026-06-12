@@ -131,6 +131,10 @@ const EMPTY_COMMANDS_DATA: CommandsData = {
   my_commands: [],
 }
 
+export function resolveDrawerNewChatPath(pathname: string): string | null {
+  return pathname === APP_ROUTE_PATHS.partner ? APP_ROUTE_PATHS.ai : null
+}
+
 const featureCardColors = ['#FF8C00', '#8E8E93', '#5AC8FA', '#4A7CFF', '#33C39B', '#34C759']
 const SKILL_COMMUNITY_PAGE_SIZE = 10
 const SKILL_CREATOR_TOOL_TYPE = 'skill-creator'
@@ -2064,6 +2068,7 @@ export default function AIPage({
         <AiConversationHeaderActions
           showCustomAgentMoreAction={canShowCurrentConversationCustomAgentActions}
           showSessionMoreAction={canShowSessionMoreAction}
+          showCloseAction={!(isPartnerRoute && !hasConversation)}
           onClose={onClose}
           onDeleteSession={() => {
             if (!currentRouteSession) {
@@ -2334,7 +2339,11 @@ export default function AIPage({
                         openSidebarLibraryPage()
                       }
                       if (item.key === 'new') {
+                        const nextPath = resolveDrawerNewChatPath(location.pathname)
                         startNewChat()
+                        if (nextPath) {
+                          navigate(nextPath)
+                        }
                         setShowSidebarLibrary(false)
                         setShowDiscoverPage(false)
                         setShowSkillsPage(false)
