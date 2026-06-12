@@ -97,20 +97,19 @@ export function getDisplayNameSync(userID: string, fallback?: string): string {
 
 /**
  * SDK getUserProfile 兜底查询
+ * 适用于 @RBT# 等机器人账号：业务 API 不查询这些账号，但 SDK 有 nick 信息。
+ * 响应格式：{ data: [{ userID, nick, avatar, ... }] }，nick 直接在 profile 项上。
  */
 async function sdkGetUserProfile(userID: string): Promise<string | null> {
   try {
     const chat = getChatInstance();
     if (!chat || !chat.getUserProfile) return null;
-    const result = await chat.getUserProfile({
-      userIDList: [userID],
-    });
-    const profileList = result?.data || [];
-    const profile = profileList[0];
-    if (profile && profile.profile) {
-      const nick = String(profile.profile.nick || '').trim();
-      if (nick) return nick;
-    }
+    const raw = await chat.getUserProfile({ userIDList: [userID] });
+    const candidate = (raw as { data?: unknown })?.data ?? raw;
+    if (!Array.isArray(candidate) || candidate.length === 0) return null;
+    const profile = candidate[0] as { userID?: string; nick?: string; avatar?: string };
+    const nick = String(profile?.nick ?? '').trim();
+    if (nick) return nick;
     return null;
   } catch {
     return null;

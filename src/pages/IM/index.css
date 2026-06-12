@@ -320,7 +320,8 @@
   height: 100%;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  padding-bottom: calc(96px + env(safe-area-inset-bottom));
+  /* 底部占位和导航高度对齐，避免滚到底时露出一条颜色不一致的空带。 */
+  padding-bottom: calc(80px + env(safe-area-inset-bottom));
   scrollbar-width: none;
 }
 
