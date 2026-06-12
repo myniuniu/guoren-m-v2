@@ -63,11 +63,9 @@ const ChatPage: React.FC<ChatPageProps> = ({ conversation, onBack, onConversatio
     groupProfile,
     members,
     currentUserRole,
-    currentMember,
     addMembers,
     removeMembers,
     updateGroupProfile,
-    updateSelfNameCard,
   } = useGroupMembers(groupID);
 
   useEffect(() => {
@@ -237,12 +235,15 @@ const ChatPage: React.FC<ChatPageProps> = ({ conversation, onBack, onConversatio
         conversation={conversationState}
         groupProfile={groupProfile}
         members={members}
-        currentMember={currentMember}
         muted={conversationState.muted}
         onClose={() => setShowGroupSettings(false)}
         onOpenMembers={() => {
           setShowGroupSettings(false);
           setShowGroupMembers(true);
+        }}
+        onAddMembers={() => {
+          setShowGroupSettings(false);
+          setShowAddMembers(true);
         }}
         onToggleMute={async (nextMuted: boolean) => {
           if (!groupID) {
@@ -266,9 +267,6 @@ const ChatPage: React.FC<ChatPageProps> = ({ conversation, onBack, onConversatio
         onUpdateGroupName={async (name: string) => {
           await updateGroupProfile({ name });
           applyConversationPatch({ title: name });
-        }}
-        onUpdateNameCard={async (nameCard: string) => {
-          await updateSelfNameCard(nameCard);
         }}
         onUpdateGroupAvatar={async (file: File) => {
           const uploadResult = await uploadImAssetToOss({

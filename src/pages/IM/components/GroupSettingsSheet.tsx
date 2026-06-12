@@ -2,23 +2,23 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Avatar from './Avatar';
 import type { MergedConversation } from '../hooks/useConversationList';
 import type { GroupMemberState, GroupProfileState } from '../hooks/useGroupMembers';
+import { useDisplayName } from '../utils/displayNameHooks';
 
 interface GroupSettingsSheetProps {
   visible: boolean;
   conversation: MergedConversation;
   groupProfile: GroupProfileState | null;
   members: GroupMemberState[];
-  currentMember: GroupMemberState | null;
   muted: boolean;
   onClose: () => void;
   onOpenMembers: () => void;
+  onAddMembers: () => void;
   onToggleMute: (nextMuted: boolean) => Promise<void> | void;
   onUpdateGroupName: (name: string) => Promise<void> | void;
-  onUpdateNameCard: (nameCard: string) => Promise<void> | void;
   onUpdateGroupAvatar?: (file: File) => Promise<void> | void;
 }
 
-type EditTarget = 'group-name' | 'group-name-card' | null;
+type EditTarget = 'group-name' | null;
 
 const PREVIEW_MEMBER_LIMIT = 6;
 
@@ -59,14 +59,53 @@ function PlusIcon() {
   );
 }
 
+function ExpandMembersIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M9 6L15 12L9 18"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 function resolveEditTitle(target: EditTarget) {
   if (target === 'group-name') {
     return '修改群名称';
   }
-  if (target === 'group-name-card') {
-    return '修改群昵称';
-  }
   return '';
+}
+
+function MemberPreviewAvatar({
+  member,
+  onOpenMembers,
+}: {
+  member: GroupMemberState;
+  onOpenMembers: () => void;
+}) {
+  const fallbackName = member.nameCard || member.nick || member.userID;
+  const displayName = useDisplayName(member.userID, fallbackName);
+  const finalName = displayName || fallbackName || member.userID;
+
+  return (
+    <button
+      type="button"
+      className="im-group-settings-members-preview__item"
+      aria-label={`查看${finalName}`}
+      onClick={onOpenMembers}
+    >
+      <Avatar
+        url={member.avatar || undefined}
+        name={finalName}
+        size={42}
+        className="im-group-settings-members-preview__avatar"
+      />
+    </button>
+  );
 }
 
 const GroupSettingsSheet: React.FC<GroupSettingsSheetProps> = ({
@@ -74,13 +113,12 @@ const GroupSettingsSheet: React.FC<GroupSettingsSheetProps> = ({
   conversation,
   groupProfile,
   members,
-  currentMember,
   muted,
   onClose,
   onOpenMembers,
+  onAddMembers,
   onToggleMute,
   onUpdateGroupName,
-  onUpdateNameCard,
   onUpdateGroupAvatar,
 }) => {
   const [activeEditTarget, setActiveEditTarget] = useState<EditTarget>(null);
@@ -93,7 +131,6 @@ const GroupSettingsSheet: React.FC<GroupSettingsSheetProps> = ({
   const groupName = groupProfile?.name || conversation.title;
   const groupAvatar = groupProfile?.avatar || conversation.avatar || undefined;
   const memberNum = groupProfile?.memberNum || members.length;
-  const currentNameCard = currentMember?.nameCard?.trim() || '';
   const previewMembers = useMemo(() => members.slice(0, PREVIEW_MEMBER_LIMIT), [members]);
   const canSubmitEdit = draftValue.trim().length > 0;
 
@@ -113,7 +150,7 @@ const GroupSettingsSheet: React.FC<GroupSettingsSheetProps> = ({
 
   const openEditDialog = (target: Exclude<EditTarget, null>) => {
     setActiveEditTarget(target);
-    setDraftValue(target === 'group-name' ? groupName : currentNameCard);
+    setDraftValue(groupName);
   };
 
   const closeEditDialog = () => {
@@ -132,11 +169,7 @@ const GroupSettingsSheet: React.FC<GroupSettingsSheetProps> = ({
 
     setSavingTarget(activeEditTarget);
     try {
-      if (activeEditTarget === 'group-name') {
-        await onUpdateGroupName(trimmedValue);
-      } else {
-        await onUpdateNameCard(trimmedValue);
-      }
+      await onUpdateGroupName(trimmedValue);
       setActiveEditTarget(null);
       setDraftValue('');
     } finally {
@@ -191,13 +224,31 @@ const GroupSettingsSheet: React.FC<GroupSettingsSheetProps> = ({
           <section className="im-group-settings-card im-group-settings-card--profile">
             <div className="im-group-settings-profile">
               <div className="im-group-settings-profile__avatar-wrap">
-                <Avatar
-                  url={groupAvatar}
-                  name={groupName}
-                  variant="group"
-                  size={64}
-                  className="im-group-settings-profile__avatar"
-                />
+                {onUpdateGroupAvatar ? (
+                  <button
+                    type="button"
+                    className="im-group-settings-profile__avatar-button"
+                    aria-label="修改群头像"
+                    disabled={isAvatarSaving}
+                    onClick={() => avatarInputRef.current?.click()}
+                  >
+                    <Avatar
+                      url={groupAvatar}
+                      name={groupName}
+                      variant="group"
+                      size={64}
+                      className="im-group-settings-profile__avatar"
+                    />
+                  </button>
+                ) : (
+                  <Avatar
+                    url={groupAvatar}
+                    name={groupName}
+                    variant="group"
+                    size={64}
+                    className="im-group-settings-profile__avatar"
+                  />
+                )}
                 {onUpdateGroupAvatar ? (
                   <>
                     <input
@@ -207,22 +258,15 @@ const GroupSettingsSheet: React.FC<GroupSettingsSheetProps> = ({
                       className="im-group-settings-profile__avatar-input"
                       onChange={handleAvatarInputChange}
                     />
-                    <button
-                      type="button"
-                      className="im-group-settings-profile__avatar-action"
-                      aria-label="修改群头像"
-                      disabled={isAvatarSaving}
-                      onClick={() => avatarInputRef.current?.click()}
-                    >
-                      {isAvatarSaving ? '上传中' : '更换头像'}
-                    </button>
                   </>
                 ) : null}
               </div>
 
-              <div className="im-group-settings-profile__main">
-                <div className="im-group-settings-profile__name">{groupName}</div>
-                <div className="im-group-settings-profile__meta">成员 {memberNum} 人</div>
+              <div className="im-group-settings-profile__summary">
+                <div className="im-group-settings-profile__main">
+                  <div className="im-group-settings-profile__name">{groupName}</div>
+                  <div className="im-group-settings-profile__meta">成员 {memberNum} 人</div>
+                </div>
               </div>
             </div>
           </section>
@@ -235,32 +279,28 @@ const GroupSettingsSheet: React.FC<GroupSettingsSheetProps> = ({
               onClick={onOpenMembers}
             >
               <span className="im-group-settings-section-head__label">群成员</span>
-              <span className="im-group-settings-section-head__value">{memberNum}</span>
+              <span className="im-group-settings-section-head__value">
+                <span className="im-group-settings-section-head__count">{memberNum}</span>
+                <span className="im-group-settings-section-head__arrow" aria-hidden="true">
+                  <ExpandMembersIcon />
+                </span>
+              </span>
             </button>
 
             <div className="im-group-settings-members-preview">
               {previewMembers.map((member) => (
-                <button
+                <MemberPreviewAvatar
                   key={member.userID}
-                  type="button"
-                  className="im-group-settings-members-preview__item"
-                  aria-label={`查看${member.nick || member.userID}`}
-                  onClick={onOpenMembers}
-                >
-                  <Avatar
-                    url={member.avatar || undefined}
-                    name={member.nick || member.userID}
-                    size={42}
-                    className="im-group-settings-members-preview__avatar"
-                  />
-                </button>
+                  member={member}
+                  onOpenMembers={onOpenMembers}
+                />
               ))}
 
               <button
                 type="button"
                 className="im-group-settings-members-preview__add"
                 aria-label="添加成员"
-                onClick={onOpenMembers}
+                onClick={onAddMembers}
               >
                 <PlusIcon />
               </button>
@@ -277,21 +317,6 @@ const GroupSettingsSheet: React.FC<GroupSettingsSheetProps> = ({
               <span className="im-group-settings-row__label">群名称</span>
               <span className="im-group-settings-row__value">
                 <span className="im-group-settings-row__value-text">{groupName}</span>
-                <ChevronRightIcon />
-              </span>
-            </button>
-
-            <button
-              type="button"
-              className="im-group-settings-row"
-              aria-label="编辑群昵称"
-              onClick={() => openEditDialog('group-name-card')}
-            >
-              <span className="im-group-settings-row__label">群昵称</span>
-              <span className="im-group-settings-row__value">
-                <span className="im-group-settings-row__value-text">
-                  {currentNameCard || '未设置'}
-                </span>
                 <ChevronRightIcon />
               </span>
             </button>
@@ -323,8 +348,8 @@ const GroupSettingsSheet: React.FC<GroupSettingsSheetProps> = ({
               <input
                 value={draftValue}
                 className="im-group-edit-dialog__input"
-                aria-label={activeEditTarget === 'group-name' ? '群名称输入框' : '群昵称输入框'}
-                placeholder={activeEditTarget === 'group-name' ? '请输入群名称' : '请输入群昵称'}
+                aria-label="群名称输入框"
+                placeholder="请输入群名称"
                 onChange={(event) => setDraftValue(event.target.value)}
               />
               <div className="im-group-edit-dialog__actions">
@@ -339,7 +364,7 @@ const GroupSettingsSheet: React.FC<GroupSettingsSheetProps> = ({
                 <button
                   type="button"
                   className="im-group-edit-dialog__action is-primary"
-                  aria-label={activeEditTarget === 'group-name' ? '保存群名称' : '保存群昵称'}
+                  aria-label="保存群名称"
                   disabled={!canSubmitEdit || savingTarget === activeEditTarget}
                   onClick={() => {
                     void handleSaveEdit();

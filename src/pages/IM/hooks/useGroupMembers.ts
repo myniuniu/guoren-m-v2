@@ -191,7 +191,7 @@ export function useGroupMembers(groupID: string | null) {
     if (!chat) {
       throw new Error('IM 未连接');
     }
-    const currentUserID = chat.getLoginUser?.();
+    const currentUserID = String(chat.getLoginUser?.() || '');
     if (!currentUserID) {
       throw new Error('当前用户未登录');
     }

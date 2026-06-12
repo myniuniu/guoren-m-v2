@@ -20,6 +20,8 @@ import { uploadImAssetToOss } from '../utils/imOssUpload';
 import { toMirrorConversationID } from '../utils/messagingConversationID';
 import { apiTimeToSeconds } from '../utils/messagingTime';
 import { parseGroupCreateTipInfo, type GroupCreateTipInfo } from '../utils/groupTipMessage';
+import { buildGroupTipDisplayText } from '../utils/groupTipDisplay';
+import { getDisplayNameSync } from '../utils/displayNameStore';
 
 /** 消息类型枚举 */
 export type MessageCategory =
@@ -713,6 +715,7 @@ function parseSDKMessage(msg: any, currentUserID: string): UnifiedMessage {
 
   // 系统消息/群提示
   if (msg.type === TencentCloudChat.TYPES.MSG_GRP_TIP || msg.type === TencentCloudChat.TYPES.MSG_GRP_SYS_NOTICE) {
+    const groupTipText = buildGroupTipDisplayText(msg, getDisplayNameSync);
     return {
       id: msg.ID || '',
       category: 'system',
@@ -721,7 +724,7 @@ function parseSDKMessage(msg: any, currentUserID: string): UnifiedMessage {
       time: msg.time || 0,
       rawMessage: msg,
       avatar: msg.avatar || '',
-      text: msg.payload?.text || msg.payload?.operationType || '[群通知]',
+      text: groupTipText || msg.payload?.text || msg.messageForShow || '[群通知]',
       status: 'success',
       isRecalled: false,
     };

@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import DisplayName from '../../../components/DisplayName';
 import Avatar from './Avatar';
 import type { GroupMemberState } from '../hooks/useGroupMembers';
+import { useDisplayName } from '../utils/displayNameHooks';
 
 interface GroupMembersSheetProps {
   visible: boolean;
@@ -49,6 +50,21 @@ function canRemoveMember(currentUserRole: string, targetRole: string) {
   if (targetRole === 'Owner') return false;
   if (currentUserRole === 'Owner') return true;
   return currentUserRole === 'Admin' && targetRole === 'Member';
+}
+
+function MemberAvatar({ member }: { member: GroupMemberState }) {
+  const fallbackName = member.nameCard || member.nick || member.userID;
+  const displayName = useDisplayName(member.userID, fallbackName);
+  const finalName = displayName || fallbackName || member.userID;
+
+  return (
+    <Avatar
+      url={member.avatar || undefined}
+      name={finalName}
+      size={48}
+      className="im-group-members-list__avatar"
+    />
+  );
 }
 
 const GroupMembersSheet: React.FC<GroupMembersSheetProps> = ({
@@ -124,12 +140,7 @@ const GroupMembersSheet: React.FC<GroupMembersSheetProps> = ({
             {filteredMembers.map((member) => (
               <div key={member.userID} className="im-group-members-list__item im-group-members-list__item--page">
                 <div className="im-group-members-list__identity">
-                  <Avatar
-                    url={member.avatar || undefined}
-                    name={member.nick || member.userID}
-                    size={48}
-                    className="im-group-members-list__avatar"
-                  />
+                  <MemberAvatar member={member} />
                   <div className="im-group-members-list__main">
                     <div className="im-group-members-list__name-row">
                       <DisplayName

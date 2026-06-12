@@ -8,11 +8,12 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { UnifiedMessage } from '../hooks/useMessageList';
 import { openImagePreviewOverlay } from '../utils/imagePreview';
-import { useDisplayName } from '../utils/displayNameHooks';
+import { useDisplayName, useDisplayNameLookup } from '../utils/displayNameHooks';
 import SeminarInviteCard from './SeminarInviteCard';
 import CalendarNotificationCard from './CalendarNotificationCard';
 import ForwardMessageBubble from './ForwardMessageBubble';
 import { truncateSkillOutputFilename, resolveSkillOutputOpenMode, type SkillOutputCardItem } from '../utils/skillOutputMessage';
+import { buildGroupTipDisplayText } from '../utils/groupTipDisplay';
 
 interface MessageBubbleProps {
   message: UnifiedMessage;
@@ -24,6 +25,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, onResend, onRevo
   const { category, fromMe, isRecalled } = message;
   const groupTip = message.extraData?.groupTip;
   const groupTipOperatorName = useDisplayName(groupTip?.operatorUserID, groupTip?.operatorFallbackName);
+  const displayNameLookup = useDisplayNameLookup();
 
   // 撤回消息
   if (isRecalled || category === 'recalled') {
@@ -36,9 +38,10 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, onResend, onRevo
 
   // 系统消息
   if (category === 'system') {
-    const systemText = groupTip?.type === 'group_create'
+    const systemText = buildGroupTipDisplayText(message.rawMessage, displayNameLookup)
+      || (groupTip?.type === 'group_create'
       ? `${groupTipOperatorName || groupTip?.operatorFallbackName || '有人'} 创建群聊`
-      : message.text;
+      : message.text);
 
     return (
       <div className="im-msg-bubble im-msg-system">

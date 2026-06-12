@@ -1651,7 +1651,17 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+}
+
+.im-group-settings-profile__avatar-button {
+  border: none;
+  background: transparent;
+  padding: 0;
+  border-radius: 50%;
+}
+
+.im-group-settings-profile__avatar-button:disabled {
+  opacity: 0.72;
 }
 
 .im-group-settings-profile__avatar {
@@ -1668,22 +1678,21 @@
   display: none;
 }
 
-.im-group-settings-profile__avatar-action {
+.im-group-settings-profile__summary {
+  min-width: 0;
+  flex: 1;
   border: none;
   background: transparent;
-  color: #2f6df6;
-  font-size: 12px;
-  font-weight: 600;
   padding: 0;
-}
-
-.im-group-settings-profile__avatar-action:disabled {
-  color: #bfd1ff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  text-align: left;
 }
 
 .im-group-settings-profile__main {
   min-width: 0;
-  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -1699,6 +1708,13 @@
 .im-group-settings-profile__meta {
   font-size: 13px;
   color: #8992a3;
+}
+
+.im-group-settings-profile__arrow {
+  flex-shrink: 0;
+  color: #97a0b0;
+  display: inline-flex;
+  align-items: center;
 }
 
 .im-group-settings-section-head,
@@ -1725,8 +1741,22 @@
 }
 
 .im-group-settings-section-head__value {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-size: 16px;
   color: #8992a3;
+}
+
+.im-group-settings-section-head__count {
+  line-height: 1;
+}
+
+.im-group-settings-section-head__arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #a0a8b8;
 }
 
 .im-group-settings-members-preview {
