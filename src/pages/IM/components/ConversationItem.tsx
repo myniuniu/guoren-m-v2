@@ -7,6 +7,7 @@ import React from 'react';
 import { formatConversationTime } from '../utils/formatTime';
 import type { MergedConversation } from '../hooks/useConversationList';
 import { useDisplayName } from '../utils/displayNameHooks';
+import { buildNameAvatarLines } from '../utils/nameAvatar';
 import DisplayName from '../../../components/DisplayName';
 
 interface ConversationItemProps {
@@ -15,7 +16,6 @@ interface ConversationItemProps {
 }
 
 const filledAvatarTones = ['peach', 'blue', 'lilac'] as const;
-const outlineAvatarTones = ['olive', 'gold', 'green', 'violet', 'pink', 'teal'] as const;
 
 function MutedBellIcon() {
   return (
@@ -34,13 +34,6 @@ function pickAvatarTone(seed: string, tones: readonly string[]) {
     hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
   }
   return tones[hash % tones.length];
-}
-
-function buildAvatarLines(title: string) {
-  const compactTitle = title.replace(/\s+/g, '').replace(/[^\u4e00-\u9fa5a-zA-Z0-9]/g, '');
-  if (!compactTitle) return ['?'];
-  if (compactTitle.length === 1) return [compactTitle];
-  return [compactTitle.slice(0, 2), compactTitle.slice(2, 4)].filter(Boolean);
 }
 
 const ConversationItem: React.FC<ConversationItemProps> = ({ conversation, onClick }) => {
@@ -69,13 +62,13 @@ const ConversationItem: React.FC<ConversationItemProps> = ({ conversation, onCli
       </>
     ) : (
       previewText
-    );
+  );
 
   const isGroupConversation = conversation.type === 'group' || conversation.type === 'community';
   const avatarTone = isGroupConversation
-    ? pickAvatarTone(conversation_id || finalTitle, outlineAvatarTones)
+    ? null
     : pickAvatarTone(conversation_id || finalTitle, filledAvatarTones);
-  const avatarLines = buildAvatarLines(finalTitle);
+  const avatarLines = buildNameAvatarLines(finalTitle, isGroupConversation ? 'group' : 'person');
 
   return (
     <div className="im-conversation-item" onClick={() => onClick?.(conversation)}>
@@ -85,7 +78,7 @@ const ConversationItem: React.FC<ConversationItemProps> = ({ conversation, onCli
             <img src={avatar} alt={finalTitle} className="im-conversation-avatar-img" />
           </div>
         ) : (
-          <div className={`im-conversation-avatar ${isGroupConversation ? `is-outline-${avatarTone}` : `is-filled-${avatarTone}`}`}>
+          <div className={`im-conversation-avatar ${isGroupConversation ? 'is-group-generated' : `is-filled-${avatarTone}`}`}>
             {isGroupConversation ? (
               <div className="im-conversation-avatar-stack">
                 {avatarLines.map((line) => (

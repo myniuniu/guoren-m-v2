@@ -28,6 +28,10 @@ function IMPage() {
     setCurrentView('list');
   };
 
+  const handleConversationPatch = (patch: Partial<MergedConversation>) => {
+    setActiveConversation((prev) => (prev ? { ...prev, ...patch } : prev));
+  };
+
   return (
     <div className="im-page">
       <LoginGuard loginStatus={loginStatus} error={error} onRetry={doLogin}>
@@ -40,6 +44,7 @@ function IMPage() {
           <ChatPage
             conversation={activeConversation}
             onBack={handleBackToList}
+            onConversationPatch={handleConversationPatch}
           />
         )}
       </LoginGuard>

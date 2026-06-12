@@ -3,8 +3,9 @@
  * NavBar（头像+名称+返回）+ 消息列表 + 底部输入区
  */
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { NavBar, SpinLoading, Empty } from 'antd-mobile';
+import TencentCloudChat from '@tencentcloud/lite-chat';
 import { useMessageList } from '../hooks/useMessageList';
 import MessageBubble from './MessageBubble';
 import Avatar from './Avatar';
@@ -12,13 +13,23 @@ import MessageInputBar from './MessageInputBar';
 import { formatMessageTime } from '../utils/formatTime';
 import type { MergedConversation } from '../hooks/useConversationList';
 import { useDisplayName } from '../utils/displayNameHooks';
+import { useGroupMembers, type GroupMemberState } from '../hooks/useGroupMembers';
+import GroupSettingsSheet from './GroupSettingsSheet';
+import GroupMembersSheet from './GroupMembersSheet';
+import ContactPickerSheet from './ContactPickerSheet';
+import type { OrgUserItem } from '../../../services/aiOrgMembers';
+import { getChatInstance } from '../hooks/useIMLogin';
+import { updateConversationState } from '../api/messagingApi';
+import { uploadImAssetToOss } from '../utils/imOssUpload';
 
 interface ChatPageProps {
   conversation: MergedConversation;
   onBack: () => void;
+  onConversationPatch?: (patch: Partial<MergedConversation>) => void;
 }
 
-const ChatPage: React.FC<ChatPageProps> = ({ conversation, onBack }) => {
+const ChatPage: React.FC<ChatPageProps> = ({ conversation, onBack, onConversationPatch }) => {
+  const [conversationState, setConversationState] = useState(conversation);
   const {
     messages,
     status,
@@ -31,16 +42,42 @@ const ChatPage: React.FC<ChatPageProps> = ({ conversation, onBack }) => {
     revokeMessage,
     resendMessage,
   } = useMessageList({
-    conversationID: conversation.conversation_id,
-    conversationType: conversation.type,
-    targetUserID: extractTargetUserID(conversation),
+    conversationID: conversationState.conversation_id,
+    conversationType: conversationState.type,
+    targetUserID: extractTargetUserID(conversationState),
   });
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [showGroupSettings, setShowGroupSettings] = useState(false);
+  const [showGroupMembers, setShowGroupMembers] = useState(false);
+  const [showAddMembers, setShowAddMembers] = useState(false);
+  const [selectedAddUsers, setSelectedAddUsers] = useState<OrgUserItem[]>([]);
 
   // 提取对方 userID，用于 displayName 查询
-  const targetUserID = extractTargetUserID(conversation);
-  const displayName = useDisplayName(targetUserID, conversation.title);
+  const targetUserID = extractTargetUserID(conversationState);
+  const rawDisplayName = useDisplayName(targetUserID, conversationState.title);
+  const groupID = useMemo(() => extractGroupID(conversationState), [conversationState]);
+  const isGroupConversation = conversationState.type === 'group' || conversationState.type === 'community';
+  const displayName = isGroupConversation ? conversationState.title : rawDisplayName;
+  const {
+    groupProfile,
+    members,
+    currentUserRole,
+    currentMember,
+    addMembers,
+    removeMembers,
+    updateGroupProfile,
+    updateSelfNameCard,
+  } = useGroupMembers(groupID);
+
+  useEffect(() => {
+    setConversationState(conversation);
+  }, [conversation]);
+
+  const applyConversationPatch = (patch: Partial<MergedConversation>) => {
+    setConversationState((prev) => ({ ...prev, ...patch }));
+    onConversationPatch?.(patch);
+  };
 
   // 进入聊天页面时隐藏底部导航栏，退出时恢复
   useEffect(() => {
@@ -114,7 +151,20 @@ const ChatPage: React.FC<ChatPageProps> = ({ conversation, onBack }) => {
   return (
     <div className="im-chat-page">
       {/* 顶部导航 */}
-      <NavBar onBack={onBack} className="im-chat-navbar">
+      <NavBar
+        onBack={onBack}
+        className="im-chat-navbar"
+        right={isGroupConversation ? (
+          <button
+            type="button"
+            className="im-chat-navbar-action"
+            aria-label="群设置"
+            onClick={() => setShowGroupSettings(true)}
+          >
+            群设置
+          </button>
+        ) : null}
+      >
         <div className="im-chat-navbar-title">{displayName}</div>
       </NavBar>
 
@@ -152,7 +202,7 @@ const ChatPage: React.FC<ChatPageProps> = ({ conversation, onBack }) => {
                   <MessageSenderAvatar
                     url={msg.avatar}
                     userID={msg.from}
-                    conversation={conversation}
+                    conversation={conversationState}
                     conversationDisplayName={displayName}
                   />
                 )}
@@ -162,7 +212,7 @@ const ChatPage: React.FC<ChatPageProps> = ({ conversation, onBack }) => {
                   onRevoke={revokeMessage}
                 />
                 {/* 自己的消息也统一走发送人 displayName，避免继续显示用户 ID */}
-                {msg.fromMe && <MessageSenderAvatar url={msg.avatar} userID={msg.from} conversation={conversation} />}
+                {msg.fromMe && <MessageSenderAvatar url={msg.avatar} userID={msg.from} conversation={conversationState} />}
               </div>
             )}
           </React.Fragment>
@@ -180,6 +230,85 @@ const ChatPage: React.FC<ChatPageProps> = ({ conversation, onBack }) => {
         onSendText={sendTextMessage}
         onSendImage={sendImageMessage}
         onSendAsset={sendAssetMessage}
+      />
+
+      <GroupSettingsSheet
+        visible={showGroupSettings}
+        conversation={conversationState}
+        groupProfile={groupProfile}
+        members={members}
+        currentMember={currentMember}
+        muted={conversationState.muted}
+        onClose={() => setShowGroupSettings(false)}
+        onOpenMembers={() => {
+          setShowGroupSettings(false);
+          setShowGroupMembers(true);
+        }}
+        onToggleMute={async (nextMuted: boolean) => {
+          if (!groupID) {
+            throw new Error('群组不存在');
+          }
+
+          const chat = getChatInstance();
+          if (!chat) {
+            throw new Error('IM 未连接');
+          }
+
+          await chat.setMessageRemindType({
+            groupID,
+            messageRemindType: nextMuted
+              ? TencentCloudChat.TYPES.MSG_REMIND_ACPT_NOT_NOTE
+              : TencentCloudChat.TYPES.MSG_REMIND_ACPT_AND_NOTE,
+          });
+          await updateConversationState(conversationState.conversation_id, { muted: nextMuted });
+          applyConversationPatch({ muted: nextMuted });
+        }}
+        onUpdateGroupName={async (name: string) => {
+          await updateGroupProfile({ name });
+          applyConversationPatch({ title: name });
+        }}
+        onUpdateNameCard={async (nameCard: string) => {
+          await updateSelfNameCard(nameCard);
+        }}
+        onUpdateGroupAvatar={async (file: File) => {
+          const uploadResult = await uploadImAssetToOss({
+            conversationID: conversationState.conversation_id,
+            assetType: 'file',
+            file,
+          });
+          await updateGroupProfile({ avatar: uploadResult.url });
+          applyConversationPatch({ avatar: uploadResult.url });
+        }}
+      />
+
+      <GroupMembersSheet
+        visible={showGroupMembers}
+        members={members}
+        currentUserRole={currentUserRole}
+        onClose={() => setShowGroupMembers(false)}
+        onAddMembers={() => setShowAddMembers(true)}
+        onRemoveMember={(member: GroupMemberState) => {
+          void removeMembers([member.userID]);
+        }}
+      />
+
+      <ContactPickerSheet
+        visible={showAddMembers}
+        title="添加成员"
+        selectedUsers={selectedAddUsers}
+        multiple
+        disabledUserIDs={members.map((member) => member.userID)}
+        confirmText="确认添加成员"
+        onClose={() => {
+          setShowAddMembers(false);
+          setSelectedAddUsers([]);
+        }}
+        onSelectedUsersChange={setSelectedAddUsers}
+        onConfirm={async (users) => {
+          await addMembers(users.map((user) => user.id));
+          setSelectedAddUsers([]);
+          setShowAddMembers(false);
+        }}
       />
     </div>
   );
@@ -206,6 +335,18 @@ function extractTargetUserID(conversation: MergedConversation): string {
   }
 
   return '';
+}
+
+function extractGroupID(conversation: MergedConversation): string | null {
+  if (conversation.type !== 'group' && conversation.type !== 'community') {
+    return null;
+  }
+
+  if (conversation.conversation_id.startsWith('GROUP')) {
+    return conversation.conversation_id.slice(5);
+  }
+
+  return conversation.conversation_id || null;
 }
 
 export default ChatPage;

@@ -7,7 +7,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import TencentCloudChat from '@tencentcloud/lite-chat';
 import { getChatInstance } from './useIMLogin';
-import { fetchMessages, type MessageItem } from '../api/messagingApi';
+import { fetchMessages, updateConversationState, type MessageItem } from '../api/messagingApi';
 import { buildImOssImageMessagePayload } from '../utils/imOssImageMessage';
 import { buildImOssAssetMessagePayload, type ImOssAssetType } from '../utils/imOssAssetMessage';
 import { parseSeminarInviteCustomMessage, type SeminarInviteCustomData } from '../utils/seminarInviteCustomMessage';
@@ -110,6 +110,28 @@ function getMirrorMessageContent(message: MessageItem): Record<string, any> {
     return content as Record<string, any>;
   }
   return {};
+}
+
+function isForbiddenMirrorMessageError(err: unknown): boolean {
+  if (err && typeof err === 'object') {
+    const status = Number((err as { status?: number }).status);
+    if (status === 403) {
+      return true;
+    }
+  }
+
+  if (!(err instanceof Error)) {
+    return false;
+  }
+
+  return /无权访问该会话|403\s*\(Forbidden\)|HTTP\s*403/i.test(err.message);
+}
+
+function createEmptyMirrorHistoryResponse(): { items: MessageItem[]; next_cursor: null } {
+  return {
+    items: [],
+    next_cursor: null,
+  };
 }
 
 function parseMirrorCustomPayload(rawData: unknown): Record<string, any> | null {
@@ -771,25 +793,49 @@ export function useMessageList(options: UseMessageListOptions) {
       }
 
       const beforeCursor = nextCursorRef.current;
-      const response = await fetchMessages(mirrorConversationID, beforeCursor, 50);
-      const parsed = (response.items || [])
-        .slice()
-        .reverse()
-        .map((item) => parseMirrorMessage(item, currentUserID));
+      const applyHistoryResponse = (response: {
+        items?: MessageItem[];
+        next_cursor?: string | number | null;
+      }) => {
+        const parsed = (response.items || [])
+          .slice()
+          .reverse()
+          .map((item) => parseMirrorMessage(item, currentUserID));
 
-      nextCursorRef.current =
-        response.next_cursor === null || response.next_cursor === undefined
-          ? undefined
-          : String(response.next_cursor);
+        nextCursorRef.current =
+          response.next_cursor === null || response.next_cursor === undefined
+            ? undefined
+            : String(response.next_cursor);
 
-      if (beforeCursor) {
-        // 翻页取到的是更老一段，插到现有列表前面
-        setMessages((prev) => [...parsed, ...prev]);
-      } else {
-        setMessages(parsed);
-      }
+        if (beforeCursor) {
+          // 翻页取到的是更老一段，插到现有列表前面
+          setMessages((prev) => [...parsed, ...prev]);
+        } else {
+          setMessages(parsed);
+        }
 
-      setHasMore(Boolean(nextCursorRef.current));
+        setHasMore(Boolean(nextCursorRef.current));
+      };
+
+      let response = await fetchMessages(mirrorConversationID, beforeCursor, 50).catch(async (err) => {
+        if (!beforeCursor && conversationType === 'c2c' && isForbiddenMirrorMessageError(err)) {
+          // 新建单聊第一次进详情页时，镜像层可能还没给当前用户建 member 文档。
+          // 这里先补一次状态文档，再重拉一遍消息。
+          // 如果镜像层仍然不给历史，前端按“空会话”展示，避免新建单聊直接落错误页。
+          await updateConversationState(mirrorConversationID, {});
+          try {
+            return await fetchMessages(mirrorConversationID, beforeCursor, 50);
+          } catch (retryErr) {
+            if (isForbiddenMirrorMessageError(retryErr)) {
+              return createEmptyMirrorHistoryResponse();
+            }
+            throw retryErr;
+          }
+        }
+        throw err;
+      });
+
+      applyHistoryResponse(response);
       setStatus('success');
     } catch (err) {
       setError(err instanceof Error ? err.message : '加载消息失败');

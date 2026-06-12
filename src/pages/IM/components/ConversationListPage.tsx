@@ -10,13 +10,16 @@ import { useConversationList } from '../hooks/useConversationList';
 import ConversationItem from './ConversationItem';
 import type { MergedConversation } from '../hooks/useConversationList';
 import { useDisplayName } from '../utils/displayNameHooks';
+import { buildNameAvatarLines } from '../utils/nameAvatar';
+import GroupCreateSheet from './GroupCreateSheet';
+import SingleChatCreateSheet from './SingleChatCreateSheet';
 
 interface ConversationListPageProps {
   onConversationClick?: (conversation: MergedConversation) => void;
 }
 
 type ConversationFilterKey = 'message' | 'unread' | 'pinned';
-type ChannelAvatarTone = 'olive' | 'gold' | 'green' | 'violet' | 'pink' | 'teal' | 'peach' | 'blue' | 'lilac';
+type ChannelAvatarTone = 'peach' | 'blue' | 'lilac';
 
 const conversationFilters: Array<{ key: ConversationFilterKey; label: string }> = [
   { key: 'message', label: '消息' },
@@ -54,7 +57,6 @@ function MenuLinesIcon() {
 }
 
 const filledAvatarTones: ChannelAvatarTone[] = ['peach', 'blue', 'lilac'];
-const outlineAvatarTones: ChannelAvatarTone[] = ['olive', 'gold', 'green', 'violet', 'pink', 'teal'];
 
 function extractConversationUserID(conversation: MergedConversation) {
   if (conversation.type !== 'c2c' && conversation.type !== 'ai_c2c') {
@@ -68,13 +70,6 @@ function extractConversationUserID(conversation: MergedConversation) {
 
   const after = convId.slice(3);
   return after.startsWith('#') ? after.slice(1) : after;
-}
-
-function buildAvatarLines(title: string) {
-  const compactTitle = title.replace(/\s+/g, '').replace(/[^\u4e00-\u9fa5a-zA-Z0-9]/g, '');
-  if (!compactTitle) return ['?'];
-  if (compactTitle.length === 1) return [compactTitle];
-  return [compactTitle.slice(0, 2), compactTitle.slice(2, 4)].filter(Boolean);
 }
 
 function pickAvatarTone(seed: string, tones: readonly ChannelAvatarTone[]) {
@@ -98,9 +93,9 @@ function PinnedConversationChip({
     conversation.type === 'c2c' || conversation.type === 'ai_c2c' ? displayName : conversation.title;
   const isGroupConversation = conversation.type === 'group' || conversation.type === 'community';
   const avatarTone = isGroupConversation
-    ? pickAvatarTone(conversation.conversation_id || finalTitle, outlineAvatarTones)
+    ? null
     : pickAvatarTone(conversation.conversation_id || finalTitle, filledAvatarTones);
-  const avatarLines = buildAvatarLines(finalTitle);
+  const avatarLines = buildNameAvatarLines(finalTitle, isGroupConversation ? 'group' : 'person');
 
   return (
     <button
@@ -114,7 +109,7 @@ function PinnedConversationChip({
           <img src={conversation.avatar} alt={finalTitle} />
         </div>
       ) : (
-        <div className={`im-message-chip-avatar ${isGroupConversation ? `is-outline-${avatarTone}` : `is-filled-${avatarTone}`}`}>
+        <div className={`im-message-chip-avatar ${isGroupConversation ? 'is-group-generated' : `is-filled-${avatarTone}`}`}>
           {isGroupConversation ? (
             <div className="im-message-chip-avatar-stack">
               {avatarLines.map((line) => (
@@ -146,6 +141,9 @@ const ConversationListPage: React.FC<ConversationListPageProps> = ({ onConversat
   } = useConversationList();
   const [activeFilter, setActiveFilter] = useState<ConversationFilterKey>('message');
   const [showSearchBar, setShowSearchBar] = useState(false);
+  const [showCreateMenu, setShowCreateMenu] = useState(false);
+  const [showSingleChatSheet, setShowSingleChatSheet] = useState(false);
+  const [groupCreateMode, setGroupCreateMode] = useState<'group' | 'community' | null>(null);
 
   const handleConversationOpen = useCallback((conversation: MergedConversation) => {
     const nextConversation = conversation.unread_count > 0
@@ -245,6 +243,43 @@ const ConversationListPage: React.FC<ConversationListPageProps> = ({ onConversat
 
   return (
     <div className="im-conversation-list-page">
+      {showCreateMenu ? (
+        <div className="im-create-menu-overlay" onClick={() => setShowCreateMenu(false)}>
+          <div className="im-create-menu" onClick={(event) => event.stopPropagation()}>
+            <button
+              type="button"
+              className="im-create-menu__item"
+              onClick={() => {
+                setShowCreateMenu(false);
+                setShowSingleChatSheet(true);
+              }}
+            >
+              新建单聊
+            </button>
+            <button
+              type="button"
+              className="im-create-menu__item"
+              onClick={() => {
+                setShowCreateMenu(false);
+                setGroupCreateMode('group');
+              }}
+            >
+              新建群聊
+            </button>
+            <button
+              type="button"
+              className="im-create-menu__item"
+              onClick={() => {
+                setShowCreateMenu(false);
+                setGroupCreateMode('community');
+              }}
+            >
+              新建社群
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       <div className="im-message-shell">
         <div className="im-page-inset im-message-titlebar">
           <h1 className="im-message-title">消息</h1>
@@ -257,7 +292,12 @@ const ConversationListPage: React.FC<ConversationListPageProps> = ({ onConversat
             >
               <SearchIcon />
             </button>
-            <button className="im-message-header-button" type="button" aria-label="刷新会话" onClick={refresh}>
+            <button
+              className="im-message-header-button"
+              type="button"
+              aria-label="新建会话"
+              onClick={() => setShowCreateMenu((current) => !current)}
+            >
               <PlusCircleIcon />
             </button>
           </div>
@@ -328,12 +368,24 @@ const ConversationListPage: React.FC<ConversationListPageProps> = ({ onConversat
                     </svg>
                   }
                 />
-                <p className="im-conversation-empty-text">{activeFilter === 'message' ? '暂无消息，开始聊天吧' : '换个筛选条件再看看'}</p>
-              </div>
+                              </div>
             )}
           </div>
         </PullToRefresh>
       </div>
+
+      <SingleChatCreateSheet
+        visible={showSingleChatSheet}
+        onClose={() => setShowSingleChatSheet(false)}
+        onConversationCreated={onConversationClick}
+      />
+
+      <GroupCreateSheet
+        visible={groupCreateMode !== null}
+        mode={groupCreateMode || 'group'}
+        onClose={() => setGroupCreateMode(null)}
+        onConversationCreated={onConversationClick}
+      />
     </div>
   );
 };
