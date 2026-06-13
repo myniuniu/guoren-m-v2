@@ -15,6 +15,21 @@ type TaskCollectionKey =
   | 'list-guoren-mvp'
   | 'list-ai-training'
 
+type TaskCollectionId = TaskCollectionKey | `custom-${string}`
+
+type TaskDrawerChecklistItem = {
+  key: TaskCollectionId
+  label: string
+}
+
+type TaskDrawerChecklistGroup = {
+  id: string
+  label: string
+  items: TaskDrawerChecklistItem[]
+}
+
+type DrawerCreateKind = 'checklist' | 'group'
+
 type TaskAssigneeBadge =
   | {
       kind: 'image'
@@ -75,7 +90,12 @@ type TaskDetailSourceRef =
     }
   | {
       kind: 'collection'
-      collectionKey: TaskCollectionKey
+      collectionKey: TaskCollectionId
+    }
+  | {
+      kind: 'checklist'
+      checklistKey: TaskCollectionId
+      groupId: string
     }
 
 type TaskDetailState = {
@@ -191,11 +211,15 @@ const taskDrawerQuickAccessItems: Array<{ key: TaskCollectionKey; label: string 
   { key: 'completed', label: '已完成' },
 ]
 
-const taskDrawerListItems: Array<{ key: TaskCollectionKey; label: string }> = [
+const initialTaskDrawerListItems: TaskDrawerChecklistItem[] = [
   { key: 'list-guoren-630', label: '果仁-6.30' },
   { key: 'list-scenario-training', label: '场景-培训项目' },
   { key: 'list-guoren-mvp', label: '果仁-mvp版本（3.31）' },
   { key: 'list-ai-training', label: '果仁-人工智能通识培训（4.30）' },
+]
+
+const initialTaskDrawerChecklistGroups: TaskDrawerChecklistGroup[] = [
+  { id: 'drawer-group-default', label: '', items: initialTaskDrawerListItems },
 ]
 
 const allTaskCollectionItems: TaskCollectionItem[] = [
@@ -210,7 +234,7 @@ const allTaskCollectionItems: TaskCollectionItem[] = [
   { id: 'all-9', title: 'QT20244839 家长听书-《天天向上-有办法的父母，会写作业的孩子》', done: true, meta: '2024年11月9日 - 2024年11月29日', metaIcon: 'progress', metaValue: '0/1', assignees: [teacherBadge, dogBadge] },
 ]
 
-const initialTaskCollectionViews: Record<TaskCollectionKey, TaskCollectionView> = {
+const initialTaskCollectionViews: Record<string, TaskCollectionView> = {
   all: {
     label: '全部任务',
     items: allTaskCollectionItems,
@@ -1806,16 +1830,24 @@ export default function TaskPage() {
   const [activeTab, setActiveTab] = useState<TaskTab>('mine')
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
   const [taskViews, setTaskViews] = useState(initialTaskViews)
-  const [taskCollections, setTaskCollections] = useState(initialTaskCollectionViews)
-  const [activeCollectionKey, setActiveCollectionKey] = useState<TaskCollectionKey | null>(null)
+  const [taskCollections, setTaskCollections] = useState<Record<string, TaskCollectionView>>(initialTaskCollectionViews)
+  const [drawerChecklistGroups, setDrawerChecklistGroups] = useState(initialTaskDrawerChecklistGroups)
+  const [customChecklistGroups, setCustomChecklistGroups] = useState<Record<string, TaskGroup[]>>({})
+  const [activeCollectionKey, setActiveCollectionKey] = useState<TaskCollectionId | null>(null)
   const [showAddTask, setShowAddTask] = useState(false)
   const [showDrawer, setShowDrawer] = useState(false)
   const [selectedTaskDetail, setSelectedTaskDetail] = useState<TaskDetailState | null>(null)
+  const [showDrawerCreateSheet, setShowDrawerCreateSheet] = useState(false)
+  const [drawerCreateDialog, setDrawerCreateDialog] = useState<DrawerCreateKind | null>(null)
+  const [drawerCreateName, setDrawerCreateName] = useState('')
 
   const visibleGroups = taskViews[activeTab]
   const activeCollection = activeCollectionKey ? taskCollections[activeCollectionKey] : null
-  const groupOptions = visibleGroups.map(group => ({ id: group.id, name: group.name }))
-  const addTargetGroupId = visibleGroups.find(group => group.name === '默认分组')?.id ?? visibleGroups[0]?.id ?? ''
+  const activeChecklistGroups = activeCollectionKey ? customChecklistGroups[activeCollectionKey] ?? null : null
+  const currentTaskGroups = activeChecklistGroups ?? visibleGroups
+  const groupOptions = currentTaskGroups.map(group => ({ id: group.id, name: group.name }))
+  const addTargetGroupId = currentTaskGroups.find(group => group.name === '默认分组')?.id ?? currentTaskGroups[0]?.id ?? ''
+  const trimmedDrawerCreateName = drawerCreateName.trim()
 
   const handleDrawerPrimarySelect = (key: TaskDrawerPrimaryKey) => {
     if (key === 'mine' || key === 'followed') {
@@ -1827,7 +1859,7 @@ export default function TaskPage() {
     setShowDrawer(false)
   }
 
-  const handleDrawerCollectionSelect = (key: TaskCollectionKey) => {
+  const handleDrawerCollectionSelect = (key: TaskCollectionId) => {
     setActiveCollectionKey(key)
     setShowDrawer(false)
   }
@@ -1865,6 +1897,36 @@ export default function TaskPage() {
   }
 
   const handleAddTask = (task: TaskItem, groupId: string) => {
+    if (activeCollectionKey && activeChecklistGroups) {
+      setCustomChecklistGroups(prev => ({
+        ...prev,
+        [activeCollectionKey]: prev[activeCollectionKey].map(group => (
+          group.id === groupId ? { ...group, tasks: [...group.tasks, task] } : group
+        )),
+      }))
+      return
+    }
+
+    if (activeCollectionKey && activeCollection) {
+      setTaskCollections(prev => ({
+        ...prev,
+        [activeCollectionKey]: {
+          ...prev[activeCollectionKey],
+          items: [
+            {
+              id: task.id,
+              title: task.title,
+              done: task.done,
+              meta: task.dueDate?.trim() || '',
+              assignees: task.assignees,
+            },
+            ...prev[activeCollectionKey].items,
+          ],
+        },
+      }))
+      return
+    }
+
     setTaskViews(prev => ({
       ...prev,
       [activeTab]: prev[activeTab].map(group => {
@@ -1874,7 +1936,22 @@ export default function TaskPage() {
     }))
   }
 
-  const toggleCollectionTaskDone = (collectionKey: TaskCollectionKey, taskId: string) => {
+  const toggleCustomChecklistTaskDone = (checklistKey: TaskCollectionId, groupId: string, taskId: string) => {
+    setCustomChecklistGroups(prev => ({
+      ...prev,
+      [checklistKey]: prev[checklistKey].map(group => {
+        if (group.id !== groupId) return group
+        return {
+          ...group,
+          tasks: group.tasks.map(task => (
+            task.id === taskId ? { ...task, done: !task.done } : task
+          )),
+        }
+      }),
+    }))
+  }
+
+  const toggleCollectionTaskDone = (collectionKey: TaskCollectionId, taskId: string) => {
     setTaskCollections(prev => ({
       ...prev,
       [collectionKey]: {
@@ -1903,7 +1980,7 @@ export default function TaskPage() {
     })
   }
 
-  const openCollectionTaskDetail = (collectionKey: TaskCollectionKey, task: TaskCollectionItem) => {
+  const openCollectionTaskDetail = (collectionKey: TaskCollectionId, task: TaskCollectionItem) => {
     const assigneeBadge = pickDetailAssigneeBadge(task.assignees)
     setSelectedTaskDetail({
       id: task.id,
@@ -1920,11 +1997,34 @@ export default function TaskPage() {
     })
   }
 
+  const openChecklistTaskDetail = (checklistKey: TaskCollectionId, group: TaskGroup, task: TaskItem) => {
+    const assigneeBadge = pickDetailAssigneeBadge(task.assignees)
+    setSelectedTaskDetail({
+      id: task.id,
+      title: task.title,
+      done: task.done,
+      sourceRef: { kind: 'checklist', checklistKey, groupId: group.id },
+      sourceText: buildTaskDetailSourceText(task.title),
+      noteLabel: '创建于建国：建国',
+      assigneeBadge,
+      assigneeName: getTaskAssigneeName(assigneeBadge),
+      groupName: group.name,
+      dateChoice: getDetailDateChoice(task.dueDate),
+      commentTime: '5月14日 14:27',
+    })
+  }
+
   const handleDetailToggleDone = () => {
     if (!selectedTaskDetail) return
 
     if (selectedTaskDetail.sourceRef.kind === 'group') {
       toggleTaskDone(selectedTaskDetail.sourceRef.groupId, selectedTaskDetail.id)
+    } else if (selectedTaskDetail.sourceRef.kind === 'checklist') {
+      toggleCustomChecklistTaskDone(
+        selectedTaskDetail.sourceRef.checklistKey,
+        selectedTaskDetail.sourceRef.groupId,
+        selectedTaskDetail.id,
+      )
     } else {
       toggleCollectionTaskDone(selectedTaskDetail.sourceRef.collectionKey, selectedTaskDetail.id)
     }
@@ -1932,6 +2032,173 @@ export default function TaskPage() {
     setSelectedTaskDetail(prev => (
       prev ? { ...prev, done: !prev.done } : prev
     ))
+  }
+
+  useEffect(() => {
+    if (showDrawer) return
+    setShowDrawerCreateSheet(false)
+    setDrawerCreateDialog(null)
+    setDrawerCreateName('')
+  }, [showDrawer])
+
+  const openDrawerCreateDialog = (kind: DrawerCreateKind) => {
+    setShowDrawerCreateSheet(false)
+    setDrawerCreateDialog(kind)
+    setDrawerCreateName('')
+  }
+
+  const closeDrawerCreateDialog = () => {
+    setDrawerCreateDialog(null)
+    setDrawerCreateName('')
+  }
+
+  const handleCreateDrawerEntity = () => {
+    if (!trimmedDrawerCreateName || !drawerCreateDialog) return
+
+    if (drawerCreateDialog === 'checklist') {
+      const nextKey = `custom-${Date.now()}` as TaskCollectionId
+      const nextItem: TaskDrawerChecklistItem = { key: nextKey, label: trimmedDrawerCreateName }
+      const defaultGroupId = `${nextKey}-default`
+
+      setDrawerChecklistGroups(prev => {
+        if (prev.length === 0) {
+          return [{ id: 'drawer-group-default', label: '', items: [nextItem] }]
+        }
+
+        return prev.map((group, index) => (
+          index === prev.length - 1
+            ? { ...group, items: [...group.items, nextItem] }
+            : group
+        ))
+      })
+
+      setTaskCollections(prev => ({
+        ...prev,
+        [nextKey]: {
+          label: trimmedDrawerCreateName,
+          items: [],
+        },
+      }))
+      setCustomChecklistGroups(prev => ({
+        ...prev,
+        [nextKey]: [
+          {
+            id: defaultGroupId,
+            name: '默认分组',
+            showAddRow: true,
+            tasks: [],
+          },
+        ],
+      }))
+      setActiveCollectionKey(nextKey)
+      setShowDrawer(false)
+    } else {
+      setDrawerChecklistGroups(prev => [
+        ...prev,
+        {
+          id: `drawer-group-${Date.now()}`,
+          label: trimmedDrawerCreateName,
+          items: [],
+        },
+      ])
+    }
+
+    closeDrawerCreateDialog()
+  }
+
+  const renderTaskGroupSection = (
+    group: TaskGroup,
+    onOpenTask: (task: TaskItem) => void,
+    onToggleTask: (taskId: string) => void,
+  ) => {
+    const isCollapsed = collapsedGroups.has(group.id)
+
+    return (
+      <section className="task-group" key={group.id}>
+        <div
+          className="task-group-header"
+          onClick={() => toggleGroup(group.id)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault()
+              toggleGroup(group.id)
+            }
+          }}
+          role="button"
+          tabIndex={0}
+        >
+          <div className="task-group-header-main">
+            <CollapseIcon open={!isCollapsed} />
+            <span className="task-group-name">{group.name}</span>
+            {group.countLabel && <span className="task-group-count">{group.countLabel}</span>}
+          </div>
+          <button
+            className="task-group-more"
+            type="button"
+            aria-label="更多"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <GroupMoreIcon />
+          </button>
+        </div>
+
+        {!isCollapsed && (
+          <>
+            <div className="task-group-panel">
+              {group.showAddRow && (
+                <button className="task-add-inline" type="button" onClick={() => setShowAddTask(true)}>
+                  添加任务
+                </button>
+              )}
+
+              {group.tasks.map(task => (
+                <div
+                  className={`task-item ${task.done ? 'is-done' : ''}`}
+                  key={task.id}
+                  onClick={() => onOpenTask(task)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault()
+                      onOpenTask(task)
+                    }
+                  }}
+                  role="button"
+                  tabIndex={0}
+                >
+                  <button
+                    className={`task-check ${task.done ? 'is-checked' : ''}`}
+                    type="button"
+                    aria-label={task.done ? '标记为未完成' : '标记为完成'}
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      onToggleTask(task.id)
+                    }}
+                  >
+                    {task.done && (
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    )}
+                  </button>
+
+                  <div className="task-body">
+                    <div className="task-title">{task.title}</div>
+                  </div>
+
+                  {task.assignees.length > 0 && (
+                    <div className="task-assignee-stack">
+                      {task.assignees.map((badge, index) => renderTaskAssigneeBadge(badge, index))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {group.showDividerAfter && <div className="task-group-divider" />}
+          </>
+        )}
+      </section>
+    )
   }
 
   const isDrawerOpen = showDrawer
@@ -2052,38 +2319,49 @@ export default function TaskPage() {
                   <span className="task-drawer-section-title">任务清单</span>
                 </span>
 
-                <button className="task-drawer-add-btn" type="button" aria-label="添加任务清单">
-                  +
-                </button>
-              </div>
+	                <button
+	                  className="task-drawer-add-btn"
+	                  type="button"
+	                  aria-label="添加任务清单"
+	                  onClick={() => setShowDrawerCreateSheet(true)}
+	                >
+	                  +
+	                </button>
+	              </div>
 
-              <div className="task-drawer-list">
-                {taskDrawerListItems.map((item) => (
-                  <button
-                    className={`task-drawer-list-item ${activeCollectionKey === item.key ? 'is-active' : ''}`}
-                    key={item.key}
-                    type="button"
-                    onClick={() => handleDrawerCollectionSelect(item.key)}
-                  >
-                    <span className="task-drawer-list-item-icon">
-                      <DrawerChecklistIcon />
-                    </span>
-                    <span className="task-drawer-list-item-name">{item.label}</span>
-                    <span className="task-drawer-list-item-more">
-                      <GroupMoreIcon />
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </section>
-          </div>
-        </aside>
+	              <div className="task-drawer-list">
+	                {drawerChecklistGroups.map((group) => (
+	                  <div className="task-drawer-list-group" key={group.id}>
+	                    {group.label && <div className="task-drawer-list-group-title">{group.label}</div>}
 
-        <div className={`task-main-shell ${isDrawerOpen ? 'is-drawer-open' : ''}`}>
-          <div className="task-content">
-            {activeCollection ? (
-              <div className="task-collection-list">
-                {activeCollection.items.map(task => (
+	                    {group.items.map((item) => (
+	                      <button
+	                        className={`task-drawer-list-item ${activeCollectionKey === item.key ? 'is-active' : ''}`}
+	                        key={item.key}
+	                        type="button"
+	                        onClick={() => handleDrawerCollectionSelect(item.key)}
+	                      >
+	                        <span className="task-drawer-list-item-icon">
+	                          <DrawerChecklistIcon />
+	                        </span>
+	                        <span className="task-drawer-list-item-name">{item.label}</span>
+	                        <span className="task-drawer-list-item-more">
+	                          <GroupMoreIcon />
+	                        </span>
+	                      </button>
+	                    ))}
+	                  </div>
+	                ))}
+	              </div>
+	            </section>
+	          </div>
+	        </aside>
+
+	        <div className={`task-main-shell ${isDrawerOpen ? 'is-drawer-open' : ''}`}>
+	          <div className="task-content">
+	            {activeCollection && !activeChecklistGroups ? (
+	              <div className="task-collection-list">
+	                {activeCollection.items.map(task => (
                   <div
                     className={`task-collection-item ${task.done ? 'is-done' : ''}`}
                     key={task.id}
@@ -2135,98 +2413,28 @@ export default function TaskPage() {
                       </div>
                     )}
                   </div>
-                ))}
-              </div>
-            ) : visibleGroups.map(group => {
-              const isCollapsed = collapsedGroups.has(group.id)
-              return (
-                <section className="task-group" key={group.id}>
-                  <div
-                    className="task-group-header"
-                    onClick={() => toggleGroup(group.id)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter' || event.key === ' ') {
-                        event.preventDefault()
-                        toggleGroup(group.id)
-                      }
-                    }}
-                    role="button"
-                    tabIndex={0}
-                  >
-                    <div className="task-group-header-main">
-                      <CollapseIcon open={!isCollapsed} />
-                      <span className="task-group-name">{group.name}</span>
-                      {group.countLabel && <span className="task-group-count">{group.countLabel}</span>}
-                    </div>
-                    <button
-                      className="task-group-more"
-                      type="button"
-                      aria-label="更多"
-                      onClick={(event) => event.stopPropagation()}
-                    >
-                      <GroupMoreIcon />
-                    </button>
-                  </div>
-
-                  {!isCollapsed && (
-                    <>
-                      <div className="task-group-panel">
-                        {group.showAddRow && (
-                          <button className="task-add-inline" type="button" onClick={() => setShowAddTask(true)}>
-                            添加任务
-                          </button>
-                        )}
-
-                        {group.tasks.map(task => (
-                          <div
-                            className={`task-item ${task.done ? 'is-done' : ''}`}
-                            key={task.id}
-                            onClick={() => openGroupTaskDetail(group, task)}
-                            onKeyDown={(event) => {
-                              if (event.key === 'Enter' || event.key === ' ') {
-                                event.preventDefault()
-                                openGroupTaskDetail(group, task)
-                              }
-                            }}
-                            role="button"
-                            tabIndex={0}
-                          >
-                            <button
-                              className={`task-check ${task.done ? 'is-checked' : ''}`}
-                              type="button"
-                              aria-label={task.done ? '标记为未完成' : '标记为完成'}
-                              onClick={(event) => {
-                                event.stopPropagation()
-                                toggleTaskDone(group.id, task.id)
-                              }}
-                            >
-                              {task.done && (
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                                  <polyline points="20 6 9 17 4 12" />
-                                </svg>
-                              )}
-                            </button>
-
-                            <div className="task-body">
-                              <div className="task-title">{task.title}</div>
-                            </div>
-
-                            {task.assignees.length > 0 && (
-                              <div className="task-assignee-stack">
-                                {task.assignees.map((badge, index) => renderTaskAssigneeBadge(badge, index))}
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-
-                      {group.showDividerAfter && <div className="task-group-divider" />}
-                    </>
-                  )}
-                </section>
-              )
-            })}
-          </div>
+	                ))}
+	              </div>
+	            ) : currentTaskGroups.map(group => (
+	              renderTaskGroupSection(
+	                group,
+	                (task) => {
+	                  if (activeChecklistGroups && activeCollectionKey) {
+	                    openChecklistTaskDetail(activeCollectionKey, group, task)
+	                    return
+	                  }
+	                  openGroupTaskDetail(group, task)
+	                },
+	                (taskId) => {
+	                  if (activeChecklistGroups && activeCollectionKey) {
+	                    toggleCustomChecklistTaskDone(activeCollectionKey, group.id, taskId)
+	                    return
+	                  }
+	                  toggleTaskDone(group.id, taskId)
+	                },
+	              )
+	            ))}
+	          </div>
 
           <button className="task-fab" type="button" aria-label="添加任务" onClick={() => setShowAddTask(true)}>
             <AddTaskIcon />
@@ -2238,17 +2446,76 @@ export default function TaskPage() {
         </div>
       </div>
 
-      {showAddTask && (
-        <AddTaskSheet
-          onClose={() => setShowAddTask(false)}
+	      {showAddTask && (
+	        <AddTaskSheet
+	          onClose={() => setShowAddTask(false)}
           onAdd={handleAddTask}
           groupOptions={groupOptions.length > 0 ? groupOptions : [{ id: 'default', name: '默认分组' }]}
           defaultGroupId={addTargetGroupId || groupOptions[0]?.id || 'default'}
-        />
-      )}
+	        />
+	      )}
 
-      {selectedTaskDetail && (
-        <TaskDetailPage
+	      {showDrawerCreateSheet && (
+	        <div className="task-drawer-create-sheet-overlay" onClick={() => setShowDrawerCreateSheet(false)}>
+	          <div className="task-drawer-create-sheet" onClick={(event) => event.stopPropagation()}>
+	            <div className="task-drawer-create-sheet-group">
+	              <button className="task-drawer-create-sheet-option" type="button" onClick={() => openDrawerCreateDialog('checklist')}>
+	                新建任务清单
+	              </button>
+	              <button className="task-drawer-create-sheet-option" type="button" onClick={() => openDrawerCreateDialog('group')}>
+	                新建清单分组
+	              </button>
+	            </div>
+
+	            <button className="task-drawer-create-sheet-cancel" type="button" onClick={() => setShowDrawerCreateSheet(false)}>
+	              取消
+	            </button>
+	          </div>
+	        </div>
+	      )}
+
+	      {drawerCreateDialog && (
+	        <div className="task-drawer-create-dialog-overlay" onClick={closeDrawerCreateDialog}>
+	          <div className="task-drawer-create-dialog" onClick={(event) => event.stopPropagation()}>
+	            <div className="task-drawer-create-dialog-title">
+	              {drawerCreateDialog === 'checklist' ? '新建任务清单' : '新建清单分组'}
+	            </div>
+
+	            <div className="task-drawer-create-dialog-body">
+	              <input
+	                autoFocus
+	                className="task-drawer-create-dialog-input"
+	                type="text"
+	                value={drawerCreateName}
+	                onChange={(event) => setDrawerCreateName(event.target.value)}
+	                onKeyDown={(event) => {
+	                  if (event.key === 'Enter' && trimmedDrawerCreateName) {
+	                    handleCreateDrawerEntity()
+	                  }
+	                }}
+	                placeholder={drawerCreateDialog === 'checklist' ? '输入清单名称' : '输入分组名称'}
+	              />
+	            </div>
+
+	            <div className="task-drawer-create-dialog-actions">
+	              <button className="task-drawer-create-dialog-btn" type="button" onClick={closeDrawerCreateDialog}>
+	                取消
+	              </button>
+	              <button
+	                className="task-drawer-create-dialog-btn is-primary"
+	                type="button"
+	                disabled={!trimmedDrawerCreateName}
+	                onClick={handleCreateDrawerEntity}
+	              >
+	                创建
+	              </button>
+	            </div>
+	          </div>
+	        </div>
+	      )}
+
+	      {selectedTaskDetail && (
+	        <TaskDetailPage
           key={selectedTaskDetail.id}
           detail={selectedTaskDetail}
           onClose={() => setSelectedTaskDetail(null)}
