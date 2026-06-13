@@ -1,5 +1,5 @@
 .task-page {
-  --task-bottom-nav-clearance: calc(96px + env(safe-area-inset-bottom));
+  --task-bottom-nav-clearance: calc(72px + env(safe-area-inset-bottom));
   --task-drawer-peek-width: 72px;
   --task-drawer-width: calc(100% - var(--task-drawer-peek-width));
   position: relative;
@@ -633,7 +633,7 @@
 .task-content {
   flex: 1;
   overflow-y: auto;
-  padding: 4px 0 96px;
+  padding: 4px 0 24px;
   scrollbar-width: none;
 }
 
