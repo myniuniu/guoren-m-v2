@@ -3028,7 +3028,7 @@ export default function TaskPage() {
                 <div className="task-toolbar-spacer" />
               </>
             ) : (
-              <div className="task-tabs">
+              <div className={`task-tabs ${activeTab === 'mine' ? 'is-mine' : 'is-followed'}`}>
                 <button
                   className={`task-tab-btn ${activeTab === 'mine' ? 'is-active' : ''}`}
                   type="button"

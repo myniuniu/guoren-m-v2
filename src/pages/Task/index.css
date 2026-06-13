@@ -98,21 +98,21 @@
 .task-toolbar {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   flex-shrink: 0;
-  padding: 4px 16px 18px;
+  padding: 2px 16px 14px;
   background: #f5f5f6;
 }
 
 .task-toolbar.is-drawer-open {
-  min-height: 56px;
+  min-height: 48px;
   justify-content: flex-start;
-  padding: 6px 16px 12px;
+  padding: 4px 16px 10px;
 }
 
 .task-menu-btn {
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   border: none;
   border-radius: 50%;
   background: #ececef;
@@ -130,43 +130,118 @@
 }
 
 .task-tabs {
-  display: flex;
-  align-items: center;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   flex: 1;
-  gap: 0;
-  padding: 4px;
-  background: #e8e8eb;
-  border-radius: 22px;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  gap: 6px;
+  padding: 3px;
+  position: relative;
+  overflow: hidden;
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 50% -38%, rgba(255, 255, 255, 0.74), rgba(255, 255, 255, 0) 68%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.06)),
+    rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.36);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.46), inset 0 -1px 0 rgba(255, 255, 255, 0.08);
+  backdrop-filter: saturate(175%) blur(20px);
+  -webkit-backdrop-filter: saturate(175%) blur(20px);
+}
+
+.task-tabs::before,
+.task-tabs::after {
+  content: '';
+  position: absolute;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.task-tabs::before {
+  top: 3px;
+  bottom: 3px;
+  left: 3px;
+  width: calc(50% - 6px);
+  border-radius: 15px;
+  background:
+    radial-gradient(circle at 50% -16%, rgba(255, 255, 255, 0.88), rgba(255, 255, 255, 0.06) 58%, rgba(255, 255, 255, 0) 76%),
+    linear-gradient(180deg, rgba(248, 248, 249, 0.94), rgba(233, 235, 238, 0.92)),
+    rgba(239, 240, 243, 0.9);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    inset 0 -1px 0 rgba(188, 192, 199, 0.22);
+  transition: transform 0.5s cubic-bezier(0.24, 1, 0.32, 1);
+}
+
+.task-tabs::after {
+  top: 5px;
+  bottom: 5px;
+  left: 9px;
+  width: calc(50% - 18px);
+  border-radius: 999px;
+  background:
+    linear-gradient(110deg, rgba(255, 255, 255, 0) 12%, rgba(255, 255, 255, 0.14) 34%, rgba(255, 255, 255, 0.04) 56%, rgba(255, 255, 255, 0) 76%);
+  background-size: 180% 100%;
+  background-position: 0% 50%;
+  filter: blur(10px);
+  transition: left 0.5s cubic-bezier(0.24, 1, 0.32, 1);
+  animation: taskTabLiquidWave 2.6s ease-in-out infinite;
+}
+
+.task-tabs.is-followed::before {
+  transform: translateX(calc(100% + 6px));
+}
+
+.task-tabs.is-followed::after {
+  left: calc(50% + 9px);
 }
 
 .task-tab-btn {
   flex: 1;
+  position: relative;
+  z-index: 1;
   border: none;
   background: transparent;
-  height: 42px;
-  border-radius: 18px;
-  font-size: 16px;
+  height: 36px;
+  border-radius: 15px;
+  font-size: 14px;
   font-weight: 600;
-  color: #7e848f;
+  color: #5b6677;
   cursor: pointer;
-  transition: color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+  transition: color 0.26s ease, transform 0.16s ease;
 }
 
 .task-tab-btn.is-active {
-  color: #4c73ff;
-  background: #fff;
-  box-shadow: 0 1px 2px rgba(28, 35, 49, 0.08), 0 6px 14px rgba(28, 35, 49, 0.05);
+  color: #30343b;
+}
+
+.task-tab-btn:not(.is-active) {
+  color: #5d6878;
+}
+
+.task-tab-btn:active {
+  transform: scale(0.97);
+}
+
+@keyframes taskTabLiquidWave {
+  0%,
+  100% {
+    opacity: 0.54;
+    background-position: 0% 50%;
+  }
+  50% {
+    opacity: 0.78;
+    background-position: 100% 50%;
+  }
 }
 
 .task-toolbar-pill {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   max-width: calc(100% - 96px);
-  min-height: 46px;
-  padding: 0 14px 0 16px;
-  border-radius: 22px;
+  min-height: 40px;
+  padding: 0 12px 0 14px;
+  border-radius: 18px;
   background: #fff;
   box-shadow: 0 1px 2px rgba(28, 35, 49, 0.08), 0 6px 14px rgba(28, 35, 49, 0.05);
 }
@@ -176,14 +251,14 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 600;
   color: #4c73ff;
 }
 
 .task-toolbar-pill-clear {
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
   border: none;
   background: transparent;
   padding: 0;

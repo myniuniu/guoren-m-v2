@@ -379,6 +379,98 @@ function FileTypeIcon({ type }: { type: LibraryEntryType }) {
   )
 }
 
+function LibraryScopeSelector({
+  scope,
+  selectedOrgSpace,
+  isDesktop,
+  showOrgSpaceTrigger = scope === 'org',
+  onScopeChange,
+  onOpenOrgSpacePicker,
+}: {
+  scope: LibraryScope
+  selectedOrgSpace: string
+  isDesktop: boolean
+  showOrgSpaceTrigger?: boolean
+  onScopeChange: (scope: LibraryScope) => void
+  onOpenOrgSpacePicker: () => void
+}) {
+  return (
+    <div className={`library-source-selector ${scope === 'personal' ? 'is-personal' : 'is-org'} ${isDesktop ? 'is-desktop' : ''}`}>
+      <div className={`library-scope-switch ${scope === 'personal' ? 'is-personal' : 'is-org'} ${isDesktop ? 'is-desktop' : ''}`}>
+        <button
+          className={`library-scope-btn ${scope === 'personal' ? 'is-active' : ''}`}
+          type="button"
+          onClick={() => onScopeChange('personal')}
+        >
+          个人资料库
+        </button>
+        <button
+          className={`library-scope-btn ${scope === 'org' ? 'is-active' : ''}`}
+          type="button"
+          onClick={() => onScopeChange('org')}
+        >
+          组织资料库
+        </button>
+      </div>
+
+      {showOrgSpaceTrigger && scope === 'org' && (
+        <button
+          className={`library-org-space-trigger ${isDesktop ? 'is-desktop' : ''}`}
+          type="button"
+          onClick={onOpenOrgSpacePicker}
+        >
+          <span className="library-org-space-value">{selectedOrgSpace}</span>
+          <ChevronDownIcon />
+        </button>
+      )}
+    </div>
+  )
+}
+
+function LibraryOrgContextTrigger({
+  selectedOrgSpace,
+  onOpen,
+}: {
+  selectedOrgSpace: string
+  onOpen: () => void
+}) {
+  return (
+    <button className="library-org-context-trigger" type="button" onClick={onOpen}>
+      <span>{selectedOrgSpace}</span>
+      <ChevronDownIcon />
+    </button>
+  )
+}
+
+function LibraryPathBreadcrumb({
+  pathItems,
+  onJumpToFolder,
+}: {
+  pathItems: LibraryPathItem[]
+  onJumpToFolder: (folderId: string | null) => void
+}) {
+  return (
+    <div className="library-breadcrumb" data-page-swipe-ignore="true">
+      {pathItems.map((item, index) => (
+        <div className="library-breadcrumb-segment" key={item.key}>
+          {item.clickable ? (
+            <button
+              className="library-breadcrumb-btn"
+              type="button"
+              onClick={() => onJumpToFolder(item.folderId)}
+            >
+              {item.label}
+            </button>
+          ) : (
+            <span className={`library-breadcrumb-text ${item.current ? 'is-current' : ''}`}>{item.label}</span>
+          )}
+          {index < pathItems.length - 1 ? <span className="library-breadcrumb-separator">/</span> : null}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function LibraryPreviewPaper({
   file,
   pathItems,
@@ -540,7 +632,13 @@ export default function LibraryPage() {
     }
   }, [scopedEntries])
 
-  const currentTitle = currentFolder ? currentFolder.name : filterLabelMap[selectedFilter]
+  const currentTitle = currentFolder
+    ? currentFolder.name
+    : selectedFilter === 'all'
+      ? scope === 'personal'
+        ? '我的资料'
+        : '组织资料'
+      : filterLabelMap[selectedFilter]
   const pathItems = useMemo<LibraryPathItem[]>(
     () => [
       {
@@ -577,7 +675,17 @@ export default function LibraryPage() {
     [pathItems, previewFile, visibleItems]
   )
   const activePreviewFile = previewFile && visibleItems.some((item) => item.id === previewFile.id) ? previewFile : null
-  const showHeaderPath = pathItems.length > 1
+  const shouldShowTopbarOrgSpace = scope === 'org' && (isDesktop || !currentFolder)
+  const shouldShowInlineOrgContext = !isDesktop && scope === 'org' && Boolean(currentFolder)
+  const headerPathItems = useMemo(() => {
+    if (pathItems.length <= 1) {
+      return []
+    }
+
+    const ancestorItems = pathItems.slice(0, -1)
+    return shouldShowInlineOrgContext ? ancestorItems.slice(1) : ancestorItems
+  }, [pathItems, shouldShowInlineOrgContext])
+  const shouldShowBreadcrumb = headerPathItems.length > 0
   const currentLocationLabel = pathItems.map((item) => item.label).join(' / ')
 
   useEffect(() => {
@@ -773,6 +881,15 @@ export default function LibraryPage() {
   const handleOpenAddMaterial = () => {
     setShowAddMaterialDialog(true)
   }
+  const handleOpenCreateFolder = () => {
+    setShowCreateFolderSheet(true)
+    setNewFolderName('')
+    setNewFolderError('')
+  }
+  const handleOpenCreateFolderFromAddDialog = () => {
+    closeAddMaterialDialog()
+    handleOpenCreateFolder()
+  }
   const handleOpenMaterialFiles = () => {
     uploadInputRef.current?.click()
   }
@@ -884,33 +1001,14 @@ export default function LibraryPage() {
       />
 
       <div className="library-topbar">
-        <div className={`library-scope-switch ${scope === 'personal' ? 'is-personal' : 'is-org'} ${isDesktop ? 'is-desktop' : ''}`}>
-          <button
-            className={`library-scope-btn ${scope === 'personal' ? 'is-active' : ''}`}
-            type="button"
-            onClick={() => handleScopeChange('personal')}
-          >
-            个人资料库
-          </button>
-          <button
-            className={`library-scope-btn ${scope === 'org' ? 'is-active' : ''}`}
-            type="button"
-            onClick={() => handleScopeChange('org')}
-          >
-            组织资料库
-          </button>
-        </div>
-
-        {scope === 'org' && (
-          <button
-            className={`library-org-space-trigger ${isDesktop ? 'is-desktop' : ''}`}
-            type="button"
-            onClick={() => setShowOrgSpaceSheet(true)}
-          >
-            <span className="library-org-space-value">{selectedOrgSpace}</span>
-            <ChevronDownIcon />
-          </button>
-        )}
+        <LibraryScopeSelector
+          scope={scope}
+          selectedOrgSpace={selectedOrgSpace}
+          isDesktop={isDesktop}
+          showOrgSpaceTrigger={shouldShowTopbarOrgSpace}
+          onScopeChange={handleScopeChange}
+          onOpenOrgSpacePicker={() => setShowOrgSpaceSheet(true)}
+        />
       </div>
 
       {isDesktop ? (
@@ -968,30 +1066,8 @@ export default function LibraryPage() {
                   <div className="library-icon-placeholder" />
                 )}
                 <div className="library-title-wrap">
-                  <div className={`library-title ${showHeaderPath ? 'is-path' : ''}`}>
-                    {showHeaderPath ? (
-                      <div className="library-title-path" data-page-swipe-ignore="true">
-                        {pathItems.map((item, index) => (
-                          <div className="library-title-path-segment" key={item.key}>
-                            {item.clickable ? (
-                              <button
-                                className="library-title-path-btn"
-                                type="button"
-                                onClick={() => handleJumpToFolder(item.folderId)}
-                              >
-                                {item.label}
-                              </button>
-                            ) : (
-                              <span className={`library-title-path-text ${item.current ? 'is-current' : ''}`}>{item.label}</span>
-                            )}
-                            {index < pathItems.length - 1 ? <span className="library-title-path-separator">/</span> : null}
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      currentTitle
-                    )}
-                  </div>
+                  {shouldShowBreadcrumb ? <LibraryPathBreadcrumb pathItems={headerPathItems} onJumpToFolder={handleJumpToFolder} /> : null}
+                  <div className="library-title">{currentTitle}</div>
                   <div className="library-subtitle">{visibleItems.length} 项内容</div>
                 </div>
               </div>
@@ -1012,11 +1088,7 @@ export default function LibraryPage() {
                 <button
                   className="library-desktop-primary-btn is-secondary"
                   type="button"
-                  onClick={() => {
-                    setShowCreateFolderSheet(true)
-                    setNewFolderName('')
-                    setNewFolderError('')
-                  }}
+                  onClick={handleOpenCreateFolder}
                 >
                   <NewFolderIcon />
                   <span>新建文件夹</span>
@@ -1131,30 +1203,11 @@ export default function LibraryPage() {
                 <div className="library-icon-placeholder" />
               )}
               <div className="library-title-wrap">
-                <div className={`library-title ${showHeaderPath ? 'is-path' : ''}`}>
-                  {showHeaderPath ? (
-                    <div className="library-title-path" data-page-swipe-ignore="true">
-                      {pathItems.map((item, index) => (
-                        <div className="library-title-path-segment" key={item.key}>
-                          {item.clickable ? (
-                            <button
-                              className="library-title-path-btn"
-                              type="button"
-                              onClick={() => handleJumpToFolder(item.folderId)}
-                            >
-                              {item.label}
-                            </button>
-                          ) : (
-                            <span className={`library-title-path-text ${item.current ? 'is-current' : ''}`}>{item.label}</span>
-                          )}
-                          {index < pathItems.length - 1 ? <span className="library-title-path-separator">/</span> : null}
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    currentTitle
-                  )}
-                </div>
+                {shouldShowInlineOrgContext ? (
+                  <LibraryOrgContextTrigger selectedOrgSpace={selectedOrgSpace} onOpen={() => setShowOrgSpaceSheet(true)} />
+                ) : null}
+                {shouldShowBreadcrumb ? <LibraryPathBreadcrumb pathItems={headerPathItems} onJumpToFolder={handleJumpToFolder} /> : null}
+                <div className="library-title">{currentTitle}</div>
                 <div className="library-subtitle">{visibleItems.length} 项内容</div>
               </div>
               <div className="library-nav-actions">
@@ -1204,18 +1257,6 @@ export default function LibraryPage() {
               <button className="library-add-material" type="button" onClick={handleOpenAddMaterial}>
                 <PlusIcon />
                 <span>添加资料</span>
-              </button>
-              <button
-                className="library-add-material is-secondary"
-                type="button"
-                onClick={() => {
-                  setShowCreateFolderSheet(true)
-                  setNewFolderName('')
-                  setNewFolderError('')
-                }}
-              >
-                <NewFolderIcon />
-                <span>新建文件夹</span>
               </button>
             </div>
             <div className="library-list" ref={listRef}>
@@ -1355,9 +1396,14 @@ export default function LibraryPage() {
                   <span>选择文件上传</span>
                 </button>
               </div>
-              <button className="library-add-dialog-folder-link" type="button" onClick={handleOpenMaterialFolder}>
-                选择文件夹
-              </button>
+              <div className="library-add-dialog-link-row">
+                <button className="library-add-dialog-folder-link" type="button" onClick={handleOpenMaterialFolder}>
+                  选择文件夹
+                </button>
+                <button className="library-add-dialog-folder-link" type="button" onClick={handleOpenCreateFolderFromAddDialog}>
+                  新建文件夹
+                </button>
+              </div>
             </div>
 
             <div className="library-add-dialog-sections">
