@@ -1836,6 +1836,7 @@ export default function TaskPage() {
   const [activeCollectionKey, setActiveCollectionKey] = useState<TaskCollectionId | null>(null)
   const [showAddTask, setShowAddTask] = useState(false)
   const [showDrawer, setShowDrawer] = useState(false)
+  const [showTaskFilters, setShowTaskFilters] = useState(false)
   const [selectedTaskDetail, setSelectedTaskDetail] = useState<TaskDetailState | null>(null)
   const [showDrawerCreateSheet, setShowDrawerCreateSheet] = useState(false)
   const [drawerCreateDialog, setDrawerCreateDialog] = useState<DrawerCreateKind | null>(null)
@@ -2039,6 +2040,12 @@ export default function TaskPage() {
     setShowDrawerCreateSheet(false)
     setDrawerCreateDialog(null)
     setDrawerCreateName('')
+  }, [showDrawer])
+
+  useEffect(() => {
+    if (showDrawer) {
+      setShowTaskFilters(false)
+    }
   }, [showDrawer])
 
   const openDrawerCreateDialog = (kind: DrawerCreateKind) => {
@@ -2256,12 +2263,34 @@ export default function TaskPage() {
               </div>
             )}
 
-            <button className="task-filter-btn" type="button" aria-label="筛选">
+            <button
+              className={`task-filter-btn ${showTaskFilters ? 'is-active' : ''}`}
+              type="button"
+              aria-label="筛选"
+              onClick={() => setShowTaskFilters((current) => !current)}
+            >
               <TaskFilterIcon />
             </button>
           </>
         )}
       </div>
+
+      {showTaskFilters && !isDrawerOpen && (
+        <div className="task-filter-bar" aria-label="筛选选项">
+          <button className="task-filter-chip" type="button">
+            <span>未完成</span>
+            <ChevronDownIcon color="#7f858f" />
+          </button>
+          <button className="task-filter-chip" type="button">
+            <span>分组：自定义分组</span>
+            <ChevronDownIcon color="#7f858f" />
+          </button>
+          <button className="task-filter-chip" type="button">
+            <span>排序：拖拽自定义</span>
+            <ChevronDownIcon color="#7f858f" />
+          </button>
+        </div>
+      )}
 
       <div className="task-body-stage">
         <aside className="task-drawer-panel" aria-label="任务抽屉" aria-hidden={!isDrawerOpen}>
