@@ -2,64 +2,233 @@ import { useState } from 'react'
 import './index.css'
 
 type TaskTab = 'mine' | 'followed'
+type TaskDrawerPrimaryKey = TaskTab | 'updates' | 'feishu'
+
+type TaskAssigneeBadge =
+  | {
+      kind: 'image'
+      name: string
+      avatar: string
+    }
+  | {
+      kind: 'text'
+      name: string
+      text: string
+      background: string
+      color?: string
+    }
+  | {
+      kind: 'count'
+      label: string
+    }
+
 type TaskGroup = {
   id: string
   name: string
+  countLabel?: string
+  showAddRow?: boolean
+  showDividerAfter?: boolean
   tasks: TaskItem[]
 }
 
 type TaskItem = {
   id: string
   title: string
-  dueDate: string
-  dueColor: string
-  assignee: string
-  assigneeColor: string
   done: boolean
+  dueDate?: string
+  dueColor?: string
+  assignees: TaskAssigneeBadge[]
 }
 
-const taskGroups: TaskGroup[] = [
-  {
-    id: 'g1',
-    name: '需求',
-    tasks: [
-      { id: 't1', title: 'AI 课堂助手上线', dueDate: '昨天 截止', dueColor: '#FF5A5F', assignee: '张洪磊', assigneeColor: '#7d8cff', done: false },
-      { id: 't2', title: '多维表格批量导入优化', dueDate: '6月1日 截止', dueColor: '#FF5A5F', assignee: 'jinlf', assigneeColor: '#ff8b8b', done: false },
-      { id: 't3', title: 'lucky 集成对接', dueDate: '6月3日 截止', dueColor: '#FF8A34', assignee: '我', assigneeColor: '#7d8cff', done: false },
-    ],
-  },
-  {
-    id: 'g2',
-    name: '默认分组 89',
-    tasks: [
-      { id: 't4', title: '审核教研模板提交', dueDate: '6月4日 截止', dueColor: '#4A7CFF', assignee: '我', assigneeColor: '#7d8cff', done: false },
-      { id: 't5', title: '完成课件评审打分', dueDate: '6月5日 截止', dueColor: '#999', assignee: 'jinlf', assigneeColor: '#ff8b8b', done: false },
-      { id: 't6', title: '整理知识库目录结构', dueDate: '6月6日 截止', dueColor: '#999', assignee: 'guoren-team', assigneeColor: '#3CC2A3', done: false },
-    ],
-  },
+const taskAvatarSrc = '/assets/果仁头像-手机.png'
+
+const createImageBadge = (name: string, avatar = taskAvatarSrc): TaskAssigneeBadge => ({
+  kind: 'image',
+  name,
+  avatar,
+})
+
+const createTextBadge = (name: string, text: string, background: string, color = '#fff'): TaskAssigneeBadge => ({
+  kind: 'text',
+  name,
+  text,
+  background,
+  color,
+})
+
+const createCountBadge = (label: string): TaskAssigneeBadge => ({
+  kind: 'count',
+  label,
+})
+
+const dogBadge = createImageBadge('张洪磊')
+const qinSongBadge = createTextBadge('秦松', '秦松', 'linear-gradient(135deg, #54b76d 0%, #47a6bf 100%)')
+const myBadge = createTextBadge('我', '我', 'linear-gradient(135deg, #5b73ff 0%, #8794ff 100%)')
+const plusTwoBadge = createCountBadge('+2')
+
+const initialTaskViews: Record<TaskTab, TaskGroup[]> = {
+  mine: [
+    {
+      id: 'requirements',
+      name: '需求',
+      showAddRow: true,
+      showDividerAfter: true,
+      tasks: [],
+    },
+    {
+      id: 'default',
+      name: '默认分组',
+      countLabel: '80',
+      tasks: [
+        { id: 'm-1', title: '检查新的 appld', done: false, assignees: [dogBadge] },
+        { id: 'm-2', title: '确认标签是否需相关人员在管理平台维护', done: false, assignees: [dogBadge] },
+        { id: 'm-3', title: '创建四月份加班统计表', done: false, assignees: [dogBadge] },
+        { id: 'm-4', title: '解决访问问题并指导前端（田宇@果仁 2026-04-01 18:40）', done: false, assignees: [dogBadge] },
+        { id: 'm-5', title: 'Ai原生培训原型', done: false, assignees: [dogBadge] },
+        { id: 'm-6', title: '下载doc pdf 方案调整', done: false, assignees: [qinSongBadge, plusTwoBadge] },
+        { id: 'm-7', title: '来源有些打不开，参考文献是外国网址', done: false, assignees: [qinSongBadge, dogBadge] },
+        { id: 'm-8', title: 'deerflow 无法暂停', done: false, assignees: [qinSongBadge, dogBadge] },
+        { id: 'm-9', title: '封装为技能（智能体）', done: false, assignees: [dogBadge] },
+        { id: 'm-10', title: 'AI生成笔记纳入到课程预处理流程中，作为agent的内置技能（针对课程没有对应ppt的...', done: false, assignees: [] },
+      ],
+    },
+  ],
+  followed: [
+    {
+      id: 'follow-up',
+      name: '跟进',
+      showAddRow: true,
+      showDividerAfter: true,
+      tasks: [],
+    },
+    {
+      id: 'followed-default',
+      name: '默认分组',
+      countLabel: '18',
+      tasks: [
+        { id: 'f-1', title: '课程案例更新状态同步', done: false, assignees: [qinSongBadge, dogBadge] },
+        { id: 'f-2', title: '确认资料库权限同步方案', done: false, assignees: [dogBadge] },
+        { id: 'f-3', title: 'AI 应用市场接入排期跟进', done: false, assignees: [myBadge] },
+        { id: 'f-4', title: '知识库目录重构评审', done: false, assignees: [qinSongBadge, plusTwoBadge] },
+      ],
+    },
+  ],
+}
+
+const taskDrawerPrimaryItems: Array<{ key: TaskDrawerPrimaryKey; label: string; count?: string }> = [
+  { key: 'mine', label: '我负责的', count: '81' },
+  { key: 'followed', label: '我关注的', count: '755' },
+  { key: 'updates', label: '动态' },
+  { key: 'feishu', label: '来自飞书项目' },
+]
+
+const taskDrawerQuickAccessItems = ['全部任务', '我创建的', '我分配的', '已完成']
+
+const taskDrawerListItems = [
+  '果仁-6.30',
+  '场景-培训项目',
+  '果仁-mvp版本（3.31）',
+  '果仁-人工智能通识培训（4.30）',
 ]
 
 function SearchIcon() {
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="11" cy="11" r="8" />
-      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="11" cy="11" r="7.6" />
+      <line x1="20" y1="20" x2="16.4" y2="16.4" />
     </svg>
   )
 }
 
 function SettingsIcon() {
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="3" />
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.95" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="3.15" />
       <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
     </svg>
   )
 }
 
+function TaskMenuIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round">
+      <line x1="7" y1="6.5" x2="17" y2="6.5" />
+      <line x1="7" y1="12" x2="15" y2="12" />
+      <line x1="7" y1="17.5" x2="17" y2="17.5" />
+    </svg>
+  )
+}
+
+function TaskFilterIcon() {
+  return (
+    <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="5" y1="8" x2="19" y2="8" />
+      <circle cx="15" cy="8" r="2.2" />
+      <line x1="5" y1="16" x2="19" y2="16" />
+      <circle cx="9" cy="16" r="2.2" />
+    </svg>
+  )
+}
+
+function DrawerMineIcon({ active }: { active: boolean }) {
+  const tone = active ? '#4268ff' : '#787e88'
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={tone} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="8" r="3.6" />
+      <path d="M5.5 19a6.5 6.5 0 0 1 13 0" />
+    </svg>
+  )
+}
+
+function DrawerFollowIcon({ active }: { active: boolean }) {
+  const tone = active ? '#4268ff' : '#787e88'
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={tone} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M7 4.5h10a1.8 1.8 0 0 1 1.8 1.8v13.2l-6.8-3.8-6.8 3.8V6.3A1.8 1.8 0 0 1 7 4.5Z" />
+    </svg>
+  )
+}
+
+function DrawerActivityIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#787e88" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7.5v5l3.4 2" />
+    </svg>
+  )
+}
+
+function DrawerFeishuIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+      <rect x="3.5" y="4.5" width="17" height="15" rx="4" fill="#f4f5f8" stroke="#d8dce5" />
+      <path d="M7 9.5h4.4a1.8 1.8 0 0 1 1.8 1.8V13H8.9A1.9 1.9 0 0 1 7 11.1Z" fill="#6ca6ff" />
+      <path d="M12 9.5h3.1A1.9 1.9 0 0 1 17 11.4V13h-3.2A1.8 1.8 0 0 1 12 11.2Z" fill="#8a7dff" />
+      <path d="M7 13.5h4.3a1.9 1.9 0 0 1 1.9 1.9V17H8.9A1.9 1.9 0 0 1 7 15.1Z" fill="#7f9dff" />
+      <path d="M12.6 13.5H17v1.6a1.9 1.9 0 0 1-1.9 1.9h-2.5a1.8 1.8 0 0 1-1.8-1.8v-.1a1.7 1.7 0 0 1 1.8-1.6Z" fill="#5cd0c0" />
+    </svg>
+  )
+}
+
+function DrawerChecklistIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.95" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M7 4.5h10a1.8 1.8 0 0 1 1.8 1.8v13.2l-6.8-3.8-6.8 3.8V6.3A1.8 1.8 0 0 1 7 4.5Z" />
+      <path d="m9.4 9.3 1.4 1.4 2.8-2.8" />
+    </svg>
+  )
+}
+
+function renderTaskDrawerPrimaryIcon(key: TaskDrawerPrimaryKey, active: boolean) {
+  if (key === 'mine') return <DrawerMineIcon active={active} />
+  if (key === 'followed') return <DrawerFollowIcon active={active} />
+  if (key === 'updates') return <DrawerActivityIcon />
+  return <DrawerFeishuIcon />
+}
+
 function AddTaskIcon() {
   return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round">
       <line x1="12" y1="5" x2="12" y2="19" />
       <line x1="5" y1="12" x2="19" y2="12" />
     </svg>
@@ -68,17 +237,17 @@ function AddTaskIcon() {
 
 function GroupMoreIcon() {
   return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="#B0B0B0">
-      <circle cx="12" cy="5" r="1.6" />
-      <circle cx="12" cy="12" r="1.6" />
-      <circle cx="12" cy="19" r="1.6" />
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+      <circle cx="5" cy="12" r="1.7" />
+      <circle cx="12" cy="12" r="1.7" />
+      <circle cx="19" cy="12" r="1.7" />
     </svg>
   )
 }
 
 function CollapseIcon({ open }: { open: boolean }) {
   return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: open ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform 0.2s' }}>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#7f858f" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: open ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform 0.2s ease' }}>
       <polyline points="6 9 12 15 18 9" />
     </svg>
   )
@@ -213,20 +382,34 @@ type AssigneeOption = {
   name: string
   color: string
   avatar?: string
+  badgeText?: string
 }
 
-const formatGroupLabel = (name: string) => name.replace(/\s+\d+$/, '')
-
-const groupOptions = taskGroups.map(g => ({ id: g.id, name: formatGroupLabel(g.name) }))
-
 const assigneeOptions: AssigneeOption[] = [
-  { name: '我', color: '#7d8cff' },
-  { name: '张洪磊', color: '#7d8cff', avatar: '/assets/果仁头像-手机.png' },
-  { name: 'jinlf', color: '#ff8b8b' },
-  { name: 'guoren-team', color: '#3CC2A3' },
+  { name: '张洪磊', color: '#7d8cff', avatar: taskAvatarSrc, badgeText: '张洪磊' },
+  { name: '秦松', color: 'linear-gradient(135deg, #54b76d 0%, #47a6bf 100%)', badgeText: '秦松' },
+  { name: '我', color: 'linear-gradient(135deg, #5b73ff 0%, #8794ff 100%)', badgeText: '我' },
+  { name: '果仁', color: 'linear-gradient(135deg, #7e86c7 0%, #5c6ed8 100%)', badgeText: '果仁' },
 ]
 
 const dueDateOptions = ['今天', '明天', '后天', '6月6日', '6月7日', '6月8日', '下周一', '无截止日期']
+
+type GroupOption = {
+  id: string
+  name: string
+}
+
+const buildTaskBadge = (assignee: AssigneeOption): TaskAssigneeBadge => {
+  if (assignee.avatar) {
+    return createImageBadge(assignee.name, assignee.avatar)
+  }
+
+  return createTextBadge(
+    assignee.name,
+    assignee.badgeText ?? assignee.name.slice(0, 2),
+    assignee.color,
+  )
+}
 
 function renderAssigneeAvatar(assignee: AssigneeOption | undefined, name: string, color: string, className: string) {
   if (assignee?.avatar) {
@@ -235,17 +418,55 @@ function renderAssigneeAvatar(assignee: AssigneeOption | undefined, name: string
 
   return (
     <div className={className} style={{ background: color }}>
-      {(name || '未').charAt(0)}
+      {((assignee?.badgeText ?? name) || '未').slice(0, 2)}
     </div>
   )
 }
 
-function AddTaskSheet({ onClose, onAdd }: { onClose: () => void; onAdd: (task: TaskItem, groupId: string) => void }) {
+function renderTaskAssigneeBadge(badge: TaskAssigneeBadge, index: number) {
+  if (badge.kind === 'image') {
+    return (
+      <span className="task-assignee-badge is-image" key={`${badge.name}-${index}`} style={{ zIndex: index + 1 }}>
+        <img src={badge.avatar} alt={badge.name} />
+      </span>
+    )
+  }
+
+  if (badge.kind === 'count') {
+    return (
+      <span className="task-assignee-badge is-count" key={`${badge.label}-${index}`} style={{ zIndex: index + 1 }}>
+        {badge.label}
+      </span>
+    )
+  }
+
+  return (
+    <span
+      className="task-assignee-badge is-text"
+      key={`${badge.name}-${index}`}
+      style={{ background: badge.background, color: badge.color ?? '#fff', zIndex: index + 1 }}
+    >
+      {badge.text}
+    </span>
+  )
+}
+
+function AddTaskSheet({
+  onClose,
+  onAdd,
+  groupOptions,
+  defaultGroupId,
+}: {
+  onClose: () => void
+  onAdd: (task: TaskItem, groupId: string) => void
+  groupOptions: GroupOption[]
+  defaultGroupId: string
+}) {
   const [title, setTitle] = useState('')
   const [dueDate, setDueDate] = useState('今天')
   const [assignee, setAssignee] = useState('张洪磊')
   const [assigneeColor, setAssigneeColor] = useState('#7d8cff')
-  const [selectedGroup, setSelectedGroup] = useState('g2')
+  const [selectedGroup, setSelectedGroup] = useState(defaultGroupId)
   const [showDatePicker, setShowDatePicker] = useState(false)
   const [showAssigneePicker, setShowAssigneePicker] = useState(false)
   const [showGroupPicker, setShowGroupPicker] = useState(false)
@@ -279,7 +500,7 @@ function AddTaskSheet({ onClose, onAdd }: { onClose: () => void; onAdd: (task: T
   )
 
   const activeAssignee = assigneeOptions.find(opt => opt.name === assignee)
-  const activeGroupName = groupOptions.find(g => g.id === selectedGroup)?.name ?? '默认分组'
+  const activeGroupName = groupOptions.find(g => g.id === selectedGroup)?.name ?? groupOptions[0]?.name ?? '默认分组'
   const hasCustomDate = dueDate !== '今天' && dueDate !== '明天'
   const customDateLabel = hasCustomDate && dueDate !== '无截止日期' ? dueDate : '其他时间'
 
@@ -290,15 +511,14 @@ function AddTaskSheet({ onClose, onAdd }: { onClose: () => void; onAdd: (task: T
   }
 
   const handleSend = () => {
-    if (!title.trim()) return
+    if (!title.trim() || !selectedGroup) return
     const newTask: TaskItem = {
       id: `t-${Date.now()}`,
       title: title.trim(),
       dueDate: dueDate === '无截止日期' ? '' : `${dueDate} 截止`,
       dueColor: dueDate === '今天' ? '#4A7CFF' : dueDate === '明天' ? '#3CC2A3' : '#999',
-      assignee: assignee || '未分配',
-      assigneeColor: assignee ? assigneeColor : '#c3c9d5',
       done: false,
+      assignees: activeAssignee ? [buildTaskBadge(activeAssignee)] : [],
     }
     onAdd(newTask, selectedGroup)
     onClose()
@@ -623,8 +843,20 @@ function AddTaskSheet({ onClose, onAdd }: { onClose: () => void; onAdd: (task: T
 export default function TaskPage() {
   const [activeTab, setActiveTab] = useState<TaskTab>('mine')
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
-  const [tasks, setTasks] = useState(taskGroups)
+  const [taskViews, setTaskViews] = useState(initialTaskViews)
   const [showAddTask, setShowAddTask] = useState(false)
+  const [showDrawer, setShowDrawer] = useState(false)
+
+  const visibleGroups = taskViews[activeTab]
+  const groupOptions = visibleGroups.map(group => ({ id: group.id, name: group.name }))
+  const addTargetGroupId = visibleGroups.find(group => group.name === '默认分组')?.id ?? visibleGroups[0]?.id ?? ''
+
+  const handleDrawerPrimarySelect = (key: TaskDrawerPrimaryKey) => {
+    if (key === 'mine' || key === 'followed') {
+      setActiveTab(key)
+    }
+    setShowDrawer(false)
+  }
 
   const toggleGroup = (groupId: string) => {
     setCollapsedGroups(prev => {
@@ -639,114 +871,247 @@ export default function TaskPage() {
   }
 
   const toggleTaskDone = (groupId: string, taskId: string) => {
-    setTasks(prev => prev.map(group => {
-      if (group.id !== groupId) return group
-      return {
-        ...group,
-        tasks: group.tasks.map(task => {
-          if (task.id !== taskId) return task
-          return { ...task, done: !task.done }
-        }),
-      }
+    setTaskViews(prev => ({
+      ...prev,
+      [activeTab]: prev[activeTab].map(group => {
+        if (group.id !== groupId) return group
+        return {
+          ...group,
+          tasks: group.tasks.map(task => {
+            if (task.id !== taskId) return task
+            return { ...task, done: !task.done }
+          }),
+        }
+      }),
     }))
   }
 
   const handleAddTask = (task: TaskItem, groupId: string) => {
-    setTasks(prev => prev.map(group => {
-      if (group.id !== groupId) return group
-      return { ...group, tasks: [...group.tasks, task] }
+    setTaskViews(prev => ({
+      ...prev,
+      [activeTab]: prev[activeTab].map(group => {
+        if (group.id !== groupId) return group
+        return { ...group, tasks: [...group.tasks, task] }
+      }),
     }))
   }
 
+  const isDrawerOpen = showDrawer
+
   return (
-    <div className="task-page">
-      {/* Header */}
+    <div className={`task-page ${isDrawerOpen ? 'is-drawer-open' : ''}`}>
       <div className="task-header">
         <div className="task-header-left">
-          <div className="task-avatar" />
+          <img className="task-avatar" src={taskAvatarSrc} alt="任务头像" />
+          <div className="task-header-title">任务</div>
         </div>
-        <div className="task-header-title">任务</div>
         <div className="task-header-right">
-          <button className="task-icon-btn"><SearchIcon /></button>
-          <button className="task-icon-btn"><SettingsIcon /></button>
+          <button className="task-icon-btn" type="button" aria-label="搜索">
+            <SearchIcon />
+          </button>
+          <button className="task-icon-btn" type="button" aria-label="设置">
+            <SettingsIcon />
+          </button>
         </div>
       </div>
 
-      {/* Sub tabs */}
-      <div className="task-tabs">
-        <button
-          className={`task-tab-btn ${activeTab === 'mine' ? 'is-active' : ''}`}
-          onClick={() => setActiveTab('mine')}
-        >
-          我负责的
+      <div className={`task-toolbar ${isDrawerOpen ? 'is-drawer-open' : ''}`}>
+        <button className="task-menu-btn" type="button" aria-label="任务菜单" onClick={() => setShowDrawer((current) => !current)}>
+          <TaskMenuIcon />
         </button>
-        <button
-          className={`task-tab-btn ${activeTab === 'followed' ? 'is-active' : ''}`}
-          onClick={() => setActiveTab('followed')}
-        >
-          我关注的
-        </button>
-      </div>
 
-      {/* Task list */}
-      <div className="task-content">
-        {tasks.map(group => {
-          const isCollapsed = collapsedGroups.has(group.id)
-          return (
-            <div className="task-group" key={group.id}>
-              <div className="task-group-header" onClick={() => toggleGroup(group.id)}>
-                <CollapseIcon open={!isCollapsed} />
-                <span className="task-group-name">{group.name}</span>
-                <span className="task-group-count">{group.tasks.length}</span>
-                <button className="task-group-more"><GroupMoreIcon /></button>
-              </div>
-              {!isCollapsed && (
-                <div className="task-group-tasks">
-                  {group.tasks.map(task => (
-                    <div className={`task-item ${task.done ? 'is-done' : ''}`} key={task.id}>
-                      <button
-                        className={`task-check ${task.done ? 'is-checked' : ''}`}
-                        onClick={() => toggleTaskDone(group.id, task.id)}
-                      >
-                        {task.done && (
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#4A7CFF" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                            <polyline points="20 6 9 17 4 12" />
-                          </svg>
-                        )}
-                      </button>
-                      <div className="task-body">
-                        <div className="task-title">{task.title}</div>
-                        <div className="task-due" style={{ color: task.done ? '#999' : task.dueColor }}>
-                          {task.dueDate}
-                        </div>
-                      </div>
-                      <div className="task-assignee" style={{ background: task.assigneeColor }}>
-                        {task.assignee.charAt(0)}
-                      </div>
-                    </div>
-                  ))}
-                  <div className="task-add" onClick={() => setShowAddTask(true)}>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4A7CFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <line x1="12" y1="5" x2="12" y2="19" />
-                      <line x1="5" y1="12" x2="19" y2="12" />
-                    </svg>
-                    <span>添加任务</span>
-                  </div>
-                </div>
-              )}
+        {!isDrawerOpen && (
+          <>
+            <div className="task-tabs">
+              <button
+                className={`task-tab-btn ${activeTab === 'mine' ? 'is-active' : ''}`}
+                type="button"
+                onClick={() => setActiveTab('mine')}
+              >
+                我负责的
+              </button>
+              <button
+                className={`task-tab-btn ${activeTab === 'followed' ? 'is-active' : ''}`}
+                type="button"
+                onClick={() => setActiveTab('followed')}
+              >
+                我关注的
+              </button>
             </div>
-          )
-        })}
+
+            <button className="task-filter-btn" type="button" aria-label="筛选">
+              <TaskFilterIcon />
+            </button>
+          </>
+        )}
       </div>
 
-      {/* FAB */}
-      <button className="task-fab" onClick={() => setShowAddTask(true)}>
-        <AddTaskIcon />
-      </button>
+      <div className="task-body-stage">
+        <aside className="task-drawer-panel" aria-label="任务抽屉" aria-hidden={!isDrawerOpen}>
+          <div className="task-drawer-scroll">
+            <div className="task-drawer-primary">
+              {taskDrawerPrimaryItems.map((item) => {
+                const isActive = item.key === activeTab
+                return (
+                  <button
+                    className={`task-drawer-primary-item ${isActive ? 'is-active' : ''}`}
+                    key={item.key}
+                    type="button"
+                    onClick={() => handleDrawerPrimarySelect(item.key)}
+                  >
+                    <span className="task-drawer-primary-icon">{renderTaskDrawerPrimaryIcon(item.key, isActive)}</span>
+                    <span className="task-drawer-primary-label">{item.label}</span>
+                    {item.count && <span className="task-drawer-primary-count">{item.count}</span>}
+                  </button>
+                )
+              })}
+            </div>
 
-      {/* Add Task Sheet */}
+            <div className="task-drawer-divider" />
+
+            <section className="task-drawer-section">
+              <div className="task-drawer-section-header">
+                <CollapseIcon open />
+                <span className="task-drawer-section-title">快速访问</span>
+              </div>
+
+              <div className="task-drawer-quick-list">
+                {taskDrawerQuickAccessItems.map((item) => (
+                  <button className="task-drawer-quick-item" key={item} type="button">
+                    {item}
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            <div className="task-drawer-divider is-spaced" />
+
+            <section className="task-drawer-section">
+              <div className="task-drawer-section-header with-action">
+                <span className="task-drawer-section-leading">
+                  <span className="task-drawer-section-list-icon">
+                    <DrawerChecklistIcon />
+                  </span>
+                  <span className="task-drawer-section-title">任务清单</span>
+                </span>
+
+                <button className="task-drawer-add-btn" type="button" aria-label="添加任务清单">
+                  +
+                </button>
+              </div>
+
+              <div className="task-drawer-list">
+                {taskDrawerListItems.map((item) => (
+                  <button className="task-drawer-list-item" key={item} type="button">
+                    <span className="task-drawer-list-item-icon">
+                      <DrawerChecklistIcon />
+                    </span>
+                    <span className="task-drawer-list-item-name">{item}</span>
+                    <span className="task-drawer-list-item-more">
+                      <GroupMoreIcon />
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </section>
+          </div>
+        </aside>
+
+        <div className={`task-main-shell ${isDrawerOpen ? 'is-drawer-open' : ''}`}>
+          <div className="task-content">
+            {visibleGroups.map(group => {
+              const isCollapsed = collapsedGroups.has(group.id)
+              return (
+                <section className="task-group" key={group.id}>
+                  <div
+                    className="task-group-header"
+                    onClick={() => toggleGroup(group.id)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault()
+                        toggleGroup(group.id)
+                      }
+                    }}
+                    role="button"
+                    tabIndex={0}
+                  >
+                    <div className="task-group-header-main">
+                      <CollapseIcon open={!isCollapsed} />
+                      <span className="task-group-name">{group.name}</span>
+                      {group.countLabel && <span className="task-group-count">{group.countLabel}</span>}
+                    </div>
+                    <button
+                      className="task-group-more"
+                      type="button"
+                      aria-label="更多"
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      <GroupMoreIcon />
+                    </button>
+                  </div>
+
+                  {!isCollapsed && (
+                    <>
+                      <div className="task-group-panel">
+                        {group.showAddRow && (
+                          <button className="task-add-inline" type="button" onClick={() => setShowAddTask(true)}>
+                            添加任务
+                          </button>
+                        )}
+
+                        {group.tasks.map(task => (
+                          <div className={`task-item ${task.done ? 'is-done' : ''}`} key={task.id}>
+                            <button
+                              className={`task-check ${task.done ? 'is-checked' : ''}`}
+                              type="button"
+                              aria-label={task.done ? '标记为未完成' : '标记为完成'}
+                              onClick={() => toggleTaskDone(group.id, task.id)}
+                            >
+                              {task.done && (
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                  <polyline points="20 6 9 17 4 12" />
+                                </svg>
+                              )}
+                            </button>
+
+                            <div className="task-body">
+                              <div className="task-title">{task.title}</div>
+                            </div>
+
+                            {task.assignees.length > 0 && (
+                              <div className="task-assignee-stack">
+                                {task.assignees.map((badge, index) => renderTaskAssigneeBadge(badge, index))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+
+                      {group.showDividerAfter && <div className="task-group-divider" />}
+                    </>
+                  )}
+                </section>
+              )
+            })}
+          </div>
+
+          <button className="task-fab" type="button" aria-label="添加任务" onClick={() => setShowAddTask(true)}>
+            <AddTaskIcon />
+          </button>
+
+          {isDrawerOpen && (
+            <button className="task-main-scrim" type="button" aria-label="关闭任务菜单" onClick={() => setShowDrawer(false)} />
+          )}
+        </div>
+      </div>
+
       {showAddTask && (
-        <AddTaskSheet onClose={() => setShowAddTask(false)} onAdd={handleAddTask} />
+        <AddTaskSheet
+          onClose={() => setShowAddTask(false)}
+          onAdd={handleAddTask}
+          groupOptions={groupOptions.length > 0 ? groupOptions : [{ id: 'default', name: '默认分组' }]}
+          defaultGroupId={addTargetGroupId || groupOptions[0]?.id || 'default'}
+        />
       )}
     </div>
   )

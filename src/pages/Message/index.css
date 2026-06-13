@@ -246,9 +246,9 @@
   min-width: 0;
   flex: 1;
   color: var(--message-text-strong);
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 600;
-  line-height: 1.15;
+  line-height: 1.2;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -271,8 +271,8 @@
   gap: 4px;
   margin-top: 3px;
   color: var(--message-text-body);
-  font-size: 12px;
-  line-height: 1.1;
+  font-size: 13px;
+  line-height: 1.15;
 }
 
 .message-row-preview svg {
@@ -305,7 +305,7 @@
 
 .message-row-time {
   color: #a0a4ae;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.2;
   white-space: nowrap;
 }
@@ -1523,11 +1523,11 @@
   }
 
   .message-row-title {
-    font-size: 13px;
+    font-size: 14px;
   }
 
   .message-row-preview {
-    font-size: 11px;
+    font-size: 12px;
   }
 
   .topic-conversation-title {
