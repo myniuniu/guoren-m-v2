@@ -23,6 +23,23 @@
   background-color: transparent; /* 让子页面的背景色透过来 */
 }
 
+@media (min-width: 960px) {
+  .app-container:has(.library-page.is-desktop) {
+    width: calc(100vw - 48px);
+    height: calc(100vh - 48px);
+    height: calc(100dvh - 48px);
+    max-width: none;
+    margin: 24px auto;
+    border-radius: 28px;
+    box-shadow: 0 28px 72px rgba(27, 31, 38, 0.12);
+    background: #ececef;
+  }
+
+  .app-container:has(.library-page.is-desktop) .app-bottom {
+    display: none;
+  }
+}
+
 .app-edge-back-zone {
   position: absolute;
   top: 0;

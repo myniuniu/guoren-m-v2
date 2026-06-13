@@ -105,6 +105,46 @@ const addMaterialSections = [
   },
 ] as const
 
+const DESKTOP_BREAKPOINT = 960
+
+const sidebarPrimaryFilters: Array<{ key: SidebarFilter; label: string }> = [
+  { key: 'all', label: '全部资料' },
+  { key: 'recent', label: '最近使用' },
+  { key: 'folder', label: '文件夹' },
+  { key: 'starred', label: '已收藏' },
+  { key: 'shared', label: '共享资料' },
+]
+
+const sidebarTagFilters: Array<{ key: Extract<SidebarFilter, `tag:${string}`>; label: string; dot: string }> = [
+  { key: 'tag:AI', label: 'AI', dot: '#6a7dff' },
+  { key: 'tag:课程', label: '课程', dot: '#4fb97a' },
+  { key: 'tag:教研', label: '教研', dot: '#b073ff' },
+]
+
+const filterLabelMap: Record<SidebarFilter, string> = {
+  all: '全部资料',
+  recent: '最近使用',
+  folder: '文件夹',
+  starred: '已收藏',
+  shared: '共享资料',
+  'tag:AI': 'AI',
+  'tag:课程': '课程',
+  'tag:教研': '教研',
+}
+
+function matchesSidebarFilter(item: LibraryEntry, filter: SidebarFilter) {
+  if (filter === 'all') return true
+  if (filter === 'recent') return item.updatedAt.includes('今天') || item.updatedAt.includes('昨天')
+  if (filter === 'folder') return item.type === 'folder'
+  if (filter === 'starred') return Boolean(item.starred)
+  if (filter === 'shared') return Boolean(item.shared)
+  if (filter.startsWith('tag:')) {
+    return item.tags.includes(filter.replace('tag:', ''))
+  }
+
+  return true
+}
+
 function buildFolderPath(folderId: string, entries: LibraryEntry[]) {
   const path: string[] = []
   const visited = new Set<string>()
@@ -339,6 +379,68 @@ function FileTypeIcon({ type }: { type: LibraryEntryType }) {
   )
 }
 
+function LibraryPreviewPaper({
+  file,
+  pathItems,
+  onJumpToFolder,
+  panel = false,
+}: {
+  file: LibraryEntry
+  pathItems: LibraryPathItem[]
+  onJumpToFolder: (folderId: string | null) => void
+  panel?: boolean
+}) {
+  return (
+    <div className={`library-file-preview-paper ${panel ? 'is-panel' : ''}`}>
+      <div className="library-file-preview-paper-header">
+        <FileTypeIcon type={file.type} />
+        <div className="library-file-preview-paper-title-wrap">
+          <div className="library-file-preview-paper-title">{file.name}</div>
+          <div className="library-file-preview-paper-meta">{file.owner} · {file.updatedAt} · {file.size ?? '文件'}</div>
+          <div className="library-file-preview-path" data-page-swipe-ignore="true">
+            {pathItems.map((item, index) => (
+              <div className="library-file-preview-path-segment" key={item.key}>
+                {item.clickable ? (
+                  <button
+                    className="library-file-preview-path-btn"
+                    type="button"
+                    onClick={() => onJumpToFolder(item.folderId)}
+                  >
+                    {item.label}
+                  </button>
+                ) : (
+                  <span className={`library-file-preview-path-text ${item.current ? 'is-current' : ''}`}>{item.label}</span>
+                )}
+                {index < pathItems.length - 1 ? <span className="library-file-preview-path-separator">/</span> : null}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="library-file-preview-paper-body">
+        <div className="library-file-preview-paper-block">
+          <div className="library-file-preview-paper-block-title">预览内容</div>
+          <p>这里展示资料正文的预览内容，进入页面后直接沉浸式阅读，不再出现资料详情卡片。</p>
+          <p>当前文件来自资料库，可继续按不同文件类型扩展更细的预览模板，例如 PDF、PPT、图片和表格。</p>
+        </div>
+
+        <div className="library-file-preview-paper-block">
+          <div className="library-file-preview-paper-block-title">文件信息</div>
+          <p>文件类型：{file.type.toUpperCase()}</p>
+          <p>标签：{file.tags.join('、') || '暂无标签'}</p>
+          <p>更新时间：{file.updatedAt}</p>
+        </div>
+
+        <div className="library-file-preview-paper-block">
+          <div className="library-file-preview-paper-block-title">扩展说明</div>
+          <p>如果后续接真实文件源，这里可以直接替换成对应的 PDF 画布、PPT 预览图集或图片查看器。</p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function LibraryFilePreview({
   file,
   onBack,
@@ -361,53 +463,7 @@ function LibraryFilePreview({
       </div>
 
       <div className="library-file-preview-stage">
-        <div className="library-file-preview-paper">
-          <div className="library-file-preview-paper-header">
-            <FileTypeIcon type={file.type} />
-            <div className="library-file-preview-paper-title-wrap">
-              <div className="library-file-preview-paper-title">{file.name}</div>
-              <div className="library-file-preview-paper-meta">{file.owner} · {file.updatedAt} · {file.size ?? '文件'}</div>
-              <div className="library-file-preview-path" data-page-swipe-ignore="true">
-                {pathItems.map((item, index) => (
-                  <div className="library-file-preview-path-segment" key={item.key}>
-                    {item.clickable ? (
-                      <button
-                        className="library-file-preview-path-btn"
-                        type="button"
-                        onClick={() => onJumpToFolder(item.folderId)}
-                      >
-                        {item.label}
-                      </button>
-                    ) : (
-                      <span className={`library-file-preview-path-text ${item.current ? 'is-current' : ''}`}>{item.label}</span>
-                    )}
-                    {index < pathItems.length - 1 ? <span className="library-file-preview-path-separator">/</span> : null}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="library-file-preview-paper-body">
-            <div className="library-file-preview-paper-block">
-              <div className="library-file-preview-paper-block-title">预览内容</div>
-              <p>这里展示资料正文的预览内容，进入页面后直接沉浸式阅读，不再出现资料详情卡片。</p>
-              <p>当前文件来自资料库，可继续按不同文件类型扩展更细的预览模板，例如 PDF、PPT、图片和表格。</p>
-            </div>
-
-            <div className="library-file-preview-paper-block">
-              <div className="library-file-preview-paper-block-title">文件信息</div>
-              <p>文件类型：{file.type.toUpperCase()}</p>
-              <p>标签：{file.tags.join('、')}</p>
-              <p>更新时间：{file.updatedAt}</p>
-            </div>
-
-            <div className="library-file-preview-paper-block">
-              <div className="library-file-preview-paper-block-title">扩展说明</div>
-              <p>如果后续接真实文件源，这里可以直接替换成对应的 PDF 画布、PPT 预览图集或图片查看器。</p>
-            </div>
-          </div>
-        </div>
+        <LibraryPreviewPaper file={file} pathItems={pathItems} onJumpToFolder={onJumpToFolder} />
       </div>
     </div>
   )
@@ -430,12 +486,22 @@ export default function LibraryPage() {
   const [newFolderError, setNewFolderError] = useState('')
   const [previewFile, setPreviewFile] = useState<LibraryEntry | null>(null)
   const [actionTarget, setActionTarget] = useState<LibraryEntry | null>(null)
+  const [isDesktop, setIsDesktop] = useState(() => window.innerWidth >= DESKTOP_BREAKPOINT)
   const listRef = useRef<HTMLDivElement | null>(null)
   const uploadInputRef = useRef<HTMLInputElement | null>(null)
   const folderInputRef = useRef<HTMLInputElement | null>(null)
   const currentFolderId = folderPath[folderPath.length - 1] ?? null
 
   const rootPathLabel = scope === 'personal' ? '个人资料库' : selectedOrgSpace
+  const scopedEntries = useMemo(
+    () =>
+      entries.filter((item) => {
+        if (item.scope !== scope) return false
+        if (scope === 'org' && item.orgSpace !== selectedOrgSpace) return false
+        return true
+      }),
+    [entries, scope, selectedOrgSpace]
+  )
   const folderPathEntries = useMemo(
     () =>
       folderPath
@@ -450,22 +516,31 @@ export default function LibraryPage() {
 
   const visibleItems = useMemo(
     () =>
-      entries.filter((item) => {
-        if (item.scope !== scope) return false
-        if (scope === 'org' && item.orgSpace !== selectedOrgSpace) return false
+      scopedEntries.filter((item) => {
         if (item.parentId !== currentFolderId) return false
-        if (selectedFilter === 'recent' && !item.updatedAt.includes('今天') && !item.updatedAt.includes('昨天')) return false
-        if (selectedFilter === 'folder' && item.type !== 'folder') return false
-        if (selectedFilter === 'starred' && !item.starred) return false
-        if (selectedFilter === 'shared' && !item.shared) return false
-        if (selectedFilter.startsWith('tag:') && !item.tags.includes(selectedFilter.replace('tag:', ''))) return false
+        if (!matchesSidebarFilter(item, selectedFilter)) return false
         if (!keyword.trim()) return true
         return item.name.toLowerCase().includes(keyword.trim().toLowerCase())
       }),
-    [entries, scope, currentFolderId, keyword, selectedFilter, selectedOrgSpace]
+    [scopedEntries, currentFolderId, keyword, selectedFilter]
   )
 
-  const currentTitle = currentFolder ? currentFolder.name : scope === 'personal' ? '个人资料库' : '组织资料库'
+  const sidebarCounts = useMemo(() => {
+    const countByFilter = (filter: SidebarFilter) => scopedEntries.filter((item) => matchesSidebarFilter(item, filter)).length
+
+    return {
+      all: scopedEntries.length,
+      recent: countByFilter('recent'),
+      folder: countByFilter('folder'),
+      starred: countByFilter('starred'),
+      shared: countByFilter('shared'),
+      'tag:AI': countByFilter('tag:AI'),
+      'tag:课程': countByFilter('tag:课程'),
+      'tag:教研': countByFilter('tag:教研'),
+    }
+  }, [scopedEntries])
+
+  const currentTitle = currentFolder ? currentFolder.name : filterLabelMap[selectedFilter]
   const pathItems = useMemo<LibraryPathItem[]>(
     () => [
       {
@@ -487,7 +562,7 @@ export default function LibraryPage() {
   )
   const previewPathItems = useMemo<LibraryPathItem[]>(
     () =>
-      previewFile
+      previewFile && visibleItems.some((item) => item.id === previewFile.id)
         ? [
             ...pathItems.map((item) => ({ ...item, clickable: true })),
             {
@@ -499,10 +574,12 @@ export default function LibraryPage() {
             },
           ]
         : pathItems,
-    [pathItems, previewFile]
+    [pathItems, previewFile, visibleItems]
   )
+  const activePreviewFile = previewFile && visibleItems.some((item) => item.id === previewFile.id) ? previewFile : null
   const showHeaderPath = pathItems.length > 1
   const currentLocationLabel = pathItems.map((item) => item.label).join(' / ')
+
   useEffect(() => {
     if (!folderInputRef.current) {
       return
@@ -510,6 +587,20 @@ export default function LibraryPage() {
 
     folderInputRef.current.setAttribute('webkitdirectory', '')
     folderInputRef.current.setAttribute('directory', '')
+  }, [])
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia(`(min-width: ${DESKTOP_BREAKPOINT}px)`)
+    const syncViewport = (event?: MediaQueryListEvent) => {
+      setIsDesktop(event ? event.matches : mediaQuery.matches)
+    }
+
+    syncViewport()
+    mediaQuery.addEventListener('change', syncViewport)
+
+    return () => {
+      mediaQuery.removeEventListener('change', syncViewport)
+    }
   }, [])
 
   const handleJumpToFolder = (folderId: string | null) => {
@@ -733,10 +824,10 @@ export default function LibraryPage() {
     appendEntriesToLibrary(buildImportedFileEntries(files, currentFolderId))
   }
 
-  if (previewFile) {
+  if (activePreviewFile && !isDesktop) {
     return (
       <LibraryFilePreview
-        file={previewFile}
+        file={activePreviewFile}
         onBack={handleInternalBack}
         pathItems={previewPathItems}
         onJumpToFolder={handleJumpToFolder}
@@ -757,6 +848,7 @@ export default function LibraryPage() {
 
   const handleItemClick = (item: LibraryEntry) => {
     if (item.type === 'folder') {
+      setPreviewFile(null)
       setFolderPath((current) => [...current, item.id])
       return
     }
@@ -771,82 +863,28 @@ export default function LibraryPage() {
     }
   }
 
-  return (
-    <div className="library-page" data-page-swipe-ignore={currentFolder ? 'true' : undefined}>
-      <div className="library-header">
-        <div className="library-nav">
-          {currentFolder ? (
-            <button
-              className="library-icon-btn"
-              data-app-back-button="true"
-              type="button"
-              onClick={handleInternalBack}
-            >
-              <BackIcon />
-            </button>
-          ) : (
-            <div className="library-icon-placeholder" />
-          )}
-          <div className="library-title-wrap">
-            <div className={`library-title ${showHeaderPath ? 'is-path' : ''}`}>
-              {showHeaderPath ? (
-                <div className="library-title-path" data-page-swipe-ignore="true">
-                  {pathItems.map((item, index) => (
-                    <div className="library-title-path-segment" key={item.key}>
-                      {item.clickable ? (
-                        <button
-                          className="library-title-path-btn"
-                          type="button"
-                          onClick={() => handleJumpToFolder(item.folderId)}
-                        >
-                          {item.label}
-                        </button>
-                      ) : (
-                        <span className={`library-title-path-text ${item.current ? 'is-current' : ''}`}>{item.label}</span>
-                      )}
-                      {index < pathItems.length - 1 ? <span className="library-title-path-separator">/</span> : null}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                currentTitle
-              )}
-            </div>
-            <div className="library-subtitle">{visibleItems.length} 项内容</div>
-          </div>
-          <div className="library-nav-actions">
-            <button
-              className="library-icon-btn"
-              type="button"
-              onClick={() => {
-                setShowCreateFolderSheet(true)
-                setNewFolderName('')
-                setNewFolderError('')
-              }}
-              aria-label="新建文件夹"
-            >
-              <NewFolderIcon />
-            </button>
-            <button
-              className={`library-icon-btn ${showSearch ? 'is-active' : ''}`}
-              type="button"
-              onClick={handleToggleSearch}
-              aria-label="搜索"
-            >
-              <SearchIcon />
-            </button>
-            <button
-              className="library-icon-btn"
-              type="button"
-              onClick={() => setShowFilterSheet(true)}
-              aria-label="收藏与标签"
-            >
-              <FilterIcon />
-            </button>
-          </div>
-        </div>
+  const shouldShowSearch = isDesktop || showSearch
+  const showActiveFilter = selectedFilter !== 'all'
 
-        <div className={`library-scope-switch ${scope === 'personal' ? 'is-personal' : 'is-org'}`}>
+  return (
+    <div className={`library-page ${isDesktop ? 'is-desktop' : ''}`} data-page-swipe-ignore={currentFolder ? 'true' : undefined}>
+      <input
+        ref={uploadInputRef}
+        className="library-file-input"
+        type="file"
+        multiple
+        onChange={handleMaterialFileChange}
+      />
+      <input
+        ref={folderInputRef}
+        className="library-file-input"
+        type="file"
+        multiple
+        onChange={handleMaterialFolderChange}
+      />
+
+      <div className="library-topbar">
+        <div className={`library-scope-switch ${scope === 'personal' ? 'is-personal' : 'is-org'} ${isDesktop ? 'is-desktop' : ''}`}>
           <button
             className={`library-scope-btn ${scope === 'personal' ? 'is-active' : ''}`}
             type="button"
@@ -864,96 +902,376 @@ export default function LibraryPage() {
         </div>
 
         {scope === 'org' && (
-          <button className="library-org-space-trigger" type="button" onClick={() => setShowOrgSpaceSheet(true)}>
+          <button
+            className={`library-org-space-trigger ${isDesktop ? 'is-desktop' : ''}`}
+            type="button"
+            onClick={() => setShowOrgSpaceSheet(true)}
+          >
             <span className="library-org-space-value">{selectedOrgSpace}</span>
             <ChevronDownIcon />
           </button>
         )}
-
-        {showSearch && (
-          <div className="library-search-inline" data-page-swipe-ignore="true">
-            <SearchIcon />
-            <input
-              value={keyword}
-              onChange={(e) => setKeyword(e.target.value)}
-              placeholder="搜索资料名称"
-              autoFocus
-            />
-          </div>
-        )}
       </div>
 
-      <div className="library-content">
-        <button className="library-add-material" type="button" onClick={handleOpenAddMaterial}>
-          <PlusIcon />
-          <span>添加资料</span>
-        </button>
-        <input
-          ref={uploadInputRef}
-          className="library-file-input"
-          type="file"
-          multiple
-          onChange={handleMaterialFileChange}
-        />
-        <input
-          ref={folderInputRef}
-          className="library-file-input"
-          type="file"
-          multiple
-          onChange={handleMaterialFolderChange}
-        />
-        <div className="library-list" ref={listRef}>
-          {visibleItems.length > 0 ? (
-            visibleItems.map((item) => {
-              const isFolder = item.type === 'folder'
+      {isDesktop ? (
+        <div className="library-desktop-shell">
+          <aside className="library-sidebar">
+            <div className="library-sidebar-card">
+              <div className="library-sidebar-section">
+                <div className="library-sidebar-section-title">导航</div>
+                {sidebarPrimaryFilters.map((item) => (
+                  <button
+                    key={item.key}
+                    className={`library-sidebar-item ${selectedFilter === item.key ? 'is-active' : ''}`}
+                    type="button"
+                    onClick={() => handleFilterChange(item.key)}
+                  >
+                    <span className="library-sidebar-item-label">{item.label}</span>
+                    <span className="library-sidebar-item-count">{sidebarCounts[item.key]}</span>
+                  </button>
+                ))}
+              </div>
 
-              return (
-                <div
-                  key={item.id}
-                  className="library-item"
-                  onClick={() => handleItemClick(item)}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault()
-                      handleItemClick(item)
-                    }
+              <div className="library-sidebar-section">
+                <div className="library-sidebar-section-title">标签</div>
+                {sidebarTagFilters.map((item) => (
+                  <button
+                    key={item.key}
+                    className={`library-sidebar-item ${selectedFilter === item.key ? 'is-active' : ''}`}
+                    type="button"
+                    onClick={() => handleFilterChange(item.key)}
+                  >
+                    <span className="library-sidebar-item-label">
+                      <span className="library-sidebar-item-dot" style={{ background: item.dot }} />
+                      {item.label}
+                    </span>
+                    <span className="library-sidebar-item-count">{sidebarCounts[item.key]}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </aside>
+
+          <div className="library-desktop-main">
+            <div className="library-header is-desktop">
+              <div className="library-nav">
+                {currentFolder ? (
+                  <button
+                    className="library-icon-btn"
+                    data-app-back-button="true"
+                    type="button"
+                    onClick={handleInternalBack}
+                  >
+                    <BackIcon />
+                  </button>
+                ) : (
+                  <div className="library-icon-placeholder" />
+                )}
+                <div className="library-title-wrap">
+                  <div className={`library-title ${showHeaderPath ? 'is-path' : ''}`}>
+                    {showHeaderPath ? (
+                      <div className="library-title-path" data-page-swipe-ignore="true">
+                        {pathItems.map((item, index) => (
+                          <div className="library-title-path-segment" key={item.key}>
+                            {item.clickable ? (
+                              <button
+                                className="library-title-path-btn"
+                                type="button"
+                                onClick={() => handleJumpToFolder(item.folderId)}
+                              >
+                                {item.label}
+                              </button>
+                            ) : (
+                              <span className={`library-title-path-text ${item.current ? 'is-current' : ''}`}>{item.label}</span>
+                            )}
+                            {index < pathItems.length - 1 ? <span className="library-title-path-separator">/</span> : null}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      currentTitle
+                    )}
+                  </div>
+                  <div className="library-subtitle">{visibleItems.length} 项内容</div>
+                </div>
+              </div>
+
+              <div className="library-desktop-toolbar">
+                <div className="library-search-inline is-desktop" data-page-swipe-ignore="true">
+                  <SearchIcon />
+                  <input
+                    value={keyword}
+                    onChange={(e) => setKeyword(e.target.value)}
+                    placeholder="搜索资料名称"
+                  />
+                </div>
+                <button className="library-desktop-primary-btn" type="button" onClick={handleOpenAddMaterial}>
+                  <PlusIcon />
+                  <span>添加资料</span>
+                </button>
+                <button
+                  className="library-desktop-primary-btn is-secondary"
+                  type="button"
+                  onClick={() => {
+                    setShowCreateFolderSheet(true)
+                    setNewFolderName('')
+                    setNewFolderError('')
                   }}
                 >
-                  <div className="library-item-main">
-                    <FileTypeIcon type={item.type} />
-                    <div className="library-item-body">
-                      <div className="library-item-name">{item.name}</div>
-                      <div className="library-item-meta">
-                        {item.owner} · {item.updatedAt}
-                      </div>
+                  <NewFolderIcon />
+                  <span>新建文件夹</span>
+                </button>
+              </div>
+
+              {showActiveFilter && (
+                <div className="library-active-filter">
+                  <div className="library-active-filter-pill">{filterLabelMap[selectedFilter]}</div>
+                  <button className="library-active-filter-clear" type="button" onClick={() => handleFilterChange('all')}>
+                    清除筛选
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="library-content is-desktop">
+              <div className="library-list-panel">
+                <div className="library-list" ref={listRef}>
+                  {visibleItems.length > 0 ? (
+                    visibleItems.map((item) => {
+                      const isFolder = item.type === 'folder'
+
+                      return (
+                        <div
+                          key={item.id}
+                          className={`library-item ${activePreviewFile?.id === item.id ? 'is-selected' : ''}`}
+                          onClick={() => handleItemClick(item)}
+                          role="button"
+                          tabIndex={0}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault()
+                              handleItemClick(item)
+                            }
+                          }}
+                        >
+                          <div className="library-item-main">
+                            <FileTypeIcon type={item.type} />
+                            <div className="library-item-body">
+                              <div className="library-item-name">{item.name}</div>
+                              <div className="library-item-meta">
+                                {item.owner} · {item.updatedAt}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="library-item-side">
+                            <span className="library-item-side-text">{isFolder ? '文件夹' : item.size ?? item.type.toUpperCase()}</span>
+                            <button
+                              className="library-item-more"
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setActionTarget(item)
+                              }}
+                            >
+                              <MoreIcon />
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    })
+                  ) : (
+                    <div className="library-empty">
+                      <div className="library-empty-title">没有找到相关资料</div>
+                      <div className="library-empty-desc">试试更换关键字、切换资料库或筛选条件</div>
                     </div>
-                  </div>
-                  <div className="library-item-side">
-                    <span className="library-item-side-text">{isFolder ? '文件夹' : item.size ?? item.type.toUpperCase()}</span>
-                    <button
-                      className="library-item-more"
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        setActionTarget(item)
+                  )}
+                </div>
+              </div>
+
+              <div className="library-preview-panel">
+                <div className="library-preview-panel-header">
+                  <span>预览</span>
+                </div>
+                <div className="library-preview-panel-body">
+                  {activePreviewFile ? (
+                    <LibraryPreviewPaper file={activePreviewFile} pathItems={previewPathItems} onJumpToFolder={handleJumpToFolder} panel />
+                  ) : (
+                    <div className="library-preview-empty">
+                      <div className="library-preview-empty-icon">
+                        <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M14 2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7z" />
+                          <path d="M14 2v5h5" />
+                          <path d="M9 13h6" />
+                          <path d="M9 17h4" />
+                        </svg>
+                      </div>
+                      <div className="library-preview-empty-title">选择一个文件预览</div>
+                      <div className="library-preview-empty-desc">支持在右侧预览资料信息，后续也可以继续扩展 PDF、PPT、图片等真实预览能力。</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className="library-header">
+            <div className="library-nav">
+              {currentFolder ? (
+                <button
+                  className="library-icon-btn"
+                  data-app-back-button="true"
+                  type="button"
+                  onClick={handleInternalBack}
+                >
+                  <BackIcon />
+                </button>
+              ) : (
+                <div className="library-icon-placeholder" />
+              )}
+              <div className="library-title-wrap">
+                <div className={`library-title ${showHeaderPath ? 'is-path' : ''}`}>
+                  {showHeaderPath ? (
+                    <div className="library-title-path" data-page-swipe-ignore="true">
+                      {pathItems.map((item, index) => (
+                        <div className="library-title-path-segment" key={item.key}>
+                          {item.clickable ? (
+                            <button
+                              className="library-title-path-btn"
+                              type="button"
+                              onClick={() => handleJumpToFolder(item.folderId)}
+                            >
+                              {item.label}
+                            </button>
+                          ) : (
+                            <span className={`library-title-path-text ${item.current ? 'is-current' : ''}`}>{item.label}</span>
+                          )}
+                          {index < pathItems.length - 1 ? <span className="library-title-path-separator">/</span> : null}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    currentTitle
+                  )}
+                </div>
+                <div className="library-subtitle">{visibleItems.length} 项内容</div>
+              </div>
+              <div className="library-nav-actions">
+                <button
+                  className={`library-icon-btn ${showSearch ? 'is-active' : ''}`}
+                  type="button"
+                  onClick={handleToggleSearch}
+                  aria-label="搜索"
+                >
+                  <SearchIcon />
+                </button>
+                <button
+                  className="library-icon-btn"
+                  type="button"
+                  onClick={() => setShowFilterSheet(true)}
+                  aria-label="收藏与标签"
+                >
+                  <FilterIcon />
+                </button>
+              </div>
+            </div>
+
+            {shouldShowSearch && (
+              <div className="library-search-inline" data-page-swipe-ignore="true">
+                <SearchIcon />
+                <input
+                  value={keyword}
+                  onChange={(e) => setKeyword(e.target.value)}
+                  placeholder="搜索资料名称"
+                  autoFocus={showSearch}
+                />
+              </div>
+            )}
+
+            {showActiveFilter && (
+              <div className="library-active-filter">
+                <div className="library-active-filter-pill">{filterLabelMap[selectedFilter]}</div>
+                <button className="library-active-filter-clear" type="button" onClick={() => handleFilterChange('all')}>
+                  清除筛选
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="library-content">
+            <div className="library-primary-actions">
+              <button className="library-add-material" type="button" onClick={handleOpenAddMaterial}>
+                <PlusIcon />
+                <span>添加资料</span>
+              </button>
+              <button
+                className="library-add-material is-secondary"
+                type="button"
+                onClick={() => {
+                  setShowCreateFolderSheet(true)
+                  setNewFolderName('')
+                  setNewFolderError('')
+                }}
+              >
+                <NewFolderIcon />
+                <span>新建文件夹</span>
+              </button>
+            </div>
+            <div className="library-list" ref={listRef}>
+              {visibleItems.length > 0 ? (
+                visibleItems.map((item) => {
+                  const isFolder = item.type === 'folder'
+
+                  return (
+                    <div
+                      key={item.id}
+                      className="library-item"
+                      onClick={() => handleItemClick(item)}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          handleItemClick(item)
+                        }
                       }}
                     >
-                      <MoreIcon />
-                    </button>
-                  </div>
+                      <div className="library-item-main">
+                        <FileTypeIcon type={item.type} />
+                        <div className="library-item-body">
+                          <div className="library-item-name">{item.name}</div>
+                          <div className="library-item-meta">
+                            {item.owner} · {item.updatedAt}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="library-item-side">
+                        <span className="library-item-side-text">{isFolder ? '文件夹' : item.size ?? item.type.toUpperCase()}</span>
+                        <button
+                          className="library-item-more"
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setActionTarget(item)
+                          }}
+                        >
+                          <MoreIcon />
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })
+              ) : (
+                <div className="library-empty">
+                  <div className="library-empty-title">没有找到相关资料</div>
+                  <div className="library-empty-desc">试试更换关键字、切换资料库或筛选条件</div>
                 </div>
-              )
-            })
-          ) : (
-            <div className="library-empty">
-              <div className="library-empty-title">没有找到相关资料</div>
-              <div className="library-empty-desc">试试更换关键字、切换资料库或筛选条件</div>
+              )}
             </div>
-          )}
-        </div>
-      </div>
+          </div>
+        </>
+      )}
 
       {showFilterSheet && (
         <div className="library-filter-sheet-overlay" onClick={() => setShowFilterSheet(false)}>
