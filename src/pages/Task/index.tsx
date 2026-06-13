@@ -29,6 +29,7 @@ type TaskDrawerChecklistGroup = {
 }
 
 type DrawerCreateKind = 'checklist' | 'group'
+type TaskGroupDialogKind = 'rename' | 'insert_before' | 'insert_after'
 
 type TaskAssigneeBadge =
   | {
@@ -118,6 +119,67 @@ type TaskScheduleSelection = {
   date: Date | null
   hasSpecificTime: boolean
   reminder: TaskScheduleReminder
+}
+
+type TaskFilterMenu = 'status' | 'group' | 'sort'
+
+type TaskCompletionFilter = 'undone' | 'done' | 'all'
+
+type TaskGroupingMode = 'custom' | 'none' | 'start_date' | 'due_date' | 'creator' | 'source'
+
+type TaskSortMode = 'manual' | 'start_date' | 'due_date' | 'created_at' | 'updated_at' | 'completed_at'
+
+type TaskSortDirection = 'asc' | 'desc'
+
+type TaskDisplayRecord = {
+  id: string
+  title: string
+  done: boolean
+  assignees: TaskAssigneeBadge[]
+  metaText: string
+  metaIcon?: TaskCollectionItem['metaIcon']
+  metaValue?: string
+  sourceGroupId: string
+  sourceGroupName: string
+  manualGroupIndex: number
+  manualTaskIndex: number
+  sourceRef: TaskDetailSourceRef
+  sourceText: string
+}
+
+type TaskDisplayGroup = {
+  id: string
+  name: string
+  countLabel?: string
+  showAddRow?: boolean
+  showDividerAfter?: boolean
+  records: TaskDisplayRecord[]
+}
+
+type TaskGroupSortDraftItem = {
+  id: string
+  name: string
+}
+
+type TaskActivityEntry = {
+  id: string
+  title: string
+  actor: string
+  action: string
+  time: string
+  avatar: string
+}
+
+type TaskActivityLane = {
+  id: string
+  label: string
+  entries: TaskActivityEntry[]
+}
+
+type TaskActivityDay = {
+  id: string
+  title: string
+  lanes: TaskActivityLane[]
 }
 
 const taskAvatarSrc = '/assets/果仁头像-手机.png'
@@ -277,6 +339,73 @@ const initialTaskCollectionViews: Record<string, TaskCollectionView> = {
   },
 }
 
+const taskActivityFeed: TaskActivityDay[] = [
+  {
+    id: 'today',
+    title: '今天',
+    lanes: [
+      {
+        id: 'lane-111',
+        label: '111',
+        entries: [
+          {
+            id: 'activity-111-created',
+            title: '111',
+            actor: '张洪磊',
+            action: '创建了清单',
+            time: '18:32',
+            avatar: taskAvatarSrc,
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'jun-6',
+    title: '6月6日',
+    lanes: [
+      {
+        id: 'lane-my-tasks',
+        label: '我的任务',
+        entries: [
+          {
+            id: 'activity-task-1',
+            title: '审核场景模板设计方案',
+            actor: '张洪磊',
+            action: '完成了整个任务',
+            time: '16:08',
+            avatar: taskAvatarSrc,
+          },
+          {
+            id: 'activity-task-2',
+            title: '确认第一阶段工作安排（先验收功能，暂不处理样式）',
+            actor: '张洪磊',
+            action: '完成了整个任务',
+            time: '16:08',
+            avatar: taskAvatarSrc,
+          },
+          {
+            id: 'activity-task-3',
+            title: '处理航标账号AK SK无权限问题',
+            actor: '张洪磊',
+            action: '完成了整个任务',
+            time: '16:08',
+            avatar: taskAvatarSrc,
+          },
+          {
+            id: 'activity-task-4',
+            title: '处理航标账号AK SK无权限问题',
+            actor: '张洪磊',
+            action: '完成了整个任务',
+            time: '16:08',
+            avatar: taskAvatarSrc,
+          },
+        ],
+      },
+    ],
+  },
+]
+
 const taskScheduleWeekdayLabels = ['日', '一', '二', '三', '四', '五', '六']
 const taskScheduleMinuteOptions = [0, 15, 30, 45]
 const taskScheduleTimeCellHeight = 64
@@ -288,9 +417,78 @@ const taskScheduleReminderOptions: Array<{ value: Exclude<TaskScheduleReminder, 
   { value: '5m_before', label: '截止前 5 分钟' },
 ]
 
+const taskCompletionFilterOptions: Array<{ value: TaskCompletionFilter; label: string }> = [
+  { value: 'undone', label: '未完成' },
+  { value: 'done', label: '已完成' },
+  { value: 'all', label: '全部任务' },
+]
+
+const taskGroupingOptions: Array<{ value: TaskGroupingMode; label: string }> = [
+  { value: 'none', label: '无分组' },
+  { value: 'custom', label: '自定义分组' },
+  { value: 'start_date', label: '开始时间' },
+  { value: 'due_date', label: '截止时间' },
+  { value: 'creator', label: '创建人' },
+  { value: 'source', label: '任务来源' },
+]
+
+const taskSortOptions: Array<{ value: TaskSortMode; label: string }> = [
+  { value: 'manual', label: '拖拽自定义' },
+  { value: 'start_date', label: '开始时间' },
+  { value: 'due_date', label: '截止时间' },
+  { value: 'created_at', label: '创建时间' },
+  { value: 'updated_at', label: '更新时间' },
+  { value: 'completed_at', label: '完成时间' },
+]
+
 const createCalendarDay = (year: number, month: number, date: number) => new Date(year, month, date)
 
 const addCalendarDays = (date: Date, amount: number) => createCalendarDay(date.getFullYear(), date.getMonth(), date.getDate() + amount)
+
+const shiftTaskDateByDays = (date: Date, amount: number) => {
+  const next = new Date(date)
+  next.setDate(next.getDate() + amount)
+  return next
+}
+
+const getTaskTextHash = (value: string) => (
+  Array.from(value).reduce((total, character, index) => total + character.charCodeAt(0) * (index + 1), 0)
+)
+
+const parseTaskDateFromText = (text: string, pick: 'first' | 'last') => {
+  const normalized = text.replace(/\s+/g, '').trim()
+
+  if (!normalized) return null
+
+  const today = new Date()
+  const todayDate = createCalendarDay(today.getFullYear(), today.getMonth(), today.getDate())
+
+  if (normalized.includes('今天')) return todayDate
+  if (normalized.includes('明天')) return addCalendarDays(todayDate, 1)
+  if (normalized.includes('后天')) return addCalendarDays(todayDate, 2)
+  if (normalized.includes('下周一')) {
+    const offset = ((8 - todayDate.getDay()) % 7) || 7
+    return addCalendarDays(todayDate, offset)
+  }
+
+  const matches = Array.from(text.matchAll(/(?:(\d{4})年)?\s*(\d{1,2})月(\d{1,2})日(?:\s*(\d{1,2}):(\d{2}))?/g))
+
+  if (matches.length === 0) return null
+
+  const activeMatch = pick === 'last' ? matches[matches.length - 1] : matches[0]
+  const [, yearText, monthText, dayText, hourText, minuteText] = activeMatch
+  const resolvedYear = yearText ? Number(yearText) : todayDate.getFullYear()
+
+  return new Date(
+    resolvedYear,
+    Number(monthText) - 1,
+    Number(dayText),
+    hourText ? Number(hourText) : 9,
+    minuteText ? Number(minuteText) : 0,
+    0,
+    0,
+  )
+}
 
 const getDefaultScheduleDate = () => addCalendarDays(new Date(), 1)
 
@@ -350,6 +548,39 @@ const buildTaskDetailSourceText = (title: string) => {
   }
 
   return `来源：任务同步，系统消息\n消息：${title}\n时间：2026-05-14 14:26`
+}
+
+const extractTaskSourceLabel = (title: string) => {
+  const sourceLine = buildTaskDetailSourceText(title).split('\n')[0] ?? ''
+  return sourceLine.replace('来源：', '').split(/[，,]/)[0].trim() || '任务同步'
+}
+
+const formatTaskFilterDateLabel = (date: Date | null) => (
+  date ? `${date.getMonth() + 1}月${date.getDate()}日` : '未设置'
+)
+
+const getTaskLifecycleFields = (record: TaskDisplayRecord) => {
+  const startDateFromMeta = parseTaskDateFromText(record.metaText, 'first')
+  const dueDate = parseTaskDateFromText(record.metaText, 'last')
+  const hash = getTaskTextHash(`${record.id}-${record.title}`)
+  const createdAt = dueDate
+    ? shiftTaskDateByDays(dueDate, -(8 + (hash % 5)))
+    : new Date(2026, hash % 6, (hash % 24) + 1, 9 + (hash % 7), hash % 2 ? 30 : 0, 0, 0)
+  const startDate = startDateFromMeta ?? (dueDate ? shiftTaskDateByDays(dueDate, -(2 + (hash % 4))) : shiftTaskDateByDays(createdAt, 1 + (hash % 3)))
+  const updatedAt = dueDate ? shiftTaskDateByDays(dueDate, -(1 + (hash % 2))) : shiftTaskDateByDays(createdAt, 1 + (hash % 4))
+  const completedAt = record.done ? (dueDate ?? updatedAt) : null
+  const creatorBadge = record.assignees.find((badge) => badge.kind !== 'count')
+  const creator = creatorBadge ? creatorBadge.name : '张洪磊'
+
+  return {
+    startDate,
+    dueDate,
+    createdAt,
+    updatedAt,
+    completedAt,
+    creator,
+    source: extractTaskSourceLabel(record.title),
+  }
 }
 
 const pickDetailAssigneeBadge = (assignees: TaskAssigneeBadge[]) => assignees.find((badge) => badge.kind !== 'count') ?? dogBadge
@@ -657,6 +888,58 @@ function ChevronDownIcon({ color = '#8f949e' }: { color?: string }) {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <polyline points="6 9 12 15 18 9" />
+    </svg>
+  )
+}
+
+function FilterCheckIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="20 6 9 17 4 12" />
+    </svg>
+  )
+}
+
+function SortDirectionIcon({ direction }: { direction: TaskSortDirection }) {
+  const rotation = direction === 'asc' ? undefined : 'rotate(180 12 12)'
+
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+      <path
+        d="M12 19V5m0 0-5 5m5-5 5 5"
+        stroke="currentColor"
+        strokeWidth="2.15"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        transform={rotation}
+      />
+    </svg>
+  )
+}
+
+function SortSheetCloseIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+      <path d="M6 6l12 12" />
+      <path d="M18 6 6 18" />
+    </svg>
+  )
+}
+
+function SortHandleIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.15" strokeLinecap="round">
+      <line x1="6" y1="8" x2="18" y2="8" />
+      <line x1="6" y1="12" x2="18" y2="12" />
+      <line x1="6" y1="16" x2="18" y2="16" />
+    </svg>
+  )
+}
+
+function ActivityEntryIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#737985" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="20 6 9 17 4 12" />
     </svg>
   )
 }
@@ -1837,6 +2120,17 @@ export default function TaskPage() {
   const [showAddTask, setShowAddTask] = useState(false)
   const [showDrawer, setShowDrawer] = useState(false)
   const [showTaskFilters, setShowTaskFilters] = useState(false)
+  const [openFilterMenu, setOpenFilterMenu] = useState<TaskFilterMenu | null>(null)
+  const [taskCompletionFilter, setTaskCompletionFilter] = useState<TaskCompletionFilter | null>(null)
+  const [taskGroupingMode, setTaskGroupingMode] = useState<TaskGroupingMode | null>(null)
+  const [taskSortMode, setTaskSortMode] = useState<TaskSortMode | null>(null)
+  const [taskSortDirection, setTaskSortDirection] = useState<TaskSortDirection>('asc')
+  const [groupActionTarget, setGroupActionTarget] = useState<{ id: string; name: string } | null>(null)
+  const [taskGroupDialog, setTaskGroupDialog] = useState<{ kind: TaskGroupDialogKind; groupId: string } | null>(null)
+  const [taskGroupDialogName, setTaskGroupDialogName] = useState('')
+  const [showTaskGroupSortSheet, setShowTaskGroupSortSheet] = useState(false)
+  const [taskGroupSortDraft, setTaskGroupSortDraft] = useState<TaskGroupSortDraftItem[]>([])
+  const [draggingTaskGroupId, setDraggingTaskGroupId] = useState<string | null>(null)
   const [selectedTaskDetail, setSelectedTaskDetail] = useState<TaskDetailState | null>(null)
   const [showDrawerCreateSheet, setShowDrawerCreateSheet] = useState(false)
   const [drawerCreateDialog, setDrawerCreateDialog] = useState<DrawerCreateKind | null>(null)
@@ -1845,10 +2139,153 @@ export default function TaskPage() {
   const visibleGroups = taskViews[activeTab]
   const activeCollection = activeCollectionKey ? taskCollections[activeCollectionKey] : null
   const activeChecklistGroups = activeCollectionKey ? customChecklistGroups[activeCollectionKey] ?? null : null
+  const isActivityCollectionView = activeCollectionKey === 'updates'
   const currentTaskGroups = activeChecklistGroups ?? visibleGroups
+  const isFlatCollectionView = Boolean(activeCollection && !activeChecklistGroups)
+  const defaultStatusFilter: TaskCompletionFilter = isFlatCollectionView ? 'all' : 'undone'
+  const defaultGroupingMode: TaskGroupingMode = isFlatCollectionView ? 'none' : 'custom'
+  const selectedStatusFilter = taskCompletionFilter ?? defaultStatusFilter
+  const selectedGroupingMode = taskGroupingMode ?? defaultGroupingMode
+  const selectedSortMode = taskSortMode ?? 'manual'
+  const displayedGroupingMode = isFlatCollectionView && selectedGroupingMode === 'custom' ? 'none' : selectedGroupingMode
+  const appliedStatusFilter = showTaskFilters ? selectedStatusFilter : defaultStatusFilter
+  const appliedGroupingMode = showTaskFilters ? displayedGroupingMode : defaultGroupingMode
+  const appliedSortMode = showTaskFilters ? selectedSortMode : 'manual'
+  const appliedSortDirection = showTaskFilters ? taskSortDirection : 'asc'
+  const canManageDisplayedGroups = appliedGroupingMode === 'custom' && !isFlatCollectionView
+  const editableTaskGroups = activeChecklistGroups ?? visibleGroups
   const groupOptions = currentTaskGroups.map(group => ({ id: group.id, name: group.name }))
   const addTargetGroupId = currentTaskGroups.find(group => group.name === '默认分组')?.id ?? currentTaskGroups[0]?.id ?? ''
   const trimmedDrawerCreateName = drawerCreateName.trim()
+  const trimmedTaskGroupDialogName = taskGroupDialogName.trim()
+  const statusFilterLabel = taskCompletionFilterOptions.find(option => option.value === selectedStatusFilter)?.label ?? '未完成'
+  const groupingFilterLabel = taskGroupingOptions.find(option => option.value === displayedGroupingMode)?.label ?? '自定义分组'
+  const sortFilterLabel = taskSortOptions.find(option => option.value === selectedSortMode)?.label ?? '拖拽自定义'
+  const baseDisplayRecords: TaskDisplayRecord[] = isFlatCollectionView
+    ? (activeCollection?.items ?? []).map((task, index) => ({
+        id: task.id,
+        title: task.title,
+        done: task.done,
+        assignees: task.assignees,
+        metaText: task.meta,
+        metaIcon: task.metaIcon,
+        metaValue: task.metaValue,
+        sourceGroupId: 'collection-default',
+        sourceGroupName: '默认分组',
+        manualGroupIndex: 0,
+        manualTaskIndex: index,
+        sourceRef: { kind: 'collection', collectionKey: activeCollectionKey as TaskCollectionId },
+        sourceText: buildTaskDetailSourceText(task.title),
+      }))
+    : currentTaskGroups.flatMap((group, groupIndex) => (
+        group.tasks.map((task, taskIndex) => ({
+          id: task.id,
+          title: task.title,
+          done: task.done,
+          assignees: task.assignees,
+          metaText: task.dueDate?.trim() || '',
+          sourceGroupId: group.id,
+          sourceGroupName: group.name,
+          manualGroupIndex: groupIndex,
+          manualTaskIndex: taskIndex,
+          sourceRef: activeChecklistGroups && activeCollectionKey
+            ? { kind: 'checklist', checklistKey: activeCollectionKey, groupId: group.id }
+            : { kind: 'group', groupId: group.id },
+          sourceText: buildTaskDetailSourceText(task.title),
+        }))
+      ))
+
+  const compareManualOrder = (left: TaskDisplayRecord, right: TaskDisplayRecord) => (
+    left.manualGroupIndex - right.manualGroupIndex || left.manualTaskIndex - right.manualTaskIndex
+  )
+
+  const compareDateValues = (left: Date | null, right: Date | null) => {
+    if (!left && !right) return 0
+    if (!left) return 1
+    if (!right) return -1
+    return appliedSortDirection === 'asc' ? left.getTime() - right.getTime() : right.getTime() - left.getTime()
+  }
+
+  const compareDisplayRecords = (left: TaskDisplayRecord, right: TaskDisplayRecord) => {
+    if (appliedSortMode === 'manual') {
+      return compareManualOrder(left, right)
+    }
+
+    const leftFields = getTaskLifecycleFields(left)
+    const rightFields = getTaskLifecycleFields(right)
+
+    let result = 0
+
+    if (appliedSortMode === 'start_date') {
+      result = compareDateValues(leftFields.startDate, rightFields.startDate)
+    } else if (appliedSortMode === 'due_date') {
+      result = compareDateValues(leftFields.dueDate, rightFields.dueDate)
+    } else if (appliedSortMode === 'created_at') {
+      result = compareDateValues(leftFields.createdAt, rightFields.createdAt)
+    } else if (appliedSortMode === 'updated_at') {
+      result = compareDateValues(leftFields.updatedAt, rightFields.updatedAt)
+    } else if (appliedSortMode === 'completed_at') {
+      result = compareDateValues(leftFields.completedAt, rightFields.completedAt)
+    }
+
+    return result !== 0 ? result : compareManualOrder(left, right)
+  }
+
+  const sortDisplayRecords = (records: TaskDisplayRecord[]) => [...records].sort(compareDisplayRecords)
+
+  const filteredDisplayRecords = baseDisplayRecords.filter((record) => {
+    if (appliedStatusFilter === 'undone') return !record.done
+    if (appliedStatusFilter === 'done') return record.done
+    return true
+  })
+
+  const flatDisplayRecords = appliedGroupingMode === 'none' ? sortDisplayRecords(filteredDisplayRecords) : []
+  let displayGroups: TaskDisplayGroup[] = []
+
+  if (appliedGroupingMode === 'custom' && !isFlatCollectionView) {
+    displayGroups = currentTaskGroups
+      .map((group) => {
+        const groupRecords = filteredDisplayRecords.filter((record) => record.sourceGroupId === group.id)
+
+        return {
+          id: group.id,
+          name: group.name,
+          countLabel: group.countLabel,
+          showAddRow: group.showAddRow,
+          showDividerAfter: group.showDividerAfter,
+          records: sortDisplayRecords(groupRecords),
+        }
+      })
+      .filter((group) => group.showAddRow || group.records.length > 0)
+  } else if (appliedGroupingMode !== 'none') {
+    const groupedMap = new Map<string, TaskDisplayGroup>()
+
+    sortDisplayRecords(filteredDisplayRecords).forEach((record) => {
+      const taskFields = getTaskLifecycleFields(record)
+      const groupLabel = (() => {
+        if (appliedGroupingMode === 'start_date') return formatTaskFilterDateLabel(taskFields.startDate)
+        if (appliedGroupingMode === 'due_date') return formatTaskFilterDateLabel(taskFields.dueDate)
+        if (appliedGroupingMode === 'creator') return taskFields.creator
+        return taskFields.source
+      })()
+      const groupKey = `${appliedGroupingMode}-${groupLabel}`
+
+      if (!groupedMap.has(groupKey)) {
+        groupedMap.set(groupKey, {
+          id: groupKey,
+          name: groupLabel,
+          records: [],
+        })
+      }
+
+      groupedMap.get(groupKey)?.records.push(record)
+    })
+
+    displayGroups = Array.from(groupedMap.values()).map((group, index, groups) => ({
+      ...group,
+      showDividerAfter: index < groups.length - 1,
+    }))
+  }
 
   const handleDrawerPrimarySelect = (key: TaskDrawerPrimaryKey) => {
     if (key === 'mine' || key === 'followed') {
@@ -1964,57 +2401,6 @@ export default function TaskPage() {
     }))
   }
 
-  const openGroupTaskDetail = (group: TaskGroup, task: TaskItem) => {
-    const assigneeBadge = pickDetailAssigneeBadge(task.assignees)
-    setSelectedTaskDetail({
-      id: task.id,
-      title: task.title,
-      done: task.done,
-      sourceRef: { kind: 'group', groupId: group.id },
-      sourceText: buildTaskDetailSourceText(task.title),
-      noteLabel: '创建于建国：建国',
-      assigneeBadge,
-      assigneeName: getTaskAssigneeName(assigneeBadge),
-      groupName: group.name,
-      dateChoice: getDetailDateChoice(task.dueDate),
-      commentTime: '5月14日 14:27',
-    })
-  }
-
-  const openCollectionTaskDetail = (collectionKey: TaskCollectionId, task: TaskCollectionItem) => {
-    const assigneeBadge = pickDetailAssigneeBadge(task.assignees)
-    setSelectedTaskDetail({
-      id: task.id,
-      title: task.title,
-      done: task.done,
-      sourceRef: { kind: 'collection', collectionKey },
-      sourceText: buildTaskDetailSourceText(task.title),
-      noteLabel: '创建于建国：建国',
-      assigneeBadge,
-      assigneeName: getTaskAssigneeName(assigneeBadge),
-      groupName: '默认分组',
-      dateChoice: getDetailDateChoice(task.meta),
-      commentTime: '5月14日 14:27',
-    })
-  }
-
-  const openChecklistTaskDetail = (checklistKey: TaskCollectionId, group: TaskGroup, task: TaskItem) => {
-    const assigneeBadge = pickDetailAssigneeBadge(task.assignees)
-    setSelectedTaskDetail({
-      id: task.id,
-      title: task.title,
-      done: task.done,
-      sourceRef: { kind: 'checklist', checklistKey, groupId: group.id },
-      sourceText: buildTaskDetailSourceText(task.title),
-      noteLabel: '创建于建国：建国',
-      assigneeBadge,
-      assigneeName: getTaskAssigneeName(assigneeBadge),
-      groupName: group.name,
-      dateChoice: getDetailDateChoice(task.dueDate),
-      commentTime: '5月14日 14:27',
-    })
-  }
-
   const handleDetailToggleDone = () => {
     if (!selectedTaskDetail) return
 
@@ -2035,6 +2421,37 @@ export default function TaskPage() {
     ))
   }
 
+  const openDisplayTaskDetail = (record: TaskDisplayRecord) => {
+    const assigneeBadge = pickDetailAssigneeBadge(record.assignees)
+    setSelectedTaskDetail({
+      id: record.id,
+      title: record.title,
+      done: record.done,
+      sourceRef: record.sourceRef,
+      sourceText: record.sourceText,
+      noteLabel: '创建于建国：建国',
+      assigneeBadge,
+      assigneeName: getTaskAssigneeName(assigneeBadge),
+      groupName: record.sourceGroupName,
+      dateChoice: getDetailDateChoice(record.metaText),
+      commentTime: '5月14日 14:27',
+    })
+  }
+
+  const toggleDisplayTaskDone = (record: TaskDisplayRecord) => {
+    if (record.sourceRef.kind === 'group') {
+      toggleTaskDone(record.sourceRef.groupId, record.id)
+      return
+    }
+
+    if (record.sourceRef.kind === 'checklist') {
+      toggleCustomChecklistTaskDone(record.sourceRef.checklistKey, record.sourceRef.groupId, record.id)
+      return
+    }
+
+    toggleCollectionTaskDone(record.sourceRef.collectionKey, record.id)
+  }
+
   useEffect(() => {
     if (showDrawer) return
     setShowDrawerCreateSheet(false)
@@ -2045,8 +2462,50 @@ export default function TaskPage() {
   useEffect(() => {
     if (showDrawer) {
       setShowTaskFilters(false)
+      setOpenFilterMenu(null)
+      setGroupActionTarget(null)
+      setTaskGroupDialog(null)
+      setTaskGroupDialogName('')
+      setShowTaskGroupSortSheet(false)
+      setTaskGroupSortDraft([])
+      setDraggingTaskGroupId(null)
     }
   }, [showDrawer])
+
+  useEffect(() => {
+    if (!showTaskFilters) {
+      setOpenFilterMenu(null)
+    }
+  }, [showTaskFilters])
+
+  useEffect(() => {
+    if (isActivityCollectionView) {
+      setShowTaskFilters(false)
+      setOpenFilterMenu(null)
+    }
+  }, [isActivityCollectionView])
+
+  const normalizeManagedTaskGroups = (groups: TaskGroup[]) => (
+    groups.map((group, index) => ({
+      ...group,
+      showDividerAfter: index < groups.length - 1,
+    }))
+  )
+
+  const updateEditableTaskGroups = (updater: (groups: TaskGroup[]) => TaskGroup[]) => {
+    if (activeCollectionKey && activeChecklistGroups) {
+      setCustomChecklistGroups(prev => ({
+        ...prev,
+        [activeCollectionKey]: normalizeManagedTaskGroups(updater(prev[activeCollectionKey] ?? [])),
+      }))
+      return
+    }
+
+    setTaskViews(prev => ({
+      ...prev,
+      [activeTab]: normalizeManagedTaskGroups(updater(prev[activeTab])),
+    }))
+  }
 
   const openDrawerCreateDialog = (kind: DrawerCreateKind) => {
     setShowDrawerCreateSheet(false)
@@ -2113,11 +2572,266 @@ export default function TaskPage() {
     closeDrawerCreateDialog()
   }
 
-  const renderTaskGroupSection = (
-    group: TaskGroup,
-    onOpenTask: (task: TaskItem) => void,
-    onToggleTask: (taskId: string) => void,
-  ) => {
+  const openTaskGroupDialog = (kind: TaskGroupDialogKind) => {
+    if (!groupActionTarget) return
+    setTaskGroupDialog({ kind, groupId: groupActionTarget.id })
+    setTaskGroupDialogName(kind === 'rename' ? groupActionTarget.name : '')
+    setGroupActionTarget(null)
+  }
+
+  const closeTaskGroupSortSheet = () => {
+    setShowTaskGroupSortSheet(false)
+    setTaskGroupSortDraft([])
+    setDraggingTaskGroupId(null)
+  }
+
+  const openTaskGroupSortSheet = () => {
+    setGroupActionTarget(null)
+    setTaskGroupSortDraft(editableTaskGroups.map((group) => ({ id: group.id, name: group.name })))
+    setDraggingTaskGroupId(null)
+    setShowTaskGroupSortSheet(true)
+  }
+
+  const closeTaskGroupDialog = () => {
+    setTaskGroupDialog(null)
+    setTaskGroupDialogName('')
+  }
+
+  const handleSubmitTaskGroupDialog = () => {
+    if (!taskGroupDialog || !trimmedTaskGroupDialogName) return
+
+    if (taskGroupDialog.kind === 'rename') {
+      updateEditableTaskGroups(groups => groups.map(group => (
+        group.id === taskGroupDialog.groupId ? { ...group, name: trimmedTaskGroupDialogName } : group
+      )))
+      closeTaskGroupDialog()
+      return
+    }
+
+    updateEditableTaskGroups((groups) => {
+      const targetIndex = groups.findIndex((group) => group.id === taskGroupDialog.groupId)
+      const insertAt = targetIndex < 0
+        ? groups.length
+        : taskGroupDialog.kind === 'insert_before'
+          ? targetIndex
+          : targetIndex + 1
+
+      const nextGroup: TaskGroup = {
+        id: `group-${Date.now()}`,
+        name: trimmedTaskGroupDialogName,
+        showAddRow: true,
+        tasks: [],
+      }
+
+      return [
+        ...groups.slice(0, insertAt),
+        nextGroup,
+        ...groups.slice(insertAt),
+      ]
+    })
+    closeTaskGroupDialog()
+  }
+
+  const reorderTaskGroupDraft = (sourceId: string, targetId: string) => {
+    if (sourceId === targetId) return
+
+    setTaskGroupSortDraft((current) => {
+      const sourceIndex = current.findIndex((group) => group.id === sourceId)
+      const targetIndex = current.findIndex((group) => group.id === targetId)
+
+      if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) {
+        return current
+      }
+
+      const next = [...current]
+      const [moved] = next.splice(sourceIndex, 1)
+      next.splice(targetIndex, 0, moved)
+      return next
+    })
+  }
+
+  const handleSaveTaskGroupSort = () => {
+    const orderIds = taskGroupSortDraft.map((group) => group.id)
+
+    updateEditableTaskGroups((groups) => {
+      const groupMap = new Map(groups.map((group) => [group.id, group]))
+      const orderedGroups = orderIds
+        .map((id) => groupMap.get(id))
+        .filter((group): group is TaskGroup => Boolean(group))
+      const remainingGroups = groups.filter((group) => !orderIds.includes(group.id))
+
+      return [...orderedGroups, ...remainingGroups]
+    })
+
+    closeTaskGroupSortSheet()
+  }
+
+  const handleToggleTaskFilters = () => {
+    if (showTaskFilters) {
+      setShowTaskFilters(false)
+      setOpenFilterMenu(null)
+      return
+    }
+
+    setShowTaskFilters(true)
+  }
+
+  const toggleFilterMenu = (menu: TaskFilterMenu) => {
+    if (!showTaskFilters) {
+      setShowTaskFilters(true)
+      setOpenFilterMenu(menu)
+      return
+    }
+
+    setOpenFilterMenu((current) => current === menu ? null : menu)
+  }
+
+  const renderDisplayRecord = (record: TaskDisplayRecord) => {
+    const usesCollectionLayout = record.sourceRef.kind === 'collection' || Boolean(record.metaText || record.metaValue)
+
+    if (usesCollectionLayout) {
+      return (
+        <div
+          className={`task-collection-item ${record.done ? 'is-done' : ''}`}
+          key={record.id}
+          onClick={() => openDisplayTaskDetail(record)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault()
+              openDisplayTaskDetail(record)
+            }
+          }}
+          role="button"
+          tabIndex={0}
+        >
+          <button
+            className={`task-collection-check ${record.done ? 'is-checked' : ''}`}
+            type="button"
+            aria-label={record.done ? '标记为未完成' : '标记为完成'}
+            onClick={(event) => {
+              event.stopPropagation()
+              toggleDisplayTaskDone(record)
+            }}
+          >
+            {record.done && (
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            )}
+          </button>
+
+          <div className="task-collection-body">
+            <div className="task-collection-title">{record.title}</div>
+            {(record.metaText || record.metaValue) && (
+              <div className="task-collection-meta">
+                {record.metaText && <span>{record.metaText}</span>}
+                {record.metaIcon && record.metaValue && (
+                  <span className="task-collection-meta-tail">
+                    {record.metaText && <span className="task-collection-meta-divider">|</span>}
+                    <span className="task-collection-meta-inline-icon">{renderTaskCollectionMetaIcon(record.metaIcon)}</span>
+                    <span>{record.metaValue}</span>
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+
+          {record.assignees.length > 0 && (
+            <div className="task-assignee-stack is-collection">
+              {record.assignees.map((badge, index) => renderTaskAssigneeBadge(badge, index))}
+            </div>
+          )}
+        </div>
+      )
+    }
+
+    return (
+      <div
+        className={`task-item ${record.done ? 'is-done' : ''}`}
+        key={record.id}
+        onClick={() => openDisplayTaskDetail(record)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault()
+            openDisplayTaskDetail(record)
+          }
+        }}
+        role="button"
+        tabIndex={0}
+      >
+        <button
+          className={`task-check ${record.done ? 'is-checked' : ''}`}
+          type="button"
+          aria-label={record.done ? '标记为未完成' : '标记为完成'}
+          onClick={(event) => {
+            event.stopPropagation()
+            toggleDisplayTaskDone(record)
+          }}
+        >
+          {record.done && (
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          )}
+        </button>
+
+        <div className="task-body">
+          <div className="task-title">{record.title}</div>
+        </div>
+
+        {record.assignees.length > 0 && (
+          <div className="task-assignee-stack">
+            {record.assignees.map((badge, index) => renderTaskAssigneeBadge(badge, index))}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  const renderActivityFeed = () => (
+    <div className="task-activity-feed">
+      {taskActivityFeed.map((day) => (
+        <section className="task-activity-day" key={day.id}>
+          <div className="task-activity-day-title">{day.title}</div>
+
+          {day.lanes.map((lane) => (
+            <div className="task-activity-lane" key={lane.id}>
+              <div className="task-activity-lane-header">
+                <span className="task-activity-lane-line" />
+                <span className="task-activity-lane-label">{lane.label}</span>
+                <span className="task-activity-lane-line" />
+              </div>
+
+              <div className="task-activity-card">
+                {lane.entries.map((entry, index) => (
+                  <div className="task-activity-entry" key={entry.id}>
+                    <div className="task-activity-entry-top">
+                      <span className="task-activity-entry-icon">
+                        <ActivityEntryIcon />
+                      </span>
+                      <span className="task-activity-entry-title">{entry.title}</span>
+                    </div>
+
+                    <div className="task-activity-entry-meta">
+                      <img className="task-activity-entry-avatar" src={entry.avatar} alt={entry.actor} />
+                      <span className="task-activity-entry-actor">{entry.actor}</span>
+                      <span className="task-activity-entry-action">{entry.action}</span>
+                    </div>
+
+                    <div className="task-activity-entry-time">{entry.time}</div>
+
+                    {index < lane.entries.length - 1 && <span className="task-activity-entry-divider" />}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </section>
+      ))}
+    </div>
+  )
+
+  const renderTaskGroupSection = (group: TaskDisplayGroup) => {
     const isCollapsed = collapsedGroups.has(group.id)
 
     return (
@@ -2139,14 +2853,19 @@ export default function TaskPage() {
             <span className="task-group-name">{group.name}</span>
             {group.countLabel && <span className="task-group-count">{group.countLabel}</span>}
           </div>
-          <button
-            className="task-group-more"
-            type="button"
-            aria-label="更多"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <GroupMoreIcon />
-          </button>
+          {canManageDisplayedGroups && (
+            <button
+              className="task-group-more"
+              type="button"
+              aria-label="更多"
+              onClick={(event) => {
+                event.stopPropagation()
+                setGroupActionTarget({ id: group.id, name: group.name })
+              }}
+            >
+              <GroupMoreIcon />
+            </button>
+          )}
         </div>
 
         {!isCollapsed && (
@@ -2158,53 +2877,117 @@ export default function TaskPage() {
                 </button>
               )}
 
-              {group.tasks.map(task => (
-                <div
-                  className={`task-item ${task.done ? 'is-done' : ''}`}
-                  key={task.id}
-                  onClick={() => onOpenTask(task)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' || event.key === ' ') {
-                      event.preventDefault()
-                      onOpenTask(task)
-                    }
-                  }}
-                  role="button"
-                  tabIndex={0}
-                >
-                  <button
-                    className={`task-check ${task.done ? 'is-checked' : ''}`}
-                    type="button"
-                    aria-label={task.done ? '标记为未完成' : '标记为完成'}
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      onToggleTask(task.id)
-                    }}
-                  >
-                    {task.done && (
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="20 6 9 17 4 12" />
-                      </svg>
-                    )}
-                  </button>
-
-                  <div className="task-body">
-                    <div className="task-title">{task.title}</div>
-                  </div>
-
-                  {task.assignees.length > 0 && (
-                    <div className="task-assignee-stack">
-                      {task.assignees.map((badge, index) => renderTaskAssigneeBadge(badge, index))}
-                    </div>
-                  )}
-                </div>
-              ))}
+              {group.records.map((record) => renderDisplayRecord(record))}
             </div>
 
             {group.showDividerAfter && <div className="task-group-divider" />}
           </>
         )}
       </section>
+    )
+  }
+
+  const renderFilterMenuPanel = () => {
+    if (!openFilterMenu) return null
+
+    if (openFilterMenu === 'status') {
+      return (
+        <div className="task-filter-menu-panel">
+          {taskCompletionFilterOptions.map((option) => {
+            const isActive = selectedStatusFilter === option.value
+
+            return (
+              <button
+                className={`task-filter-option-row ${isActive ? 'is-active' : ''}`}
+                key={option.value}
+                type="button"
+                onClick={() => setTaskCompletionFilter(option.value)}
+              >
+                <span className="task-filter-option-label">{option.label}</span>
+                {isActive && (
+                  <span className="task-filter-option-check">
+                    <FilterCheckIcon />
+                  </span>
+                )}
+              </button>
+            )
+          })}
+        </div>
+      )
+    }
+
+    if (openFilterMenu === 'group') {
+      return (
+        <div className="task-filter-menu-panel">
+          {taskGroupingOptions.map((option) => {
+            const isActive = displayedGroupingMode === option.value
+
+            return (
+              <button
+                className={`task-filter-option-row ${isActive ? 'is-active' : ''}`}
+                key={option.value}
+                type="button"
+                onClick={() => setTaskGroupingMode(isFlatCollectionView && option.value === 'custom' ? 'none' : option.value)}
+              >
+                <span className="task-filter-option-label">{option.label}</span>
+                {isActive && (
+                  <span className="task-filter-option-check">
+                    <FilterCheckIcon />
+                  </span>
+                )}
+              </button>
+            )
+          })}
+        </div>
+      )
+    }
+
+    return (
+      <div className="task-filter-menu-panel">
+        {taskSortOptions.map((option) => {
+          const isActive = selectedSortMode === option.value
+          const showDirectionControl = isActive && option.value !== 'manual'
+
+          return (
+            <div
+              className={`task-filter-option-row ${isActive ? 'is-active' : ''}`}
+              key={option.value}
+              onClick={() => setTaskSortMode(option.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault()
+                  setTaskSortMode(option.value)
+                }
+              }}
+              role="button"
+              tabIndex={0}
+            >
+              <span className="task-filter-option-label">{option.label}</span>
+
+              {showDirectionControl && (
+                <div className="task-filter-sort-direction" onClick={(event) => event.stopPropagation()}>
+                  <button
+                    className={`task-filter-sort-direction-btn ${taskSortDirection === 'asc' ? 'is-active' : ''}`}
+                    type="button"
+                    aria-label="升序"
+                    onClick={() => setTaskSortDirection('asc')}
+                  >
+                    <SortDirectionIcon direction="asc" />
+                  </button>
+                  <button
+                    className={`task-filter-sort-direction-btn ${taskSortDirection === 'desc' ? 'is-active' : ''}`}
+                    type="button"
+                    aria-label="降序"
+                    onClick={() => setTaskSortDirection('desc')}
+                  >
+                    <SortDirectionIcon direction="desc" />
+                  </button>
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
     )
   }
 
@@ -2263,36 +3046,166 @@ export default function TaskPage() {
               </div>
             )}
 
-            <button
-              className={`task-filter-btn ${showTaskFilters ? 'is-active' : ''}`}
-              type="button"
-              aria-label="筛选"
-              onClick={() => setShowTaskFilters((current) => !current)}
-            >
-              <TaskFilterIcon />
-            </button>
+            {!isActivityCollectionView && (
+              <button
+                className={`task-filter-btn ${showTaskFilters ? 'is-active' : ''}`}
+                type="button"
+                aria-label="筛选"
+                onClick={handleToggleTaskFilters}
+              >
+                <TaskFilterIcon />
+              </button>
+            )}
           </>
         )}
       </div>
 
       {showTaskFilters && !isDrawerOpen && (
         <div className="task-filter-bar" aria-label="筛选选项">
-          <button className="task-filter-chip" type="button">
-            <span>未完成</span>
-            <ChevronDownIcon color="#7f858f" />
+          <button className={`task-filter-chip ${openFilterMenu === 'status' ? 'is-active' : ''}`} type="button" onClick={() => toggleFilterMenu('status')}>
+            <span>{statusFilterLabel}</span>
+            <span className="task-filter-chip-chevron">
+              <ChevronDownIcon color={openFilterMenu === 'status' ? '#4c73ff' : '#7f858f'} />
+            </span>
           </button>
-          <button className="task-filter-chip" type="button">
-            <span>分组：自定义分组</span>
-            <ChevronDownIcon color="#7f858f" />
+          <button className={`task-filter-chip ${openFilterMenu === 'group' ? 'is-active' : ''}`} type="button" onClick={() => toggleFilterMenu('group')}>
+            <span>{`分组：${groupingFilterLabel}`}</span>
+            <span className="task-filter-chip-chevron">
+              <ChevronDownIcon color={openFilterMenu === 'group' ? '#4c73ff' : '#7f858f'} />
+            </span>
           </button>
-          <button className="task-filter-chip" type="button">
-            <span>排序：拖拽自定义</span>
-            <ChevronDownIcon color="#7f858f" />
+          <button className={`task-filter-chip ${openFilterMenu === 'sort' ? 'is-active' : ''}`} type="button" onClick={() => toggleFilterMenu('sort')}>
+            <span>{`排序：${sortFilterLabel}`}</span>
+            <span className="task-filter-chip-chevron">
+              <ChevronDownIcon color={openFilterMenu === 'sort' ? '#4c73ff' : '#7f858f'} />
+            </span>
           </button>
         </div>
       )}
 
+      {groupActionTarget && (
+        <div className="task-drawer-create-sheet-overlay" onClick={() => setGroupActionTarget(null)}>
+          <div className="task-drawer-create-sheet" onClick={(event) => event.stopPropagation()}>
+            <div className="task-drawer-create-sheet-group">
+              <button className="task-drawer-create-sheet-option" type="button" onClick={() => openTaskGroupDialog('rename')}>
+                重命名
+              </button>
+              <button className="task-drawer-create-sheet-option" type="button" onClick={() => openTaskGroupDialog('insert_before')}>
+                在上方新建分组
+              </button>
+              <button className="task-drawer-create-sheet-option" type="button" onClick={() => openTaskGroupDialog('insert_after')}>
+                在下方新建分组
+              </button>
+              <button className="task-drawer-create-sheet-option" type="button" onClick={openTaskGroupSortSheet}>
+                管理分组排序
+              </button>
+            </div>
+
+            <button className="task-drawer-create-sheet-cancel" type="button" onClick={() => setGroupActionTarget(null)}>
+              取消
+            </button>
+          </div>
+        </div>
+      )}
+
+      {taskGroupDialog && (
+        <div className="task-drawer-create-dialog-overlay" onClick={closeTaskGroupDialog}>
+          <div className="task-drawer-create-dialog" onClick={(event) => event.stopPropagation()}>
+            <div className="task-drawer-create-dialog-title">
+              {taskGroupDialog.kind === 'rename'
+                ? '重命名分组'
+                : taskGroupDialog.kind === 'insert_before'
+                  ? '在上方新建分组'
+                  : '在下方新建分组'}
+            </div>
+
+            <div className="task-drawer-create-dialog-body">
+              <input
+                autoFocus
+                className="task-drawer-create-dialog-input"
+                type="text"
+                value={taskGroupDialogName}
+                onChange={(event) => setTaskGroupDialogName(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' && trimmedTaskGroupDialogName) {
+                    handleSubmitTaskGroupDialog()
+                  }
+                }}
+                placeholder={taskGroupDialog.kind === 'rename' ? '输入分组名称' : '输入新分组名称'}
+              />
+            </div>
+
+            <div className="task-drawer-create-dialog-actions">
+              <button className="task-drawer-create-dialog-btn" type="button" onClick={closeTaskGroupDialog}>
+                取消
+              </button>
+              <button
+                className="task-drawer-create-dialog-btn is-primary"
+                type="button"
+                disabled={!trimmedTaskGroupDialogName}
+                onClick={handleSubmitTaskGroupDialog}
+              >
+                确定
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showTaskGroupSortSheet && (
+        <div className="task-group-sort-sheet-overlay" onClick={closeTaskGroupSortSheet}>
+          <div className="task-group-sort-sheet" onClick={(event) => event.stopPropagation()}>
+            <div className="task-group-sort-sheet-header">
+              <button className="task-group-sort-sheet-close" type="button" aria-label="关闭分组排序" onClick={closeTaskGroupSortSheet}>
+                <SortSheetCloseIcon />
+              </button>
+              <div className="task-group-sort-sheet-title">分组排序</div>
+              <button className="task-group-sort-sheet-save" type="button" onClick={handleSaveTaskGroupSort}>
+                保存
+              </button>
+            </div>
+
+            <div className="task-group-sort-sheet-body">
+              <div className="task-group-sort-card">
+                {taskGroupSortDraft.map((group, index) => (
+                  <div
+                    className={`task-group-sort-row ${draggingTaskGroupId === group.id ? 'is-dragging' : ''}`}
+                    key={group.id}
+                    draggable
+                    onDragStart={(event) => {
+                      event.dataTransfer.effectAllowed = 'move'
+                      event.dataTransfer.setData('text/plain', group.id)
+                      setDraggingTaskGroupId(group.id)
+                    }}
+                    onDragEnd={() => setDraggingTaskGroupId(null)}
+                    onDragOver={(event) => {
+                      event.preventDefault()
+                      if (draggingTaskGroupId && draggingTaskGroupId !== group.id) {
+                        reorderTaskGroupDraft(draggingTaskGroupId, group.id)
+                      }
+                    }}
+                  >
+                    <span className="task-group-sort-row-name">{group.name}</span>
+                    <span className="task-group-sort-row-handle" aria-hidden="true">
+                      <SortHandleIcon />
+                    </span>
+                    {index < taskGroupSortDraft.length - 1 && <span className="task-group-sort-row-line" />}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="task-body-stage">
+        {showTaskFilters && openFilterMenu && !isDrawerOpen && (
+          <div className="task-filter-menu-layer">
+            <button className="task-filter-menu-scrim" type="button" aria-label="关闭筛选面板" onClick={() => setOpenFilterMenu(null)} />
+            {renderFilterMenuPanel()}
+          </div>
+        )}
+
         <aside className="task-drawer-panel" aria-label="任务抽屉" aria-hidden={!isDrawerOpen}>
           <div className="task-drawer-scroll">
             <div className="task-drawer-primary">
@@ -2388,86 +3301,22 @@ export default function TaskPage() {
 
 	        <div className={`task-main-shell ${isDrawerOpen ? 'is-drawer-open' : ''}`}>
 	          <div className="task-content">
-	            {activeCollection && !activeChecklistGroups ? (
+	            {isActivityCollectionView ? (
+	              renderActivityFeed()
+	            ) : appliedGroupingMode === 'none' ? (
 	              <div className="task-collection-list">
-	                {activeCollection.items.map(task => (
-                  <div
-                    className={`task-collection-item ${task.done ? 'is-done' : ''}`}
-                    key={task.id}
-                    onClick={() => activeCollectionKey && openCollectionTaskDetail(activeCollectionKey, task)}
-                    onKeyDown={(event) => {
-                      if ((event.key === 'Enter' || event.key === ' ') && activeCollectionKey) {
-                        event.preventDefault()
-                        openCollectionTaskDetail(activeCollectionKey, task)
-                      }
-                    }}
-                    role="button"
-                    tabIndex={0}
-                  >
-                    <button
-                      className={`task-collection-check ${task.done ? 'is-checked' : ''}`}
-                      type="button"
-                      aria-label={task.done ? '标记为未完成' : '标记为完成'}
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        if (activeCollectionKey) {
-                          toggleCollectionTaskDone(activeCollectionKey, task.id)
-                        }
-                      }}
-                    >
-                      {task.done && (
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                          <polyline points="20 6 9 17 4 12" />
-                        </svg>
-                      )}
-                    </button>
-
-                    <div className="task-collection-body">
-                      <div className="task-collection-title">{task.title}</div>
-                      <div className="task-collection-meta">
-                        <span>{task.meta}</span>
-                        {task.metaIcon && task.metaValue && (
-                          <span className="task-collection-meta-tail">
-                            <span className="task-collection-meta-divider">|</span>
-                            <span className="task-collection-meta-inline-icon">{renderTaskCollectionMetaIcon(task.metaIcon)}</span>
-                            <span>{task.metaValue}</span>
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {task.assignees.length > 0 && (
-                      <div className="task-assignee-stack is-collection">
-                        {task.assignees.map((badge, index) => renderTaskAssigneeBadge(badge, index))}
-                      </div>
-                    )}
-                  </div>
-	                ))}
+	                {flatDisplayRecords.map((record) => renderDisplayRecord(record))}
 	              </div>
-	            ) : currentTaskGroups.map(group => (
-	              renderTaskGroupSection(
-	                group,
-	                (task) => {
-	                  if (activeChecklistGroups && activeCollectionKey) {
-	                    openChecklistTaskDetail(activeCollectionKey, group, task)
-	                    return
-	                  }
-	                  openGroupTaskDetail(group, task)
-	                },
-	                (taskId) => {
-	                  if (activeChecklistGroups && activeCollectionKey) {
-	                    toggleCustomChecklistTaskDone(activeCollectionKey, group.id, taskId)
-	                    return
-	                  }
-	                  toggleTaskDone(group.id, taskId)
-	                },
-	              )
-	            ))}
+	            ) : (
+	              displayGroups.map((group) => renderTaskGroupSection(group))
+	            )}
 	          </div>
 
-          <button className="task-fab" type="button" aria-label="添加任务" onClick={() => setShowAddTask(true)}>
-            <AddTaskIcon />
-          </button>
+          {!isActivityCollectionView && (
+            <button className="task-fab" type="button" aria-label="添加任务" onClick={() => setShowAddTask(true)}>
+              <AddTaskIcon />
+            </button>
+          )}
 
           {isDrawerOpen && (
             <button className="task-main-scrim" type="button" aria-label="关闭任务菜单" onClick={() => setShowDrawer(false)} />

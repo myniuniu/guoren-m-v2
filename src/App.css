@@ -119,6 +119,10 @@
 .app-container:has(.library-action-sheet-overlay) .app-bottom,
 .app-container:has(.library-add-dialog-overlay) .app-bottom,
 .app-container:has(.library-file-preview-page) .app-bottom,
+.app-container:has(.add-task-page) .app-bottom,
+.app-container:has(.task-drawer-create-sheet-overlay) .app-bottom,
+.app-container:has(.task-drawer-create-dialog-overlay) .app-bottom,
+.app-container:has(.task-group-sort-sheet-overlay) .app-bottom,
 .app-container:has(.task-detail-page) .app-bottom {
   opacity: 0;
   pointer-events: none;
