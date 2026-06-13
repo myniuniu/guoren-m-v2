@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import './index.css'
 
 type TaskTab = 'mine' | 'followed'
@@ -64,6 +64,40 @@ type TaskCollectionItem = {
 type TaskCollectionView = {
   label: string
   items: TaskCollectionItem[]
+}
+
+type TaskDetailDateChoice = 'today' | 'tomorrow' | 'other'
+
+type TaskDetailSourceRef =
+  | {
+      kind: 'group'
+      groupId: string
+    }
+  | {
+      kind: 'collection'
+      collectionKey: TaskCollectionKey
+    }
+
+type TaskDetailState = {
+  id: string
+  title: string
+  done: boolean
+  sourceRef: TaskDetailSourceRef
+  sourceText: string
+  noteLabel: string
+  assigneeBadge: TaskAssigneeBadge
+  assigneeName: string
+  groupName: string
+  dateChoice: TaskDetailDateChoice
+  commentTime: string
+}
+
+type TaskScheduleReminder = 'none' | 'at_due' | '5m_before'
+
+type TaskScheduleSelection = {
+  date: Date | null
+  hasSpecificTime: boolean
+  reminder: TaskScheduleReminder
 }
 
 const taskAvatarSrc = '/assets/果仁头像-手机.png'
@@ -219,6 +253,95 @@ const initialTaskCollectionViews: Record<TaskCollectionKey, TaskCollectionView> 
   },
 }
 
+const taskScheduleWeekdayLabels = ['日', '一', '二', '三', '四', '五', '六']
+const taskScheduleMinuteOptions = [0, 15, 30, 45]
+const taskScheduleTimeCellHeight = 64
+const taskScheduleDefaultHour = 18
+const taskScheduleDefaultMinute = 0
+const taskScheduleDefaultReminder: TaskScheduleReminder = 'none'
+const taskScheduleReminderOptions: Array<{ value: Exclude<TaskScheduleReminder, 'none'>; label: string }> = [
+  { value: 'at_due', label: '任务截止时' },
+  { value: '5m_before', label: '截止前 5 分钟' },
+]
+
+const createCalendarDay = (year: number, month: number, date: number) => new Date(year, month, date)
+
+const addCalendarDays = (date: Date, amount: number) => createCalendarDay(date.getFullYear(), date.getMonth(), date.getDate() + amount)
+
+const getDefaultScheduleDate = () => addCalendarDays(new Date(), 1)
+
+const formatTaskScheduleMonthLabel = (date: Date) => `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, '0')}`
+
+const formatTaskScheduleShortLabel = (date: Date) => `${date.getMonth() + 1}月${date.getDate()}日`
+
+const formatTaskScheduleDetailLabel = (date: Date, hasSpecificTime: boolean) => (
+  hasSpecificTime ? `${formatTaskScheduleShortLabel(date)} ${formatTaskScheduleTimeLabel(date.getHours(), date.getMinutes())}` : formatTaskScheduleShortLabel(date)
+)
+
+const formatTaskScheduleFullLabel = (date: Date) => `${date.getMonth() + 1}月${date.getDate()}日 周${taskScheduleWeekdayLabels[date.getDay()]}`
+
+const formatTaskScheduleTimeLabel = (hour: number, minute: number) => `${hour}:${String(minute).padStart(2, '0')}`
+
+const withTaskScheduleTime = (date: Date, hour: number, minute: number) => {
+  const next = new Date(date)
+  next.setHours(hour, minute, 0, 0)
+  return next
+}
+
+const formatTaskScheduleReminderLabel = (reminder: TaskScheduleReminder) => {
+  if (reminder === 'at_due') return '任务截止时'
+  if (reminder === '5m_before') return '截止前 5 分钟'
+  return '不提醒'
+}
+
+const isSameCalendarDate = (left: Date, right: Date) => (
+  left.getFullYear() === right.getFullYear()
+  && left.getMonth() === right.getMonth()
+  && left.getDate() === right.getDate()
+)
+
+const buildTaskScheduleCalendarDays = (viewDate: Date) => {
+  const monthStart = createCalendarDay(viewDate.getFullYear(), viewDate.getMonth(), 1)
+  const calendarStart = addCalendarDays(monthStart, -monthStart.getDay())
+
+  return Array.from({ length: 42 }, (_, index) => {
+    const date = addCalendarDays(calendarStart, index)
+    return {
+      key: `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`,
+      date,
+      dayNumber: date.getDate(),
+      isCurrentMonth: date.getMonth() === viewDate.getMonth(),
+      isSaturday: date.getDay() === 6,
+    }
+  })
+}
+
+const buildTaskDetailSourceText = (title: string) => {
+  if (title === '检查新的 appld') {
+    return '来源：果仁群，王海鸥 @我\n消息：更换了新的appld，再看\n看in时间：2026-05-14 14:26'
+  }
+
+  if (title === '更换模型（7月下线）') {
+    return '来源：项目群，模型改造同步\n消息：更换模型预计 7 月下线\n时间：2026-05-14 14:26'
+  }
+
+  return `来源：任务同步，系统消息\n消息：${title}\n时间：2026-05-14 14:26`
+}
+
+const pickDetailAssigneeBadge = (assignees: TaskAssigneeBadge[]) => assignees.find((badge) => badge.kind !== 'count') ?? dogBadge
+
+const getTaskAssigneeName = (badge: TaskAssigneeBadge) => {
+  if (badge.kind === 'count') return '未分配'
+  return badge.name
+}
+
+const getDetailDateChoice = (dueText?: string) => {
+  if (!dueText) return 'today'
+  if (dueText.includes('明天')) return 'tomorrow'
+  if (dueText.includes('今天')) return 'today'
+  return 'other'
+}
+
 function SearchIcon() {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
@@ -282,6 +405,143 @@ function TaskMetaProgressIcon() {
       <path d="M8 12h6.5" />
       <path d="M8 15.5h5" />
       <rect x="4.5" y="5" width="15" height="14" rx="2.2" />
+    </svg>
+  )
+}
+
+function DetailBackIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="m14.5 5-7 7 7 7" />
+    </svg>
+  )
+}
+
+function DetailBookmarkIcon() {
+  return (
+    <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M7 4.5h10a1.8 1.8 0 0 1 1.8 1.8v13.2l-6.8-3.8-6.8 3.8V6.3A1.8 1.8 0 0 1 7 4.5Z" />
+    </svg>
+  )
+}
+
+function DetailShareIcon() {
+  return (
+    <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.95" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M15.5 8.5 20 4" />
+      <path d="M10 4h10v10" />
+      <path d="M20 13.5V18a2 2 0 0 1-2 2H6.5a2 2 0 0 1-2-2V6.5a2 2 0 0 1 2-2H11" />
+    </svg>
+  )
+}
+
+function DetailCopyIcon() {
+  return (
+    <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.95" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="8" y="5" width="11" height="14" rx="2" />
+      <path d="M5 16V8a2 2 0 0 1 2-2h8" />
+    </svg>
+  )
+}
+
+function DetailMoreIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+      <circle cx="5" cy="12" r="1.7" />
+      <circle cx="12" cy="12" r="1.7" />
+      <circle cx="19" cy="12" r="1.7" />
+    </svg>
+  )
+}
+
+function DetailSourceIcon() {
+  return (
+    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.95" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M5 7h14" />
+      <path d="M5 12h9" />
+      <path d="M5 17h12" />
+    </svg>
+  )
+}
+
+function CommentAtIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M16.2 12.6V9.9a4.2 4.2 0 1 0-1.5 3.2" />
+      <circle cx="11.1" cy="10.6" r="2.8" />
+      <path d="M20 13.2v.6a7.8 7.8 0 1 1-3.2-6.3" />
+    </svg>
+  )
+}
+
+function CommentImageIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.95" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="4.5" y="5.5" width="15" height="13" rx="2.2" />
+      <circle cx="9.2" cy="10.2" r="1.4" />
+      <path d="m7 16 3.3-3.3a1 1 0 0 1 1.4 0L14 15l1.6-1.6a1 1 0 0 1 1.4 0L19 15.4" />
+    </svg>
+  )
+}
+
+function CommentSendIcon({ active }: { active: boolean }) {
+  return (
+    <svg width="26" height="26" viewBox="0 0 24 24" fill={active ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="m4.8 19 14.4-7L4.8 5l1.6 5.8L15 12 6.4 13.2 4.8 19Z" />
+    </svg>
+  )
+}
+
+function SchedulePlusIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 5v14" />
+      <path d="M5 12h14" />
+    </svg>
+  )
+}
+
+function ScheduleClockIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.95" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7.7v4.8l3.3 1.9" />
+    </svg>
+  )
+}
+
+function ScheduleBellIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.95" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6.5 15.8h11l-1.3-1.9V11a4.2 4.2 0 0 0-8.4 0v2.9l-1.3 1.9Z" />
+      <path d="M10 18.2a2.2 2.2 0 0 0 4 0" />
+    </svg>
+  )
+}
+
+function ScheduleRepeatIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.95" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M7.6 7H17l-2.3-2.3" />
+      <path d="M16.4 17H7l2.3 2.3" />
+      <path d="M17 7a7 7 0 0 1 0 10" />
+      <path d="M7 17a7 7 0 0 1 0-10" />
+    </svg>
+  )
+}
+
+function ScheduleMonthChevronIcon({ direction }: { direction: 'left' | 'right' }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.15" strokeLinecap="round" strokeLinejoin="round">
+      {direction === 'left' ? <path d="m14.5 6-6 6 6 6" /> : <path d="m9.5 6 6 6-6 6" />}
+    </svg>
+  )
+}
+
+function ScheduleRowChevronIcon({ direction = 'right' }: { direction?: 'right' | 'up' }) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
+      {direction === 'up' ? <path d="m6 15 6-6 6 6" /> : <path d="m9 6 6 6-6 6" />}
     </svg>
   )
 }
@@ -571,6 +831,586 @@ function renderTaskCollectionMetaIcon(icon: TaskCollectionItem['metaIcon']) {
   if (icon === 'comment') return <TaskMetaCommentIcon />
   if (icon === 'progress') return <TaskMetaProgressIcon />
   return null
+}
+
+function renderTaskDetailBadgeAvatar(badge: TaskAssigneeBadge, className: string) {
+  if (badge.kind === 'image') {
+    return <img className={className} src={badge.avatar} alt={badge.name} />
+  }
+
+  if (badge.kind === 'count') {
+    return <div className={`${className} is-count`}>{badge.label}</div>
+  }
+
+  return (
+    <div className={className} style={{ background: badge.background, color: badge.color ?? '#fff' }}>
+      {badge.text}
+    </div>
+  )
+}
+
+function TaskSchedulePage({
+  initialDate,
+  initialHasSpecificTime,
+  initialReminder,
+  onCancel,
+  onSave,
+}: {
+  initialDate: Date | null
+  initialHasSpecificTime: boolean
+  initialReminder: TaskScheduleReminder
+  onCancel: () => void
+  onSave: (selection: TaskScheduleSelection) => void
+}) {
+  const fallbackDate = initialDate ?? getDefaultScheduleDate()
+  const [selectedDate, setSelectedDate] = useState<Date | null>(fallbackDate)
+  const [viewDate, setViewDate] = useState(createCalendarDay(fallbackDate.getFullYear(), fallbackDate.getMonth(), 1))
+  const [hasSpecificTime, setHasSpecificTime] = useState(initialHasSpecificTime)
+  const [isTimePickerOpen, setIsTimePickerOpen] = useState(false)
+  const [selectedHour, setSelectedHour] = useState(initialHasSpecificTime ? fallbackDate.getHours() : taskScheduleDefaultHour)
+  const [selectedMinute, setSelectedMinute] = useState(initialHasSpecificTime ? fallbackDate.getMinutes() : taskScheduleDefaultMinute)
+  const [selectedReminder, setSelectedReminder] = useState<TaskScheduleReminder>(initialReminder)
+  const [draftReminder, setDraftReminder] = useState<Exclude<TaskScheduleReminder, 'none'>>(
+    initialReminder === 'none' ? 'at_due' : initialReminder,
+  )
+  const [isReminderPickerOpen, setIsReminderPickerOpen] = useState(false)
+  const [hasReminderDraftChange, setHasReminderDraftChange] = useState(false)
+  const hourWheelRef = useRef<HTMLDivElement | null>(null)
+  const minuteWheelRef = useRef<HTMLDivElement | null>(null)
+  const hourSnapTimeoutRef = useRef<number | null>(null)
+  const minuteSnapTimeoutRef = useRef<number | null>(null)
+
+  const calendarDays = buildTaskScheduleCalendarDays(viewDate)
+  const timeLabel = formatTaskScheduleTimeLabel(selectedHour, selectedMinute)
+  const hourOptions = Array.from({ length: 24 }, (_, index) => index)
+  const selectedMinuteIndex = taskScheduleMinuteOptions.findIndex((minute) => minute === selectedMinute)
+  const showTimeClear = hasSpecificTime && !isTimePickerOpen
+  const reminderLabel = formatTaskScheduleReminderLabel(selectedReminder)
+  const showReminderClear = selectedReminder !== 'none' && !isReminderPickerOpen
+  const resolvedReminder = isReminderPickerOpen && hasReminderDraftChange ? draftReminder : selectedReminder
+
+  useEffect(() => {
+    if (!isTimePickerOpen || !hourWheelRef.current) return
+    const targetTop = selectedHour * taskScheduleTimeCellHeight
+    if (Math.abs(hourWheelRef.current.scrollTop - targetTop) > 1) {
+      hourWheelRef.current.scrollTo({ top: targetTop, behavior: 'auto' })
+    }
+  }, [isTimePickerOpen, selectedHour])
+
+  useEffect(() => {
+    if (!isTimePickerOpen || !minuteWheelRef.current || selectedMinuteIndex < 0) return
+    const targetTop = selectedMinuteIndex * taskScheduleTimeCellHeight
+    if (Math.abs(minuteWheelRef.current.scrollTop - targetTop) > 1) {
+      minuteWheelRef.current.scrollTo({ top: targetTop, behavior: 'auto' })
+    }
+  }, [isTimePickerOpen, selectedMinuteIndex])
+
+  useEffect(() => {
+    return () => {
+      if (hourSnapTimeoutRef.current) window.clearTimeout(hourSnapTimeoutRef.current)
+      if (minuteSnapTimeoutRef.current) window.clearTimeout(minuteSnapTimeoutRef.current)
+    }
+  }, [])
+
+  const snapHourWheel = () => {
+    if (!hourWheelRef.current) return
+    const nextIndex = Math.max(0, Math.min(hourOptions.length - 1, Math.round(hourWheelRef.current.scrollTop / taskScheduleTimeCellHeight)))
+    const nextHour = hourOptions[nextIndex]
+    setSelectedHour(nextHour)
+    hourWheelRef.current.scrollTo({ top: nextIndex * taskScheduleTimeCellHeight, behavior: 'smooth' })
+  }
+
+  const snapMinuteWheel = () => {
+    if (!minuteWheelRef.current) return
+    const nextIndex = Math.max(0, Math.min(taskScheduleMinuteOptions.length - 1, Math.round(minuteWheelRef.current.scrollTop / taskScheduleTimeCellHeight)))
+    const nextMinute = taskScheduleMinuteOptions[nextIndex]
+    setSelectedMinute(nextMinute)
+    minuteWheelRef.current.scrollTo({ top: nextIndex * taskScheduleTimeCellHeight, behavior: 'smooth' })
+  }
+
+  const clearSpecificTime = () => {
+    setHasSpecificTime(false)
+    setIsTimePickerOpen(false)
+    setSelectedHour(taskScheduleDefaultHour)
+    setSelectedMinute(taskScheduleDefaultMinute)
+    setSelectedReminder(taskScheduleDefaultReminder)
+    setDraftReminder('at_due')
+    setIsReminderPickerOpen(false)
+    setHasReminderDraftChange(false)
+  }
+
+  const toggleReminderPicker = () => {
+    if (isReminderPickerOpen) {
+      if (hasReminderDraftChange) {
+        setSelectedReminder(draftReminder)
+      }
+      setIsReminderPickerOpen(false)
+      setHasReminderDraftChange(false)
+      return
+    }
+
+    setDraftReminder(selectedReminder === 'none' ? 'at_due' : selectedReminder)
+    setHasReminderDraftChange(false)
+    setIsReminderPickerOpen(true)
+  }
+
+  const clearReminder = () => {
+    setSelectedReminder(taskScheduleDefaultReminder)
+    setDraftReminder('at_due')
+    setIsReminderPickerOpen(false)
+    setHasReminderDraftChange(false)
+  }
+
+  return (
+    <div className="task-schedule-page">
+      <div className="task-schedule-header">
+        <button className="task-schedule-header-btn" type="button" onClick={onCancel}>取消</button>
+        <button
+          className="task-schedule-header-btn is-save"
+          type="button"
+          onClick={() => onSave({
+            date: selectedDate ? (hasSpecificTime ? withTaskScheduleTime(selectedDate, selectedHour, selectedMinute) : createCalendarDay(
+              selectedDate.getFullYear(),
+              selectedDate.getMonth(),
+              selectedDate.getDate(),
+            )) : null,
+            hasSpecificTime: selectedDate ? hasSpecificTime : false,
+            reminder: selectedDate ? resolvedReminder : taskScheduleDefaultReminder,
+          })}
+        >
+          保存
+        </button>
+      </div>
+
+      <div className="task-schedule-topbar">
+        <button className="task-schedule-start-cell" type="button">
+          <span className="task-schedule-start-icon">
+            <SchedulePlusIcon />
+          </span>
+          <span>开始时间</span>
+        </button>
+
+        <div className={`task-schedule-selection ${selectedDate ? 'has-value' : 'is-empty'}`}>
+          <span className="task-schedule-selection-label">
+            {selectedDate ? formatTaskScheduleFullLabel(selectedDate) : '选择结束时间'}
+          </span>
+          <button className="task-schedule-selection-clear" type="button" aria-label="清除结束时间" onClick={() => setSelectedDate(null)}>
+            <ComposerCloseIcon />
+          </button>
+        </div>
+      </div>
+
+      <div className="task-schedule-month-panel">
+        <div className="task-schedule-month-header">
+          <div className="task-schedule-month-title">{formatTaskScheduleMonthLabel(viewDate)}</div>
+          <div className="task-schedule-month-nav">
+            <button
+              className="task-schedule-month-nav-btn"
+              type="button"
+              aria-label="上个月"
+              onClick={() => setViewDate(createCalendarDay(viewDate.getFullYear(), viewDate.getMonth() - 1, 1))}
+            >
+              <ScheduleMonthChevronIcon direction="left" />
+            </button>
+            <button
+              className="task-schedule-month-nav-btn"
+              type="button"
+              aria-label="下个月"
+              onClick={() => setViewDate(createCalendarDay(viewDate.getFullYear(), viewDate.getMonth() + 1, 1))}
+            >
+              <ScheduleMonthChevronIcon direction="right" />
+            </button>
+          </div>
+        </div>
+
+        <div className="task-schedule-weekdays">
+          {taskScheduleWeekdayLabels.map((label, index) => (
+            <div className={`task-schedule-weekday ${index === 6 ? 'is-saturday' : ''}`} key={label}>
+              {label}
+            </div>
+          ))}
+        </div>
+
+        <div className="task-schedule-grid">
+          {calendarDays.map((day) => {
+            const isSelected = selectedDate ? isSameCalendarDate(selectedDate, day.date) : false
+
+            return (
+              <button
+                className={[
+                  'task-schedule-day',
+                  day.isCurrentMonth ? '' : 'is-outside',
+                  day.isSaturday ? 'is-saturday' : '',
+                  isSelected ? 'is-selected' : '',
+                ].filter(Boolean).join(' ')}
+                key={day.key}
+                type="button"
+                onClick={() => setSelectedDate(day.date)}
+              >
+                <span className="task-schedule-day-number">{day.dayNumber}</span>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      <div className="task-schedule-option-list">
+        <div className={`task-schedule-option-row is-time-row ${isTimePickerOpen ? 'is-expanded' : ''} ${showTimeClear ? 'has-clear' : ''}`}>
+          <button
+            className="task-schedule-option-main"
+            type="button"
+            onClick={() => {
+              setHasSpecificTime(true)
+              setIsTimePickerOpen((current) => !current)
+            }}
+            >
+              <span className="task-schedule-option-leading">
+                <ScheduleClockIcon />
+              </span>
+              <span className="task-schedule-option-label">{hasSpecificTime ? timeLabel : '设置具体时间'}</span>
+              {!showTimeClear && (
+                <span className="task-schedule-option-trailing">
+                  <ScheduleRowChevronIcon direction={isTimePickerOpen ? 'up' : 'right'} />
+                </span>
+              )}
+          </button>
+
+          {showTimeClear && (
+            <button className="task-schedule-option-clear is-side" type="button" aria-label="清除具体时间" onClick={clearSpecificTime}>
+              <ComposerCloseIcon />
+            </button>
+          )}
+        </div>
+
+        {isTimePickerOpen && (
+          <div className="task-schedule-time-panel">
+            <div className="task-schedule-time-wheel">
+              <div
+                className="task-schedule-time-column"
+                ref={hourWheelRef}
+                onScroll={() => {
+                  if (hourSnapTimeoutRef.current) window.clearTimeout(hourSnapTimeoutRef.current)
+                  hourSnapTimeoutRef.current = window.setTimeout(snapHourWheel, 100)
+                }}
+              >
+                {hourOptions.map((hour) => (
+                  <button
+                    className={`task-schedule-time-cell ${selectedHour === hour ? 'is-active' : ''}`}
+                    key={`hour-${hour}`}
+                    type="button"
+                    onClick={() => {
+                      setSelectedHour(hour)
+                      hourWheelRef.current?.scrollTo({ top: hour * taskScheduleTimeCellHeight, behavior: 'smooth' })
+                    }}
+                  >
+                    {hour}
+                  </button>
+                ))}
+              </div>
+
+              <div
+                className="task-schedule-time-column"
+                ref={minuteWheelRef}
+                onScroll={() => {
+                  if (minuteSnapTimeoutRef.current) window.clearTimeout(minuteSnapTimeoutRef.current)
+                  minuteSnapTimeoutRef.current = window.setTimeout(snapMinuteWheel, 100)
+                }}
+              >
+                {taskScheduleMinuteOptions.map((minute) => (
+                  <button
+                    className={`task-schedule-time-cell ${selectedMinute === minute ? 'is-active' : ''}`}
+                    key={`minute-${minute}`}
+                    type="button"
+                    onClick={() => {
+                      setSelectedMinute(minute)
+                      const minuteIndex = taskScheduleMinuteOptions.findIndex((value) => value === minute)
+                      minuteWheelRef.current?.scrollTo({ top: minuteIndex * taskScheduleTimeCellHeight, behavior: 'smooth' })
+                    }}
+                  >
+                    {String(minute).padStart(2, '0')}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="task-schedule-option-gap" />
+
+        <div className={`task-schedule-option-row is-reminder-row ${isReminderPickerOpen ? 'is-expanded' : ''} ${showReminderClear ? 'has-clear' : ''}`}>
+          <button className="task-schedule-option-main" type="button" onClick={toggleReminderPicker}>
+            <span className="task-schedule-option-leading">
+              <ScheduleBellIcon />
+            </span>
+            <span className="task-schedule-option-label">{reminderLabel}</span>
+            {!showReminderClear && (
+              <span className="task-schedule-option-trailing">
+                <ScheduleRowChevronIcon direction={isReminderPickerOpen ? 'up' : 'right'} />
+              </span>
+            )}
+          </button>
+
+          {showReminderClear && (
+            <button className="task-schedule-option-clear is-side" type="button" aria-label="清除提醒" onClick={clearReminder}>
+              <ComposerCloseIcon />
+            </button>
+          )}
+        </div>
+
+        {isReminderPickerOpen && (
+          <div className="task-schedule-reminder-panel">
+            {taskScheduleReminderOptions.map((option) => (
+              <button
+                className={`task-schedule-reminder-choice ${draftReminder === option.value ? 'is-active' : ''}`}
+                key={option.value}
+                type="button"
+                onClick={() => {
+                  setDraftReminder(option.value)
+                  setHasReminderDraftChange(true)
+                }}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div className="task-schedule-option-gap" />
+
+        <button className="task-schedule-option-row" type="button">
+          <span className="task-schedule-option-leading">
+            <ScheduleRepeatIcon />
+          </span>
+          <span className="task-schedule-option-label">不重复</span>
+          <span className="task-schedule-option-trailing">
+            <ScheduleRowChevronIcon />
+          </span>
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function TaskDetailPage({
+  detail,
+  onClose,
+  onToggleDone,
+}: {
+  detail: TaskDetailState
+  onClose: () => void
+  onToggleDone: () => void
+}) {
+  const [dateChoice, setDateChoice] = useState<TaskDetailDateChoice>(detail.dateChoice)
+  const [customDate, setCustomDate] = useState<Date | null>(() => (
+    detail.dateChoice === 'other' ? getDefaultScheduleDate() : null
+  ))
+  const [hasCustomTime, setHasCustomTime] = useState(false)
+  const [scheduleReminder, setScheduleReminder] = useState<TaskScheduleReminder>(taskScheduleDefaultReminder)
+  const [commentValue, setCommentValue] = useState('')
+  const [comments, setComments] = useState([
+    { id: 'task-created', actor: '张洪磊', text: '创建了任务', time: detail.commentTime },
+  ])
+  const [showAssignee, setShowAssignee] = useState(true)
+  const [showSchedulePage, setShowSchedulePage] = useState(false)
+
+  const otherDateLabel = customDate ? formatTaskScheduleDetailLabel(customDate, hasCustomTime) : '其他时间'
+
+  const handleSendComment = () => {
+    if (!commentValue.trim()) return
+    setComments(prev => [...prev, { id: `comment-${Date.now()}`, actor: '我', text: commentValue.trim(), time: '刚刚' }])
+    setCommentValue('')
+  }
+
+  return (
+    <div className="task-detail-page">
+      <div className="task-detail-header">
+        <button className="task-detail-header-btn is-back" type="button" aria-label="返回" onClick={onClose}>
+          <DetailBackIcon />
+        </button>
+
+        <div className="task-detail-header-actions">
+          <button className="task-detail-header-btn" type="button" aria-label="收藏">
+            <DetailBookmarkIcon />
+          </button>
+          <button className="task-detail-header-btn" type="button" aria-label="分享">
+            <DetailShareIcon />
+          </button>
+          <button className="task-detail-header-btn" type="button" aria-label="复制">
+            <DetailCopyIcon />
+          </button>
+          <button className="task-detail-header-btn" type="button" aria-label="更多">
+            <DetailMoreIcon />
+          </button>
+        </div>
+      </div>
+
+      <div className="task-detail-scroll">
+        <div className="task-detail-title-row">
+          <button
+            className={`task-detail-check ${detail.done ? 'is-checked' : ''}`}
+            type="button"
+            aria-label={detail.done ? '标记为未完成' : '标记为完成'}
+            onClick={onToggleDone}
+          >
+            {detail.done && (
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            )}
+          </button>
+          <div className={`task-detail-title ${detail.done ? 'is-done' : ''}`}>{detail.title}</div>
+        </div>
+
+        <div className="task-detail-source-row">
+          <span className="task-detail-source-icon">
+            <DetailSourceIcon />
+          </span>
+          <div className="task-detail-source-text">{detail.sourceText}</div>
+        </div>
+
+        <div className="task-detail-note-pill">{detail.noteLabel}</div>
+
+        <div className="task-detail-form-row">
+          <span className="task-detail-leading-icon">
+            <ComposerPersonIcon />
+          </span>
+
+          {showAssignee && (
+            <button className="task-detail-assignee-chip" type="button" onClick={() => setShowAssignee(false)}>
+              {renderTaskDetailBadgeAvatar(detail.assigneeBadge, 'task-detail-assignee-avatar')}
+              <span className="task-detail-assignee-name">{detail.assigneeName}</span>
+              <span className="task-detail-assignee-close">
+                <ComposerCloseIcon />
+              </span>
+            </button>
+          )}
+
+          <span className="task-detail-form-divider" />
+
+          <button className="task-detail-group-trigger" type="button">
+            <span>{detail.groupName}</span>
+            <ChevronDownIcon color="#7d838d" />
+          </button>
+        </div>
+
+        <div className="task-detail-form-row is-date-row">
+          <span className="task-detail-leading-icon">
+            <ComposerOtherDateIcon active={false} />
+          </span>
+
+          <div className="task-detail-date-pills">
+            <button className={`task-detail-date-pill ${dateChoice === 'today' ? 'is-active is-today' : ''}`} type="button" onClick={() => setDateChoice('today')}>
+              <ComposerTodayIcon active={dateChoice === 'today'} />
+              <span>今天</span>
+            </button>
+            <button className={`task-detail-date-pill ${dateChoice === 'tomorrow' ? 'is-active is-tomorrow' : ''}`} type="button" onClick={() => setDateChoice('tomorrow')}>
+              <ComposerTomorrowIcon active={dateChoice === 'tomorrow'} />
+              <span>明天</span>
+            </button>
+            <button
+              className={`task-detail-date-pill ${dateChoice === 'other' ? 'is-active is-other' : ''}`}
+              type="button"
+              onClick={() => setShowSchedulePage(true)}
+            >
+              <ComposerOtherDateIcon active={dateChoice === 'other'} />
+              <span>{otherDateLabel}</span>
+            </button>
+          </div>
+        </div>
+
+        <button className="task-detail-action-row" type="button">
+          <span className="task-detail-leading-icon">
+            <ComposerChecklistIcon />
+          </span>
+          <span>添加至任务清单</span>
+        </button>
+
+        <button className="task-detail-action-row" type="button">
+          <span className="task-detail-leading-icon">
+            <ComposerSubtaskIcon />
+          </span>
+          <span>添加子任务</span>
+        </button>
+
+        <button className="task-detail-action-row" type="button">
+          <span className="task-detail-leading-icon">
+            <ComposerAttachmentIcon />
+          </span>
+          <span>添加附件</span>
+        </button>
+
+        <button className="task-detail-action-row" type="button">
+          <span className="task-detail-leading-icon">
+            <ComposerFollowerIcon />
+          </span>
+          <span>添加关注人</span>
+        </button>
+
+        <div className="task-detail-comments-section">
+          <div className="task-detail-comments-title">评论</div>
+
+          <div className="task-detail-comments-list">
+            {comments.map(comment => (
+              <div className="task-detail-comment-item" key={comment.id}>
+                <span className="task-detail-comment-dot" />
+                <div className="task-detail-comment-content">
+                  <span className="task-detail-comment-actor">{comment.actor}</span>
+                  <span className="task-detail-comment-text">{comment.text}</span>
+                  <span className="task-detail-comment-time">{comment.time}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="task-detail-comment-bar">
+        <input
+          className="task-detail-comment-input"
+          type="text"
+          value={commentValue}
+          onChange={(event) => setCommentValue(event.target.value)}
+          placeholder="输入评论"
+        />
+
+        <div className="task-detail-comment-actions">
+          <button className="task-detail-comment-icon-btn" type="button" aria-label="提及">
+            <CommentAtIcon />
+          </button>
+          <button className="task-detail-comment-icon-btn" type="button" aria-label="图片">
+            <CommentImageIcon />
+          </button>
+          <button className="task-detail-comment-icon-btn" type="button" aria-label="附件">
+            <ComposerAttachmentIcon />
+          </button>
+          <button
+            className={`task-detail-send-btn ${commentValue.trim() ? 'is-active' : ''}`}
+            type="button"
+            aria-label="发送评论"
+            onClick={handleSendComment}
+          >
+            <CommentSendIcon active={Boolean(commentValue.trim())} />
+          </button>
+        </div>
+      </div>
+
+      {showSchedulePage && (
+        <TaskSchedulePage
+          initialDate={customDate ?? (dateChoice === 'today' ? getDefaultScheduleDate() : getDefaultScheduleDate())}
+          initialHasSpecificTime={hasCustomTime}
+          initialReminder={scheduleReminder}
+          onCancel={() => setShowSchedulePage(false)}
+          onSave={({ date, hasSpecificTime, reminder }) => {
+            setCustomDate(date)
+            setHasCustomTime(hasSpecificTime)
+            setScheduleReminder(reminder)
+            setDateChoice('other')
+            setShowSchedulePage(false)
+          }}
+        />
+      )}
+    </div>
+  )
 }
 
 function AddTaskSheet({
@@ -970,6 +1810,7 @@ export default function TaskPage() {
   const [activeCollectionKey, setActiveCollectionKey] = useState<TaskCollectionKey | null>(null)
   const [showAddTask, setShowAddTask] = useState(false)
   const [showDrawer, setShowDrawer] = useState(false)
+  const [selectedTaskDetail, setSelectedTaskDetail] = useState<TaskDetailState | null>(null)
 
   const visibleGroups = taskViews[activeTab]
   const activeCollection = activeCollectionKey ? taskCollections[activeCollectionKey] : null
@@ -1043,6 +1884,54 @@ export default function TaskPage() {
         )),
       },
     }))
+  }
+
+  const openGroupTaskDetail = (group: TaskGroup, task: TaskItem) => {
+    const assigneeBadge = pickDetailAssigneeBadge(task.assignees)
+    setSelectedTaskDetail({
+      id: task.id,
+      title: task.title,
+      done: task.done,
+      sourceRef: { kind: 'group', groupId: group.id },
+      sourceText: buildTaskDetailSourceText(task.title),
+      noteLabel: '创建于建国：建国',
+      assigneeBadge,
+      assigneeName: getTaskAssigneeName(assigneeBadge),
+      groupName: group.name,
+      dateChoice: getDetailDateChoice(task.dueDate),
+      commentTime: '5月14日 14:27',
+    })
+  }
+
+  const openCollectionTaskDetail = (collectionKey: TaskCollectionKey, task: TaskCollectionItem) => {
+    const assigneeBadge = pickDetailAssigneeBadge(task.assignees)
+    setSelectedTaskDetail({
+      id: task.id,
+      title: task.title,
+      done: task.done,
+      sourceRef: { kind: 'collection', collectionKey },
+      sourceText: buildTaskDetailSourceText(task.title),
+      noteLabel: '创建于建国：建国',
+      assigneeBadge,
+      assigneeName: getTaskAssigneeName(assigneeBadge),
+      groupName: '默认分组',
+      dateChoice: getDetailDateChoice(task.meta),
+      commentTime: '5月14日 14:27',
+    })
+  }
+
+  const handleDetailToggleDone = () => {
+    if (!selectedTaskDetail) return
+
+    if (selectedTaskDetail.sourceRef.kind === 'group') {
+      toggleTaskDone(selectedTaskDetail.sourceRef.groupId, selectedTaskDetail.id)
+    } else {
+      toggleCollectionTaskDone(selectedTaskDetail.sourceRef.collectionKey, selectedTaskDetail.id)
+    }
+
+    setSelectedTaskDetail(prev => (
+      prev ? { ...prev, done: !prev.done } : prev
+    ))
   }
 
   const isDrawerOpen = showDrawer
@@ -1195,12 +2084,29 @@ export default function TaskPage() {
             {activeCollection ? (
               <div className="task-collection-list">
                 {activeCollection.items.map(task => (
-                  <div className={`task-collection-item ${task.done ? 'is-done' : ''}`} key={task.id}>
+                  <div
+                    className={`task-collection-item ${task.done ? 'is-done' : ''}`}
+                    key={task.id}
+                    onClick={() => activeCollectionKey && openCollectionTaskDetail(activeCollectionKey, task)}
+                    onKeyDown={(event) => {
+                      if ((event.key === 'Enter' || event.key === ' ') && activeCollectionKey) {
+                        event.preventDefault()
+                        openCollectionTaskDetail(activeCollectionKey, task)
+                      }
+                    }}
+                    role="button"
+                    tabIndex={0}
+                  >
                     <button
                       className={`task-collection-check ${task.done ? 'is-checked' : ''}`}
                       type="button"
                       aria-label={task.done ? '标记为未完成' : '标记为完成'}
-                      onClick={() => activeCollectionKey && toggleCollectionTaskDone(activeCollectionKey, task.id)}
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        if (activeCollectionKey) {
+                          toggleCollectionTaskDone(activeCollectionKey, task.id)
+                        }
+                      }}
                     >
                       {task.done && (
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
@@ -1272,12 +2178,27 @@ export default function TaskPage() {
                         )}
 
                         {group.tasks.map(task => (
-                          <div className={`task-item ${task.done ? 'is-done' : ''}`} key={task.id}>
+                          <div
+                            className={`task-item ${task.done ? 'is-done' : ''}`}
+                            key={task.id}
+                            onClick={() => openGroupTaskDetail(group, task)}
+                            onKeyDown={(event) => {
+                              if (event.key === 'Enter' || event.key === ' ') {
+                                event.preventDefault()
+                                openGroupTaskDetail(group, task)
+                              }
+                            }}
+                            role="button"
+                            tabIndex={0}
+                          >
                             <button
                               className={`task-check ${task.done ? 'is-checked' : ''}`}
                               type="button"
                               aria-label={task.done ? '标记为未完成' : '标记为完成'}
-                              onClick={() => toggleTaskDone(group.id, task.id)}
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                toggleTaskDone(group.id, task.id)
+                              }}
                             >
                               {task.done && (
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
@@ -1323,6 +2244,15 @@ export default function TaskPage() {
           onAdd={handleAddTask}
           groupOptions={groupOptions.length > 0 ? groupOptions : [{ id: 'default', name: '默认分组' }]}
           defaultGroupId={addTargetGroupId || groupOptions[0]?.id || 'default'}
+        />
+      )}
+
+      {selectedTaskDetail && (
+        <TaskDetailPage
+          key={selectedTaskDetail.id}
+          detail={selectedTaskDetail}
+          onClose={() => setSelectedTaskDetail(null)}
+          onToggleDone={handleDetailToggleDone}
         />
       )}
     </div>
