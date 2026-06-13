@@ -1,4 +1,5 @@
 .community-home {
+  --community-bottom-nav-clearance: calc(72px + env(safe-area-inset-bottom));
   --community-primary: #2874ff;
   --community-primary-soft: #edf3ff;
   --community-bg: #f4f5f8;
@@ -12,7 +13,7 @@
   --community-hero-title: 2rem;
   --community-section-title: 1.4rem;
   --community-body-size: 0.9rem;
-  height: 100%;
+  height: calc(100% - var(--community-bottom-nav-clearance));
   overflow-y: auto;
   background:
     radial-gradient(circle at top right, rgba(94, 145, 255, 0.18) 0%, rgba(94, 145, 255, 0) 28%),
@@ -47,7 +48,7 @@
   display: flex;
   flex-direction: column;
   gap: 1.1rem;
-  padding: 1.1rem 1rem calc(7.25rem + env(safe-area-inset-bottom));
+  padding: 1.1rem 1rem 1.5rem;
 }
 
 .community-home-shell-discussion {
